@@ -3,6 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../../src/ui/theme';
 import { Typography } from '../../src/ui/components/Typography';
 import { Card } from '../../src/ui/components/Card';
+import { SimpleMarkdown } from '../../src/ui/components/SimpleMarkdown';
 import { 
   Sun, Moon, Smartphone, X, CheckCircle, Sparkles, ChevronRight, 
   ShieldCheck, FileText, Info, Trash
@@ -137,11 +138,12 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <Typography variant="body" color={colors.text} style={{ lineHeight: 22 }}>
-              {documentType === 'privacy' ? PRIVACY_POLICY : TERMS_OF_SERVICE}
-            </Typography>
-            <View style={{ height: 40 }} />
+          <ScrollView 
+            showsVerticalScrollIndicator={true}
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingBottom: 40 }}
+          >
+            <SimpleMarkdown content={documentType === 'privacy' ? PRIVACY_POLICY : TERMS_OF_SERVICE} />
           </ScrollView>
         </Pressable>
       </Pressable>
