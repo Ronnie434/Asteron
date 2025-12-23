@@ -10,6 +10,7 @@ import {
 import { useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../src/contexts/ThemeContext';
+import { TERMS_OF_SERVICE, PRIVACY_POLICY } from '../../src/data/legal';
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -24,6 +25,7 @@ export default function SettingsScreen() {
   const [quietHours, setQuietHours] = useState(true);
   const [dailyBrief, setDailyBrief] = useState(true);
   const [themeModalVisible, setThemeModalVisible] = useState(false);
+  const [documentType, setDocumentType] = useState<'terms' | 'privacy' | null>(null);
 
   const getThemeLabel = () => {
     switch (themeMode) {
@@ -103,6 +105,44 @@ export default function SettingsScreen() {
           
           {/* Safety padding for bottom notch */}
           <View style={{ height: 20 }} />
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+
+  const DocumentModal = () => (
+    <Modal
+      visible={!!documentType}
+      transparent
+      animationType="slide"
+      onRequestClose={() => setDocumentType(null)}
+    >
+      <Pressable 
+        style={styles.modalOverlay}
+        onPress={() => setDocumentType(null)}
+      >
+        <Pressable 
+          style={[styles.modalContent, styles.documentModal, { backgroundColor: colors.card }]}
+          onPress={(e) => e.stopPropagation()}
+        >
+          {/* Draggable Handle Indicator */}
+          <View style={styles.dragHandle} />
+
+          <View style={styles.modalHeader}>
+            <Typography variant="headline">
+              {documentType === 'privacy' ? 'Privacy Policy' : 'Terms of Service'}
+            </Typography>
+            <TouchableOpacity onPress={() => setDocumentType(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <X size={24} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false}>
+            <Typography variant="body" color={colors.text} style={{ lineHeight: 22 }}>
+              {documentType === 'privacy' ? PRIVACY_POLICY : TERMS_OF_SERVICE}
+            </Typography>
+            <View style={{ height: 40 }} />
+          </ScrollView>
         </Pressable>
       </Pressable>
     </Modal>
@@ -224,7 +264,6 @@ export default function SettingsScreen() {
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
       edges={['top']}
-      pointerEvents="box-none"
     >
       <ScrollView
         contentContainerStyle={styles.content}
@@ -267,6 +306,7 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </Card>
         <ThemeModal />
+        <DocumentModal />
 
         {/* Notifications */}
         <Typography 
@@ -307,14 +347,14 @@ export default function SettingsScreen() {
             Icon={ShieldCheck}
             title="Privacy Policy"
             showArrow
-            onPress={() => {}}
+            onPress={() => setDocumentType('privacy')}
           />
           <View style={styles.separator} />
           <SettingRow
             Icon={FileText}
             title="Terms of Service"
             showArrow
-            onPress={() => {}}
+            onPress={() => setDocumentType('terms')}
           />
           <View style={styles.separator} />
           <SettingRow
@@ -471,7 +511,7 @@ const styles = StyleSheet.create({
   membershipText: {
     fontWeight: '500',
   },
-  // Modal Styles (Updated for Bottom Sheet)
+  // Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -485,6 +525,9 @@ const styles = StyleSheet.create({
     padding: theme.spacing.lg,
     paddingBottom: 40, 
     ...theme.shadows.elevated,
+  },
+  documentModal: {
+    height: '92%', // Taller for reading content
   },
   dragHandle: {
     width: 40,
