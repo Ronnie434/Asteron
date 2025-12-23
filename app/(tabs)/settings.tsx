@@ -5,7 +5,7 @@ import { Typography } from '../../src/ui/components/Typography';
 import { Card } from '../../src/ui/components/Card';
 import { 
   Sun, Moon, Smartphone, X, CheckCircle, Sparkles, ChevronRight, 
-  ShieldCheck, FileText, Info, Trash, LucideIcon
+  ShieldCheck, FileText, Info, Trash
 } from 'lucide-react-native';
 import { useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -37,7 +37,7 @@ export default function SettingsScreen() {
     <Modal
       visible={themeModalVisible}
       transparent
-      animationType="fade"
+      animationType="slide"
       onRequestClose={() => setThemeModalVisible(false)}
     >
       <Pressable 
@@ -48,9 +48,12 @@ export default function SettingsScreen() {
           style={[styles.modalContent, { backgroundColor: colors.card }]}
           onPress={(e) => e.stopPropagation()}
         >
+          {/* Draggable Handle Indicator */}
+          <View style={styles.dragHandle} />
+
           <View style={styles.modalHeader}>
             <Typography variant="headline">Choose Theme</Typography>
-            <TouchableOpacity onPress={() => setThemeModalVisible(false)}>
+            <TouchableOpacity onPress={() => setThemeModalVisible(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <X size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
@@ -97,6 +100,9 @@ export default function SettingsScreen() {
               )}
             </TouchableOpacity>
           ))}
+          
+          {/* Safety padding for bottom notch */}
+          <View style={{ height: 20 }} />
         </Pressable>
       </Pressable>
     </Modal>
@@ -365,11 +371,10 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
   },
   content: {
     padding: theme.spacing.lg,
-    paddingBottom: 120,
+    paddingBottom: 120, // Enough space for tab bar and scrolling
   },
   header: {
     marginBottom: theme.spacing.lg,
@@ -466,20 +471,28 @@ const styles = StyleSheet.create({
   membershipText: {
     fontWeight: '500',
   },
-  // Modal Styles
+  // Modal Styles (Updated for Bottom Sheet)
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: theme.spacing.lg,
+    justifyContent: 'flex-end',
   },
   modalContent: {
     width: '100%',
-    maxWidth: 340,
-    borderRadius: theme.borderRadius.xl,
+    backgroundColor: theme.colors.card,
+    borderTopLeftRadius: theme.borderRadius.xl,
+    borderTopRightRadius: theme.borderRadius.xl,
     padding: theme.spacing.lg,
+    paddingBottom: 40, 
     ...theme.shadows.elevated,
+  },
+  dragHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: theme.spacing.md,
   },
   modalHeader: {
     flexDirection: 'row',
