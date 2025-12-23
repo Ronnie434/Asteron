@@ -5,11 +5,11 @@
     "scheme": "ai-companion",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "icon": "./assets/AI_Companion_icon.png",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/AI_Companion_icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -19,7 +19,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/AI_Companion_icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
@@ -27,7 +27,7 @@
       "package": "com.ronnie39.aicompanionapp"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/AI_Companion_icon.png"
     },
     "plugins": [
       "expo-router",

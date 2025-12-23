@@ -333,6 +333,21 @@ export default function SettingsScreen() {
           />
         </Card>
 
+        {/* App Branding */}
+        <View style={styles.appBrandingContainer}>
+          <Image 
+            source={require('../../assets/AI_Companion_icon.png')}
+            style={styles.appIcon}
+            resizeMode="contain"
+          />
+          <Typography variant="headline" style={styles.appName}>
+            AI Companion
+          </Typography>
+          <Typography variant="footnote" color={colors.textSecondary}>
+            Your intelligent personal assistant
+          </Typography>
+        </View>
+        
         {/* Footer */}
         <View style={styles.footer}>
           <Typography variant="caption1" color={colors.textTertiary}>
@@ -486,5 +501,19 @@ const styles = StyleSheet.create({
   },
   themeOptionContent: {
     flex: 1,
+  },
+  appBrandingContainer: {
+    alignItems: 'center',
+    marginTop: theme.spacing.xxl,
+    marginBottom: theme.spacing.lg,
+  },
+  appIcon: {
+    width: 80,
+    height: 80,
+    marginBottom: theme.spacing.md,
+    borderRadius: 18,
+  },
+  appName: {
+    marginBottom: theme.spacing.xs,
   },
 });

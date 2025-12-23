@@ -1,4 +1,4 @@
-import { View, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, ScrollView, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../src/ui/theme';
@@ -68,7 +68,14 @@ export default function BriefScreen() {
         {/* Daily Brief Card */}
         <Card style={[styles.briefCard, { flex: 1 }]}>
           <View style={styles.briefHeader}>
-            <Typography variant="title1">Daily Brief</Typography>
+            <View style={styles.briefTitleContainer}>
+              <Image 
+                source={require('../../assets/AI_Companion_icon.png')}
+                style={styles.headerIcon}
+                resizeMode="contain"
+              />
+              <Typography variant="title1">Daily Brief</Typography>
+            </View>
             <TouchableOpacity 
               onPress={() => router.push('/voice')}
               activeOpacity={0.6}
@@ -142,6 +149,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: theme.spacing.xl,
+  },
+  briefTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  headerIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
   },
   section: {
     marginBottom: theme.spacing.xl,

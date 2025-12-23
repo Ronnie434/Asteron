@@ -87,6 +87,11 @@ function FloatingTabBar() {
   const pathname = usePathname();
   const router = useRouter();
 
+  // All hooks must be called before any conditional returns
+  const handleTabPress = useCallback((path: string) => {
+    router.push(path as any);
+  }, [router]);
+
   // Determine which tab is active
   const activeTab = TAB_ROUTES.find(route =>
     pathname === `/${route.name}` ||
@@ -99,10 +104,6 @@ function FloatingTabBar() {
   if (pathname === '/voice' || pathname === '/confirm') {
     return null;
   }
-
-  const handleTabPress = useCallback((path: string) => {
-    router.push(path as any);
-  }, [router]);
 
   return (
     <View

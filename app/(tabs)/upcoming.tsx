@@ -1,4 +1,4 @@
-import { View, ScrollView, StyleSheet } from 'react-native';
+import { View, ScrollView, StyleSheet, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../../src/ui/theme';
 import { Typography } from '../../src/ui/components/Typography';
@@ -50,7 +50,14 @@ export default function UpcomingScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Typography variant="largeTitle">Upcoming</Typography>
+          <View style={styles.headerContainer}>
+            <Image 
+              source={require('../../assets/AI_Companion_icon.png')}
+              style={styles.headerIcon}
+              resizeMode="contain"
+            />
+            <Typography variant="largeTitle">Upcoming</Typography>
+          </View>
         </View>
 
         {Object.entries(grouped).map(([date, dateItems]) => (
@@ -124,6 +131,16 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: theme.spacing.xl,
+  },
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  headerIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 9,
   },
   section: {
     marginBottom: theme.spacing.xl,
