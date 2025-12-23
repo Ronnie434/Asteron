@@ -111,6 +111,7 @@ export default function SettingsScreen() {
     </Modal>
   );
 
+
   const DocumentModal = () => (
     <Modal
       visible={!!documentType}
@@ -118,13 +119,13 @@ export default function SettingsScreen() {
       animationType="slide"
       onRequestClose={() => setDocumentType(null)}
     >
-      <Pressable 
-        style={styles.modalOverlay}
-        onPress={() => setDocumentType(null)}
-      >
+      <View style={styles.modalOverlay}>
         <Pressable 
+          style={StyleSheet.absoluteFill} 
+          onPress={() => setDocumentType(null)}
+        />
+        <View 
           style={[styles.modalContent, styles.documentModal, { backgroundColor: colors.card }]}
-          onPress={(e) => e.stopPropagation()}
         >
           {/* Draggable Handle Indicator */}
           <View style={styles.dragHandle} />
@@ -141,14 +142,15 @@ export default function SettingsScreen() {
           <ScrollView 
             showsVerticalScrollIndicator={true}
             style={{ flex: 1 }}
-            contentContainerStyle={{ paddingBottom: 40 }}
+            contentContainerStyle={{ paddingBottom: 60 }}
           >
             <SimpleMarkdown content={documentType === 'privacy' ? PRIVACY_POLICY : TERMS_OF_SERVICE} />
           </ScrollView>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
+
 
   const UserProfileSection = () => (
     <Card style={styles.profileCard}>
