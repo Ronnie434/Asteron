@@ -1,14 +1,16 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Typography } from './Typography';
-import { theme } from '../theme';
+import { useTheme } from '../../contexts/ThemeContext'; // Dynamic theme
 
 interface SimpleMarkdownProps {
   content: string;
 }
 
 export function SimpleMarkdown({ content }: SimpleMarkdownProps) {
-  // Split by newlines but keep track of blocks
+  const { colors } = useTheme(); // Access dynamic colors
+  
+  // Split by newlines
   const lines = content.split('\n');
 
   return (
@@ -24,16 +26,19 @@ export function SimpleMarkdown({ content }: SimpleMarkdownProps) {
         // H1: # Title
         if (line.startsWith('# ')) {
           return (
-            <Typography key={key} variant="title2" style={styles.h1}>
-              {line.replace('# ', '')}
-            </Typography>
+            <View key={key} style={styles.h1Container}>
+              <Typography variant="title1" style={{ color: colors.primary, marginBottom: 8 }}>
+                {line.replace('# ', '')}
+              </Typography>
+              <View style={{ height: 1, backgroundColor: colors.separator, width: '100%' }} />
+            </View>
           );
         }
 
         // H2: ## Title
         if (line.startsWith('## ')) {
           return (
-            <Typography key={key} variant="headline" style={styles.h2}>
+            <Typography key={key} variant="title3" style={[styles.h2, { color: colors.text }]}>
               {line.replace('## ', '')}
             </Typography>
           );
@@ -42,7 +47,7 @@ export function SimpleMarkdown({ content }: SimpleMarkdownProps) {
         // H3: ### Title
         if (line.startsWith('### ')) {
           return (
-            <Typography key={key} variant="subhead" style={styles.h3}>
+            <Typography key={key} variant="headline" style={[styles.h3, { color: colors.text }]}>
               {line.replace('### ', '')}
             </Typography>
           );
@@ -52,25 +57,25 @@ export function SimpleMarkdown({ content }: SimpleMarkdownProps) {
         if (line.trim().startsWith('- ')) {
           return (
             <View key={key} style={styles.listItem}>
-              <View style={styles.bullet} />
-              <Typography variant="body" style={styles.listItemText}>
+              <View style={[styles.bullet, { backgroundColor: colors.primary }]} />
+              <Typography variant="body" style={{ color: colors.textSecondary, flex: 1, lineHeight: 24 }}>
                 {line.replace('- ', '').replace(/\*\*/g, '')}
               </Typography>
             </View>
           );
         }
 
-        // Table row (simple rendering)
+        // Table row (Card style)
         if (line.includes('|')) {
            // Skip separator lines like |---|---|
            if (line.match(/\|[-]+\|/)) return null;
 
            const cols = line.split('|').filter(c => c.trim());
            return (
-             <View key={key} style={styles.tableRow}>
+             <View key={key} style={[styles.tableRow, { backgroundColor: colors.card, borderColor: colors.separator }]}>
                {cols.map((col, i) => (
-                 <View key={i} style={styles.tableCol}>
-                    <Typography variant="caption1" color={theme.colors.textSecondary}>
+                 <View key={i} style={[styles.tableCol, i < cols.length - 1 && { borderRightWidth: 1, borderRightColor: colors.separator }]}>
+                    <Typography variant="caption1" style={{ color: colors.text }}>
                       {col.trim()}
                     </Typography>
                  </View>
@@ -80,10 +85,12 @@ export function SimpleMarkdown({ content }: SimpleMarkdownProps) {
         }
 
         // Clean up bold syntax **text** for plain paragraphs
+        // We will simple-parse bold if needed, but for now just stripping mostly or keeping plain
+        const isBold = line.includes('**');
         const cleanLine = line.replace(/\*\*/g, '');
 
         return (
-          <Typography key={key} variant="body" style={styles.paragraph}>
+          <Typography key={key} variant="body" style={[styles.paragraph, { color: colors.textSecondary }]}>
             {cleanLine}
           </Typography>
         );
@@ -94,26 +101,22 @@ export function SimpleMarkdown({ content }: SimpleMarkdownProps) {
 
 const styles = StyleSheet.create({
   container: {
-    paddingBottom: 40,
+    paddingBottom: 20,
   },
   spacer: {
-    height: 12,
+    height: 16,
   },
-  h1: {
-    marginTop: 24,
-    marginBottom: 16,
-    color: theme.colors.primary,
+  h1Container: {
+    marginTop: 32,
+    marginBottom: 24,
   },
   h2: {
-    marginTop: 20,
+    marginTop: 24,
     marginBottom: 12,
-    color: theme.colors.text,
   },
   h3: {
-    marginTop: 16,
+    marginTop: 20,
     marginBottom: 8,
-    color: theme.colors.text,
-    fontWeight: '600',
   },
   paragraph: {
     marginBottom: 4,
@@ -122,30 +125,27 @@ const styles = StyleSheet.create({
   listItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 8,
-    paddingLeft: 8,
+    marginBottom: 12,
+    paddingLeft: 4,
   },
   bullet: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: theme.colors.primary,
-    marginTop: 8,
+    marginTop: 9,
     marginRight: 12,
-  },
-  listItemText: {
-    flex: 1,
-    lineHeight: 22,
   },
   tableRow: {
     flexDirection: 'row',
     marginBottom: 8,
-    paddingVertical: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: theme.colors.separator,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderRadius: 8,
   },
   tableCol: {
     flex: 1,
-    paddingHorizontal: 4,
+    paddingHorizontal: 8,
+    justifyContent: 'center',
   }
 });
