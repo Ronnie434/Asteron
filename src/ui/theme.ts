@@ -1,41 +1,82 @@
 // Apple-inspired design system
 // Clean, minimal, light backgrounds with subtle glass effects
 
+// Light Theme Colors
+export const lightColors = {
+    // Backgrounds - Light, clean
+    background: '#F2F2F7', // iOS light gray
+    backgroundSecondary: '#FFFFFF',
+
+    // Cards - White with subtle effects
+    card: '#FFFFFF',
+    cardElevated: 'rgba(255,255,255,0.95)',
+
+    // Text - System colors
+    text: '#000000',
+    textSecondary: '#8E8E93',
+    textTertiary: '#C7C7CC',
+
+    // Primary accent - iOS blue
+    primary: '#007AFF',
+    primaryLight: 'rgba(0, 122, 255, 0.1)',
+    accent: '#5856D6', // iOS purple for premium features
+
+    // Semantic colors
+    success: '#34C759',
+    warning: '#FF9500',
+    danger: '#FF3B30',
+
+    // Borders
+    separator: 'rgba(60, 60, 67, 0.12)',
+
+    // Glass effect
+    glass: 'rgba(255,255,255,0.8)',
+    glassBorder: 'rgba(0,0,0,0.04)',
+
+    // Surface variants
+    surface: '#FFFFFF',
+    surfaceSecondary: '#F9F9F9',
+} as const;
+
+// Dark Theme Colors
+export const darkColors = {
+    // Backgrounds - Dark, clean
+    background: '#000000', // Pure black
+    backgroundSecondary: '#1C1C1E',
+
+    // Cards - Dark with subtle effects
+    card: '#1C1C1E',
+    cardElevated: 'rgba(28, 28, 30, 0.95)',
+
+    // Text - System colors (dark mode)
+    text: '#FFFFFF',
+    textSecondary: '#AEAEB2',
+    textTertiary: '#8E8E93', // iOS standard tertiary text for dark mode
+
+    // Primary accent - iOS blue (same in dark)
+    primary: '#0A84FF',
+    primaryLight: 'rgba(10, 132, 255, 0.15)',
+    accent: '#5E5CE6', // iOS purple for premium features (dark mode)
+
+    // Semantic colors (brighter for dark mode)
+    success: '#32D74B',
+    warning: '#FF9F0A',
+    danger: '#FF453A',
+
+    // Borders
+    separator: 'rgba(84, 84, 88, 0.6)',
+
+    // Glass effect
+    glass: 'rgba(28, 28, 30, 0.8)',
+    glassBorder: 'rgba(255,255,255,0.08)',
+
+    // Surface variants
+    surface: '#1C1C1E',
+    surfaceSecondary: '#2C2C2E',
+} as const;
+
 export const theme = {
-    colors: {
-        // Backgrounds - Light, clean
-        background: '#F2F2F7', // iOS light gray
-        backgroundSecondary: '#FFFFFF',
-
-        // Cards - White with subtle effects
-        card: '#FFFFFF',
-        cardElevated: 'rgba(255,255,255,0.95)',
-
-        // Text - System colors
-        text: '#000000',
-        textSecondary: '#8E8E93',
-        textTertiary: '#C7C7CC',
-
-        // Primary accent - iOS blue
-        primary: '#007AFF',
-        primaryLight: 'rgba(0, 122, 255, 0.1)',
-
-        // Semantic colors
-        success: '#34C759',
-        warning: '#FF9500',
-        danger: '#FF3B30',
-
-        // Borders
-        separator: 'rgba(60, 60, 67, 0.12)',
-
-        // Glass effect
-        glass: 'rgba(255,255,255,0.8)',
-        glassBorder: 'rgba(0,0,0,0.04)',
-
-        // Surface variants
-        surface: '#FFFFFF',
-        surfaceSecondary: '#F9F9F9',
-    },
+    colors: lightColors, // Default to light
 
     spacing: {
         xs: 4,

@@ -2,6 +2,7 @@ import { StyleSheet, ActivityIndicator, View } from 'react-native';
 import { TouchableOpacity } from 'react-native-gesture-handler';
 import { theme } from '../theme';
 import { Typography } from './Typography';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface ButtonProps {
   variant?: 'primary' | 'secondary' | 'text';
@@ -20,6 +21,7 @@ export function Button({
   onPress,
   style,
 }: ButtonProps) {
+  const { colors } = useTheme();
   const isDisabled = disabled || loading;
 
   return (
@@ -29,8 +31,8 @@ export function Button({
       activeOpacity={0.7}
       style={[
         styles.button,
-        variant === 'primary' && styles.primary,
-        variant === 'secondary' && styles.secondary,
+        variant === 'primary' && { backgroundColor: colors.primary },
+        variant === 'secondary' && { backgroundColor: colors.primaryLight },
         variant === 'text' && styles.text,
         isDisabled && styles.disabled,
         style,
@@ -38,7 +40,7 @@ export function Button({
     >
       {loading ? (
         <ActivityIndicator 
-          color={variant === 'primary' ? '#FFFFFF' : theme.colors.primary} 
+          color={variant === 'primary' ? '#FFFFFF' : colors.primary} 
           size="small"
         />
       ) : (
@@ -47,9 +49,7 @@ export function Button({
           color={
             variant === 'primary' 
               ? '#FFFFFF' 
-              : variant === 'secondary'
-                ? theme.colors.primary
-                : theme.colors.primary
+              : colors.primary
           }
         >
           {label}
@@ -66,12 +66,6 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  primary: {
-    backgroundColor: theme.colors.primary,
-  },
-  secondary: {
-    backgroundColor: theme.colors.primaryLight,
   },
   text: {
     backgroundColor: 'transparent',

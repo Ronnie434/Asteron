@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, ViewProps, StyleSheet } from 'react-native';
 import { theme } from '../theme';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface CardProps extends ViewProps {
   variant?: 'default' | 'inset' | 'plain';
@@ -13,12 +14,14 @@ export function Card({
   children, 
   ...props 
 }: CardProps) {
+  const { colors } = useTheme();
+  
   return (
     <View 
       style={[
         styles.card,
-        variant === 'inset' && styles.inset,
-        variant === 'plain' && styles.plain,
+        { backgroundColor: variant === 'plain' ? 'transparent' : colors.card },
+        variant === 'inset' && { backgroundColor: colors.surfaceSecondary },
         style,
       ]} 
       {...props}
@@ -30,17 +33,7 @@ export function Card({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: theme.colors.card,
     borderRadius: theme.borderRadius.lg,
     ...theme.shadows.card,
-  },
-  inset: {
-    backgroundColor: theme.colors.surfaceSecondary,
-    ...theme.shadows.card,
-  },
-  plain: {
-    backgroundColor: 'transparent',
-    shadowOpacity: 0,
-    elevation: 0,
   },
 });

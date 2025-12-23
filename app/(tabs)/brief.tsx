@@ -8,9 +8,11 @@ import { useItemsStore } from '../../src/store/useItemsStore';
 import { Item } from '../../src/db/items';
 import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
+import { useTheme } from '../../src/contexts/ThemeContext';
 
 export default function BriefScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const { items, init, markAsDone } = useItemsStore();
   
   useEffect(() => {
@@ -41,14 +43,14 @@ export default function BriefScreen() {
         onPress={() => markAsDone(item.id)}
         activeOpacity={0.6}
       >
-        <View style={styles.checkbox}>
+        <View style={[styles.checkbox, { borderColor: colors.textTertiary }]}>
           <View style={styles.checkboxInner} />
         </View>
         <View style={styles.taskContent}>
           <Typography variant="body">{item.title}</Typography>
         </View>
         {time ? (
-          <Typography variant="caption2" color={theme.colors.textSecondary}>
+          <Typography variant="caption2" color={colors.textSecondary}>
             {time}
           </Typography>
         ) : null}
@@ -58,7 +60,7 @@ export default function BriefScreen() {
 
   return (
     <SafeAreaView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
       edges={['top', 'left', 'right']}
       pointerEvents="box-none"
     >
@@ -71,7 +73,7 @@ export default function BriefScreen() {
               onPress={() => router.push('/voice')}
               activeOpacity={0.6}
             >
-              <Ionicons name="sparkles" size={24} color={theme.colors.primary} />
+              <Ionicons name="sparkles" size={24} color={colors.primary} />
             </TouchableOpacity>
           </View>
 
@@ -88,7 +90,7 @@ export default function BriefScreen() {
                 <TaskRow key={item.id} item={item} />
               ))}
               {todayItems.length === 0 && (
-                <Typography variant="body" color={theme.colors.textSecondary} style={{ paddingVertical: 8 }}>
+                <Typography variant="body" color={colors.textSecondary} style={{ paddingVertical: 8 }}>
                    No tasks for today.
                 </Typography>
               )}
@@ -107,7 +109,7 @@ export default function BriefScreen() {
             )}
             
             {/* Additional Mock Content to enable scrolling demonstration if needed */}
-            <Typography variant="footnote" color={theme.colors.textTertiary} style={{ marginTop: 20, textAlign: 'center' }}>
+            <Typography variant="footnote" color={colors.textTertiary} style={{ marginTop: 20, textAlign: 'center' }}>
               That's all for now.
             </Typography>
           </ScrollView>
@@ -120,13 +122,12 @@ export default function BriefScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
   },
   content: {
     flex: 1, // fill the screen
     paddingHorizontal: theme.spacing.md,
     paddingTop: theme.spacing.sm,
-    paddingBottom: 150, // Increased padding for floating tab bar
+    paddingBottom: 120,
   },
 
   // Brief Card Styles
@@ -158,7 +159,6 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: theme.colors.textTertiary,
     marginRight: theme.spacing.md,
     alignItems: 'center',
     justifyContent: 'center',

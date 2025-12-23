@@ -9,9 +9,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useItemsStore } from '../../src/store/useItemsStore';
 import { parseTextStub } from '../../src/ai/parseTextStub';
+import { useTheme } from '../../src/contexts/ThemeContext';
 
 export default function CaptureScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const addItem = useItemsStore(state => state.addItem);
   const [text, setText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -39,7 +41,7 @@ export default function CaptureScreen() {
 
   return (
     <SafeAreaView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
       edges={['top', 'left', 'right']}
       pointerEvents="box-none"
     >
@@ -51,14 +53,14 @@ export default function CaptureScreen() {
             onPress={() => router.push('/voice')}
             activeOpacity={0.6}
           >
-            <Ionicons name="sparkles" size={24} color={theme.colors.primary} />
+            <Ionicons name="sparkles" size={24} color={colors.primary} />
           </TouchableOpacity>
 
           {/* Main Input Area */}
           <TextInput 
             placeholder="What's on your mind?" 
-            placeholderTextColor={theme.colors.textTertiary}
-            style={styles.input}
+            placeholderTextColor={colors.textTertiary}
+            style={[styles.input, { color: colors.text }]}
             multiline
             value={text}
             onChangeText={setText}
@@ -69,16 +71,16 @@ export default function CaptureScreen() {
           <View style={styles.footer}>
             {/* Quick Actions */}
             <View style={styles.quickActions}>
-              <TouchableOpacity style={styles.actionChip}>
-                <Ionicons name="calendar-outline" size={18} color={theme.colors.text} />
+              <TouchableOpacity style={[styles.actionChip, { backgroundColor: colors.background }]}>
+                <Ionicons name="calendar-outline" size={18} color={colors.text} />
                 <Typography variant="footnote" style={{ marginLeft: 6 }}>Today</Typography>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.actionChip}>
-                <Ionicons name="flag-outline" size={18} color={theme.colors.text} />
+              <TouchableOpacity style={[styles.actionChip, { backgroundColor: colors.background }]}>
+                <Ionicons name="flag-outline" size={18} color={colors.text} />
                 <Typography variant="footnote" style={{ marginLeft: 6 }}>Priority</Typography>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.actionChip}>
-                <Ionicons name="alarm-outline" size={18} color={theme.colors.text} />
+              <TouchableOpacity style={[styles.actionChip, { backgroundColor: colors.background }]}>
+                <Ionicons name="alarm-outline" size={18} color={colors.text} />
                 <Typography variant="footnote" style={{ marginLeft: 6 }}>Remind</Typography>
               </TouchableOpacity>
             </View>
@@ -100,13 +102,12 @@ export default function CaptureScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
   },
   content: {
     flex: 1,
     paddingHorizontal: theme.spacing.md,
     paddingTop: theme.spacing.sm,
-    paddingBottom: 150, // Increased padding for floating tab bar
+    paddingBottom: 120,
   },
   mainCard: {
     padding: theme.spacing.lg,
@@ -123,7 +124,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: 'DMSans_400Regular',
     fontSize: 18,
-    color: theme.colors.text,
     lineHeight: 28,
     paddingVertical: theme.spacing.sm,
   },
@@ -140,7 +140,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: theme.colors.background, // Slight contrast against white card
     borderRadius: theme.borderRadius.md,
   },
   aiButton: {

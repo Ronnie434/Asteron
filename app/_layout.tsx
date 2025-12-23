@@ -10,6 +10,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../src/ui/theme';
+import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -22,26 +23,9 @@ const TAB_ROUTES = [
   { name: 'settings', path: '/(tabs)/settings', icon: 'settings' as const },
 ];
 
-export default function RootLayout() {
-  const [fontsLoaded] = useFonts({
-    Manrope_400Regular,
-    Manrope_600SemiBold,
-    Manrope_700Bold,
-    DMSans_400Regular,
-    DMSans_500Medium,
-    DMSans_700Bold,
-  });
-
-  useEffect(() => {
-    if (fontsLoaded) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded]);
-
-  if (!fontsLoaded) {
-    return null;
-  }
-
+function AppContent() {
+  const { isDark } = useTheme();
+  
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={{ flex: 1 }}>
@@ -64,13 +48,41 @@ export default function RootLayout() {
         {/* Floating Tab Bar - rendered OUTSIDE the navigation stack */}
         <FloatingTabBar />
       </View>
-      <StatusBar style="auto" />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
     </GestureHandlerRootView>
+  );
+}
+
+export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    Manrope_400Regular,
+    Manrope_600SemiBold,
+    Manrope_700Bold,
+    DMSans_400Regular,
+    DMSans_500Medium,
+    DMSans_700Bold,
+  });
+
+  useEffect(() => {
+    if (fontsLoaded) {
+      SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded) {
+    return null;
+  }
+
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 }
 
 function FloatingTabBar() {
   const insets = useSafeAreaInsets();
+  const { colors, isDark } = useTheme();
   const bottomOffset = Math.max(insets.bottom, 20);
   const pathname = usePathname();
   const router = useRouter();
@@ -95,10 +107,15 @@ function FloatingTabBar() {
   return (
     <View
       style={[styles.tabBarWrapper, { bottom: bottomOffset }]}
-      // Use "auto" on iOS 18+ for better touch handling
       pointerEvents="auto"
     >
-      <View style={styles.tabBarContainer}>
+      <View style={[
+        styles.tabBarContainer, 
+        { 
+          backgroundColor: isDark ? 'rgba(28, 28, 30, 0.95)' : 'rgba(255, 255, 255, 0.98)',
+          borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.9)',
+        }
+      ]}>
         {TAB_ROUTES.map((route) => (
           <Pressable
             key={route.name}
@@ -107,18 +124,17 @@ function FloatingTabBar() {
               styles.tabItem,
               pressed && styles.tabItemPressed,
             ]}
-            // Explicit touch configuration for iOS 18
             hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
             android_ripple={{ color: 'rgba(0, 122, 255, 0.2)', borderless: true }}
           >
             <View style={[
               styles.iconWrapper,
-              activeTab === route.name && styles.iconWrapperActive,
+              activeTab === route.name && { backgroundColor: colors.primaryLight },
             ]}>
               <Ionicons
                 name={route.icon}
                 size={26}
-                color={activeTab === route.name ? theme.colors.primary : theme.colors.textTertiary}
+                color={activeTab === route.name ? colors.primary : colors.textTertiary}
               />
             </View>
           </Pressable>

@@ -7,8 +7,10 @@ import { useItemsStore } from '../../src/store/useItemsStore';
 import { Item } from '../../src/db/items';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect } from 'react';
+import { useTheme } from '../../src/contexts/ThemeContext';
 
 export default function UpcomingScreen() {
+  const { colors } = useTheme();
   const { items, init } = useItemsStore();
 
   useEffect(() => {
@@ -39,7 +41,7 @@ export default function UpcomingScreen() {
 
   return (
     <SafeAreaView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
       edges={['top']}
       pointerEvents="box-none"
     >
@@ -55,7 +57,7 @@ export default function UpcomingScreen() {
           <View key={date} style={styles.section}>
             <Typography 
               variant="footnote" 
-              color={theme.colors.textSecondary}
+              color={colors.textSecondary}
               style={styles.dateLabel}
             >
               {date.toUpperCase()}
@@ -76,13 +78,15 @@ export default function UpcomingScreen() {
                       <Typography variant="body">{item.title}</Typography>
                       <Typography 
                         variant="caption1" 
-                        color={theme.colors.textSecondary}
+                        color={colors.textSecondary}
                       >
                         {item.type}
                       </Typography>
                     </View>
                   </View>
-                  {index < dateItems.length - 1 && <View style={styles.separator} />}
+                  {index < dateItems.length - 1 && (
+                    <View style={[styles.separator, { backgroundColor: colors.separator }]} />
+                  )}
                 </View>
               ))}
             </Card>
@@ -94,11 +98,11 @@ export default function UpcomingScreen() {
             <Ionicons 
               name="calendar-outline" 
               size={48} 
-              color={theme.colors.textTertiary} 
+              color={colors.textTertiary} 
             />
             <Typography 
               variant="callout" 
-              color={theme.colors.textSecondary}
+              color={colors.textSecondary}
               style={{ marginTop: 16 }}
             >
               No upcoming tasks
@@ -113,7 +117,6 @@ export default function UpcomingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
   },
   content: {
     padding: theme.spacing.lg,
@@ -142,7 +145,6 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: theme.colors.separator,
     marginLeft: 86,
   },
   emptyState: {
