@@ -4,7 +4,7 @@ import { theme } from '../../src/ui/theme';
 import { Card } from '../../src/ui/components/Card';
 import { Chip } from '../../src/ui/components/Chip';
 import { Typography } from '../../src/ui/components/Typography';
-import { Ionicons } from '@expo/vector-icons';
+import { Mic } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 
 export default function CaptureMock() {
@@ -26,7 +26,7 @@ export default function CaptureMock() {
                multiline
              />
              <View style={styles.micButton}>
-               <Ionicons name="mic" size={24} color={theme.colors.primary} />
+               <Mic size={24} color={theme.colors.primary} strokeWidth={2} />
              </View>
            </View>
            

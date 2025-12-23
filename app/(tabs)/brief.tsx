@@ -1,6 +1,6 @@
 import { View, ScrollView, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { Sparkles } from 'lucide-react-native';
 import { theme } from '../../src/ui/theme';
 import { Typography } from '../../src/ui/components/Typography';
 import { Card } from '../../src/ui/components/Card';
@@ -80,7 +80,7 @@ export default function BriefScreen() {
               onPress={() => router.push('/voice')}
               activeOpacity={0.6}
             >
-              <Ionicons name="sparkles" size={24} color={colors.primary} />
+              <Sparkles size={24} color={colors.primary} />
             </TouchableOpacity>
           </View>
 

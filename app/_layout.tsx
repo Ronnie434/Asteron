@@ -8,7 +8,7 @@ import { useEffect, useCallback } from 'react';
 import { View, StyleSheet, Dimensions, Pressable, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { Home, PlusCircle, Calendar, Settings } from 'lucide-react-native';
 import { theme } from '../src/ui/theme';
 import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
 
@@ -17,10 +17,10 @@ SplashScreen.preventAutoHideAsync();
 const { width } = Dimensions.get('window');
 
 const TAB_ROUTES = [
-  { name: 'brief', path: '/(tabs)/brief', icon: 'home' as const },
-  { name: 'capture', path: '/(tabs)/capture', icon: 'add-circle' as const },
-  { name: 'upcoming', path: '/(tabs)/upcoming', icon: 'calendar' as const },
-  { name: 'settings', path: '/(tabs)/settings', icon: 'settings' as const },
+  { name: 'brief', path: '/(tabs)/brief', Icon: Home },
+  { name: 'capture', path: '/(tabs)/capture', Icon: PlusCircle },
+  { name: 'upcoming', path: '/(tabs)/upcoming', Icon: Calendar },
+  { name: 'settings', path: '/(tabs)/settings', Icon: Settings },
 ];
 
 function AppContent() {
@@ -132,10 +132,10 @@ function FloatingTabBar() {
               styles.iconWrapper,
               activeTab === route.name && { backgroundColor: colors.primaryLight },
             ]}>
-              <Ionicons
-                name={route.icon}
+              <route.Icon
                 size={26}
                 color={activeTab === route.name ? colors.primary : colors.textTertiary}
+                strokeWidth={2}
               />
             </View>
           </Pressable>

@@ -5,7 +5,7 @@ import { Typography } from '../../src/ui/components/Typography';
 import { Card } from '../../src/ui/components/Card';
 import { useItemsStore } from '../../src/store/useItemsStore';
 import { Item } from '../../src/db/items';
-import { Ionicons } from '@expo/vector-icons';
+import { Calendar } from 'lucide-react-native';
 import { useEffect } from 'react';
 import { useTheme } from '../../src/contexts/ThemeContext';
 
@@ -102,10 +102,10 @@ export default function UpcomingScreen() {
 
         {upcoming.length === 0 && (
           <View style={styles.emptyState}>
-            <Ionicons 
-              name="calendar-outline" 
+            <Calendar 
               size={48} 
               color={colors.textTertiary} 
+              strokeWidth={1.5}
             />
             <Typography 
               variant="callout" 

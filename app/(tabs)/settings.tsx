@@ -3,17 +3,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../../src/ui/theme';
 import { Typography } from '../../src/ui/components/Typography';
 import { Card } from '../../src/ui/components/Card';
-import { Ionicons } from '@expo/vector-icons';
+import { 
+  Sun, Moon, Smartphone, X, CheckCircle, Sparkles, ChevronRight, 
+  ShieldCheck, FileText, Info, Trash, LucideIcon
+} from 'lucide-react-native';
 import { useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../src/contexts/ThemeContext';
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
-const THEME_OPTIONS: { value: ThemeMode; label: string; description: string; icon: string }[] = [
-  { value: 'light', label: 'Light Mode', description: 'Always use light theme', icon: 'sunny' },
-  { value: 'dark', label: 'Dark Mode', description: 'Always use dark theme', icon: 'moon' },
-  { value: 'system', label: 'System', description: 'Follow system theme', icon: 'phone-portrait' },
+const THEME_OPTIONS: { value: ThemeMode; label: string; description: string; Icon: typeof Sun }[] = [
+  { value: 'light', label: 'Light Mode', description: 'Always use light theme', Icon: Sun },
+  { value: 'dark', label: 'Dark Mode', description: 'Always use dark theme', Icon: Moon },
+  { value: 'system', label: 'System', description: 'Follow system theme', Icon: Smartphone },
 ];
 
 export default function SettingsScreen() {
@@ -48,7 +51,7 @@ export default function SettingsScreen() {
           <View style={styles.modalHeader}>
             <Typography variant="headline">Choose Theme</Typography>
             <TouchableOpacity onPress={() => setThemeModalVisible(false)}>
-              <Ionicons name="close" size={24} color={colors.textSecondary} />
+              <X size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
           
@@ -69,10 +72,10 @@ export default function SettingsScreen() {
                 styles.themeOptionIcon,
                 { backgroundColor: themeMode === option.value ? 'rgba(255,255,255,0.2)' : colors.primaryLight }
               ]}>
-                <Ionicons 
-                  name={option.icon as any} 
+                <option.Icon 
                   size={22} 
                   color={themeMode === option.value ? '#FFFFFF' : colors.primary} 
+                  strokeWidth={2}
                 />
               </View>
               <View style={styles.themeOptionContent}>
@@ -90,7 +93,7 @@ export default function SettingsScreen() {
                 </Typography>
               </View>
               {themeMode === option.value && (
-                <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
+                <CheckCircle size={24} color="#FFFFFF" strokeWidth={2} />
               )}
             </TouchableOpacity>
           ))}
@@ -126,7 +129,7 @@ export default function SettingsScreen() {
             Ronak Patel
           </Typography>
           <View style={styles.membershipBadge}>
-            <Ionicons name="sparkles" size={14} color={colors.accent} />
+            <Sparkles size={14} color={colors.accent} fill={colors.accent} />
             <Typography 
               variant="footnote" 
               color={colors.accent}
@@ -136,11 +139,7 @@ export default function SettingsScreen() {
             </Typography>
           </View>
         </View>
-        <Ionicons 
-          name="chevron-forward" 
-          size={20} 
-          color={colors.textTertiary} 
-        />
+        <ChevronRight size={20} color={colors.textTertiary} />
       </TouchableOpacity>
     </Card>
   );
@@ -157,7 +156,7 @@ export default function SettingsScreen() {
   };
 
   const SettingRow = ({ 
-    icon, 
+    Icon, 
     title, 
     subtitle,
     value,
@@ -166,7 +165,7 @@ export default function SettingsScreen() {
     danger = false,
     onPress,
   }: {
-    icon: string;
+    Icon: typeof Sun;
     title: string;
     subtitle?: string;
     value?: boolean;
@@ -182,10 +181,10 @@ export default function SettingsScreen() {
       disabled={!onPress && !onToggle}
     >
       <View style={[styles.iconBox, danger && styles.iconBoxDanger]}>
-        <Ionicons 
-          name={icon as any} 
+        <Icon 
           size={20} 
           color={danger ? colors.danger : colors.primary} 
+          strokeWidth={2}
         />
       </View>
       <View style={styles.rowContent}>
@@ -210,7 +209,7 @@ export default function SettingsScreen() {
         />
       )}
       {showArrow && (
-        <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
+        <ChevronRight size={20} color={colors.textTertiary} />
       )}
     </TouchableOpacity>
   );
@@ -246,7 +245,11 @@ export default function SettingsScreen() {
             activeOpacity={0.6}
           >
             <View style={[styles.iconBox, { backgroundColor: colors.primaryLight }]}>
-              <Ionicons name={isDark ? "moon" : "sunny"} size={20} color={colors.primary} />
+              {isDark ? (
+                <Moon size={20} color={colors.primary} strokeWidth={2} />
+              ) : (
+                <Sun size={20} color={colors.primary} strokeWidth={2} />
+              )}
             </View>
             <View style={styles.rowContent}>
               <Typography variant="body">Theme</Typography>
@@ -254,7 +257,7 @@ export default function SettingsScreen() {
             <Typography variant="body" color={colors.textSecondary} style={{ marginRight: 4 }}>
               {getThemeLabel()}
             </Typography>
-            <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
+            <ChevronRight size={20} color={colors.textTertiary} />
           </TouchableOpacity>
         </Card>
         <ThemeModal />
@@ -269,7 +272,7 @@ export default function SettingsScreen() {
         </Typography>
         <Card style={styles.card}>
           <SettingRow
-            icon="moon"
+            Icon={Moon}
             title="Quiet Hours"
             subtitle="10 PM – 7 AM"
             value={quietHours}
@@ -277,7 +280,7 @@ export default function SettingsScreen() {
           />
           <View style={styles.separator} />
           <SettingRow
-            icon="sunny"
+            Icon={Sun}
             title="Daily Brief"
             subtitle="Every morning at 8 AM"
             value={dailyBrief}
@@ -295,21 +298,21 @@ export default function SettingsScreen() {
         </Typography>
         <Card style={styles.card}>
           <SettingRow
-            icon="shield-checkmark"
+            Icon={ShieldCheck}
             title="Privacy Policy"
             showArrow
             onPress={() => {}}
           />
           <View style={styles.separator} />
           <SettingRow
-            icon="document-text"
+            Icon={FileText}
             title="Terms of Service"
             showArrow
             onPress={() => {}}
           />
           <View style={styles.separator} />
           <SettingRow
-            icon="information-circle"
+            Icon={Info}
             title="Version"
             subtitle="1.0.0"
           />
@@ -325,7 +328,7 @@ export default function SettingsScreen() {
         </Typography>
         <Card style={styles.card}>
           <SettingRow
-            icon="trash"
+            Icon={Trash}
             title="Delete All Data"
             danger
             showArrow

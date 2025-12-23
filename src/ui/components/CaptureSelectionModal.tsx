@@ -1,7 +1,7 @@
 import { View, Modal, StyleSheet, Dimensions } from 'react-native';
 import { TouchableOpacity } from 'react-native-gesture-handler';
 import { BlurView } from 'expo-blur';
-import { Ionicons } from '@expo/vector-icons';
+import { FilePen, Mic } from 'lucide-react-native';
 import { theme } from '../theme';
 import { Typography } from './Typography';
 
@@ -45,7 +45,7 @@ export function CaptureSelectionModal({
               activeOpacity={0.8}
             >
               <View style={[styles.iconCircle, { backgroundColor: theme.colors.primaryLight }]}>
-                <Ionicons name="create-outline" size={32} color={theme.colors.primary} />
+                <FilePen size={32} color={theme.colors.primary} strokeWidth={2} />
               </View>
               <Typography variant="headline" style={{ marginTop: 12 }}>Manual</Typography>
             </TouchableOpacity>
@@ -57,7 +57,7 @@ export function CaptureSelectionModal({
               activeOpacity={0.8}
             >
               <View style={[styles.iconCircle, { backgroundColor: theme.colors.primaryLight }]}>
-                <Ionicons name="mic" size={32} color={theme.colors.primary} />
+                <Mic size={32} color={theme.colors.primary} strokeWidth={2} />
               </View>
               <Typography variant="headline" style={{ marginTop: 12 }}>Voice Mode</Typography>
             </TouchableOpacity>

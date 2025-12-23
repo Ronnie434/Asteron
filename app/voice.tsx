@@ -1,7 +1,7 @@
 import { View, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { Mic } from 'lucide-react-native';
 import { theme } from '../src/ui/theme';
 import { Typography } from '../src/ui/components/Typography';
 import { useEffect, useRef } from 'react';
@@ -90,7 +90,7 @@ export default function VoiceScreen() {
             {/* White Ring + Blue Mic Button */}
             <View style={styles.whiteRing}>
               <View style={styles.micButton}>
-                <Ionicons name="mic" size={40} color="#FFFFFF" />
+                <Mic size={40} color="#FFFFFF" strokeWidth={2} />
               </View>
             </View>
           </View>

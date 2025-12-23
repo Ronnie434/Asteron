@@ -5,7 +5,7 @@ import { theme } from '../../src/ui/theme';
 import { Card } from '../../src/ui/components/Card';
 import { Button } from '../../src/ui/components/Button';
 import { Typography } from '../../src/ui/components/Typography';
-import { Ionicons } from '@expo/vector-icons';
+import { Sparkles, Calendar, Flag, Clock } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useItemsStore } from '../../src/store/useItemsStore';
 import { parseTextStub } from '../../src/ai/parseTextStub';
@@ -53,7 +53,7 @@ export default function CaptureScreen() {
             onPress={() => router.push('/voice')}
             activeOpacity={0.6}
           >
-            <Ionicons name="sparkles" size={24} color={colors.primary} />
+            <Sparkles size={24} color={colors.primary} />
           </TouchableOpacity>
 
           {/* Main Input Area */}
@@ -72,15 +72,15 @@ export default function CaptureScreen() {
             {/* Quick Actions */}
             <View style={styles.quickActions}>
               <TouchableOpacity style={[styles.actionChip, { backgroundColor: colors.background }]}>
-                <Ionicons name="calendar-outline" size={18} color={colors.text} />
+                <Calendar size={18} color={colors.text} />
                 <Typography variant="footnote" style={{ marginLeft: 6 }}>Today</Typography>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.actionChip, { backgroundColor: colors.background }]}>
-                <Ionicons name="flag-outline" size={18} color={colors.text} />
+                <Flag size={18} color={colors.text} />
                 <Typography variant="footnote" style={{ marginLeft: 6 }}>Priority</Typography>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.actionChip, { backgroundColor: colors.background }]}>
-                <Ionicons name="alarm-outline" size={18} color={colors.text} />
+                <Clock size={18} color={colors.text} />
                 <Typography variant="footnote" style={{ marginLeft: 6 }}>Remind</Typography>
               </TouchableOpacity>
             </View>

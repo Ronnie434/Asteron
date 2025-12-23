@@ -1,16 +1,16 @@
 import { View, StyleSheet, Dimensions, Pressable } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Home, PlusCircle, Calendar, Settings, HelpCircle } from 'lucide-react-native';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { theme } from '../theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
-const iconMap: { [key: string]: keyof typeof Ionicons.glyphMap } = {
-  brief: 'home',
-  capture: 'add-circle',
-  upcoming: 'calendar',
-  settings: 'settings',
+const iconMap: { [key: string]: typeof Home } = {
+  brief: Home,
+  capture: PlusCircle,
+  upcoming: Calendar,
+  settings: Settings,
 };
 
 export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
@@ -44,7 +44,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
             }
           };
 
-          const iconName = iconMap[route.name] || 'help-circle';
+          const IconComponent = iconMap[route.name] || HelpCircle;
 
           return (
             <Pressable
@@ -61,10 +61,10 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
                 styles.iconWrapper,
                 isFocused && styles.iconWrapperActive,
               ]}>
-                <Ionicons
-                  name={iconName}
+                <IconComponent
                   size={26}
                   color={isFocused ? theme.colors.primary : theme.colors.textTertiary}
+                  strokeWidth={2}
                 />
               </View>
             </Pressable>

@@ -6,7 +6,7 @@ import { Typography } from '../src/ui/components/Typography';
 import { Card } from '../src/ui/components/Card';
 import { Button } from '../src/ui/components/Button';
 import { Chip } from '../src/ui/components/Chip';
-import { Ionicons } from '@expo/vector-icons';
+import { Calendar, Clock, ChevronRight } from 'lucide-react-native';
 import { useState } from 'react';
 
 export default function ConfirmScreen() {
@@ -90,25 +90,25 @@ export default function ConfirmScreen() {
         </Typography>
         <Card style={styles.scheduleCard}>
           <TouchableOpacity style={styles.scheduleRow}>
-            <Ionicons name="calendar-outline" size={20} color={theme.colors.primary} />
+            <Calendar size={20} color={theme.colors.primary} strokeWidth={2} />
             <Typography variant="body" style={{ marginLeft: 12, flex: 1 }}>
               Due Date
             </Typography>
             <Typography variant="body" color={theme.colors.textSecondary}>
               None
             </Typography>
-            <Ionicons name="chevron-forward" size={18} color={theme.colors.textTertiary} />
+            <ChevronRight size={18} color={theme.colors.textTertiary} />
           </TouchableOpacity>
           <View style={styles.separator} />
           <TouchableOpacity style={styles.scheduleRow}>
-            <Ionicons name="alarm-outline" size={20} color={theme.colors.primary} />
+            <Clock size={20} color={theme.colors.primary} strokeWidth={2} />
             <Typography variant="body" style={{ marginLeft: 12, flex: 1 }}>
               Reminder
             </Typography>
             <Typography variant="body" color={theme.colors.textSecondary}>
               None
             </Typography>
-            <Ionicons name="chevron-forward" size={18} color={theme.colors.textTertiary} />
+            <ChevronRight size={18} color={theme.colors.textTertiary} />
           </TouchableOpacity>
         </Card>
       </ScrollView>
