@@ -34,7 +34,6 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 5, de
             const response = await fetch(url, options);
 
             if (response.status === 429) {
-                console.log(`Rate limit hit (429), retrying in ${delay}ms...`);
                 await new Promise(resolve => setTimeout(resolve, delay));
                 delay *= 2; // Exponential backoff
                 continue;
@@ -55,14 +54,10 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 5, de
  */
 export const aiService: AIService = {
     transcribeAudio: async (audioUri: string): Promise<string> => {
-        console.log('Transcribing audio from:', audioUri);
-
         try {
-            // Read the file as Base64
             const base64Audio = await FileSystem.readAsStringAsync(audioUri, {
                 encoding: 'base64',
             });
-            console.log('Audio Base64 length:', base64Audio.length);
 
             // Prepare the request body for OpenRouter
             const body = {
@@ -118,8 +113,6 @@ export const aiService: AIService = {
     },
 
     analyzeText: async (text: string): Promise<AIAnalysisResult> => {
-        console.log('Analyzing text:', text);
-
         try {
             // Get current timezone and time for date resolution
             // Get current LOCAL timezone and time for date resolution

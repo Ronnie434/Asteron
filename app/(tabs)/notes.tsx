@@ -24,17 +24,13 @@ export default function NotesScreen() {
     .filter(i => i.type === 'note' && i.status === 'active')
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-  const handleEditNote = (note: Item) => {
+  const handleOpenNote = (note: Item) => {
     router.push({
-      pathname: '/edit',
+      pathname: '/note-detail',
       params: {
         id: note.id,
         title: note.title,
-        type: note.type,
-        priority: note.priority,
         details: note.details || '',
-        dueAt: note.dueAt || '',
-        remindAt: note.remindAt || '',
       }
     });
   };
@@ -80,7 +76,7 @@ export default function NotesScreen() {
             {notes.map((note) => (
               <Card key={note.id} style={styles.noteCard}>
                 <TouchableOpacity 
-                  onPress={() => handleEditNote(note)}
+                  onPress={() => handleOpenNote(note)}
                   activeOpacity={0.7}
                 >
                   <View style={styles.noteHeader}>

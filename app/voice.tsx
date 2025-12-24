@@ -81,9 +81,7 @@ export default function VoiceScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const recorder = useAudioRecorder(WAV_PRESET, (status) => {
-    console.log('Recorder Status Update:', status);
-  });
+  const recorder = useAudioRecorder(WAV_PRESET);
   const recorderState = useAudioRecorderState(recorder);
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusText, setStatusText] = useState('Tap mic to speak');
@@ -132,14 +130,12 @@ export default function VoiceScreen() {
   }, []);
 
   async function handleStartRecording() {
-    console.log('Starting recording func...');
     // Clear previous clarification state
     setNeedsClarification(false);
     setTranscription('');
     
     try {
       const permission = await requestRecordingPermissionsAsync();
-      console.log('Permission status:', permission.status);
       
       if (permission.status === 'granted') {
         setStatusText('Starting...');
@@ -147,14 +143,10 @@ export default function VoiceScreen() {
           allowsRecording: true,
           playsInSilentMode: true,
         });
-        console.log('Audio mode set, preparing...');
         await recorder.prepareToRecordAsync(WAV_PRESET);
-        console.log('Prepared, calling record()');
         recorder.record();
-        console.log('record() called');
       } else {
         setStatusText('Permission denied');
-        console.log('Permission denied');
       }
     } catch (err) {
       console.error('Failed to start recording', err);
@@ -260,7 +252,6 @@ export default function VoiceScreen() {
               <TouchableOpacity 
                 style={[styles.micButton, { backgroundColor: colors.primary }]} 
                 onPress={() => {
-                  console.log('Mic button pressed');
                   if (recorderState.isRecording) {
                     handleStopRecording();
                   } else {

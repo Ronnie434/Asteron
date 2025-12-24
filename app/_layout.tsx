@@ -75,6 +75,13 @@ function AppContent() {
               headerBackButtonDisplayMode: 'minimal',
             }} 
           />
+          <Stack.Screen 
+            name="note-detail" 
+            options={{ 
+              presentation: 'modal',
+              headerShown: false,
+            }} 
+          />
         </Stack>
         
         {/* Floating Tab Bar - rendered OUTSIDE the navigation stack */}
@@ -132,8 +139,8 @@ function FloatingTabBar() {
     pathname.startsWith(`${route.path}/`)
   )?.name || 'brief';
 
-  // Hide on voice, confirm, edit, and success screens
-  if (pathname === '/voice' || pathname === '/confirm' || pathname === '/edit' || pathname === '/success') {
+  // Hide on voice, confirm, edit, success, and note-detail screens
+  if (pathname === '/voice' || pathname === '/confirm' || pathname === '/edit' || pathname === '/success' || pathname === '/note-detail') {
     return null;
   }
 

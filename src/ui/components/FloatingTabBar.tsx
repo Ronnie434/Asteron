@@ -17,8 +17,6 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const bottomOffset = Math.max(insets.bottom, 20);
 
-  console.log('[FloatingTabBar] Rendering with bottomOffset:', bottomOffset);
-
   return (
     // pointerEvents="box-none" allows touches to pass through the outer wrapper
     // but the inner Pressables can still receive touches
@@ -31,7 +29,6 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
           const isFocused = state.index === index;
 
           const handlePress = () => {
-            console.log('[FloatingTabBar] TAB PRESSED:', route.name);
             const event = navigation.emit({
               type: 'tabPress',
               target: route.key,
@@ -39,7 +36,6 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
             });
 
             if (!isFocused && !event.defaultPrevented) {
-              console.log('[FloatingTabBar] Navigating to:', route.name);
               navigation.navigate(route.name, route.params);
             }
           };
@@ -50,7 +46,6 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
             <Pressable
               key={route.key}
               onPress={handlePress}
-              onPressIn={() => console.log('[FloatingTabBar] onPressIn:', route.name)}
               style={({ pressed }) => [
                 styles.tabItem,
                 pressed && styles.tabItemPressed
