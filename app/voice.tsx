@@ -293,39 +293,45 @@ export default function VoiceScreen() {
 
           {/* Clarification Banner */}
           {needsClarification && !recorderState.isRecording && (
-            <Card style={[styles.clarificationBanner, { 
-              backgroundColor: isDark ? 'rgba(255, 152, 0, 0.15)' : 'rgba(255, 152, 0, 0.1)',
-              borderLeftColor: '#FF9500',
+            <View style={[styles.clarificationBanner, { 
+              backgroundColor: isDark ? 'rgba(255, 152, 0, 0.12)' : 'rgba(255, 152, 0, 0.08)',
             }]}>
-              <Typography variant="footnote" style={{ color: '#FF9500', fontWeight: '600', marginBottom: 8 }}>
-                ⚠️ COULDN'T UNDERSTAND
+              <View style={styles.bannerHeader}>
+                <View style={[styles.bannerIconContainer, { backgroundColor: isDark ? 'rgba(255, 152, 0, 0.2)' : 'rgba(255, 152, 0, 0.15)' }]}>
+                  <Typography style={{ fontSize: 20 }}>💡</Typography>
+                </View>
+                <Typography variant="headline" style={{ color: '#FF9500', flex: 1 }}>
+                  Try being more specific
+                </Typography>
+              </View>
+              
+              <Typography variant="callout" color={colors.textSecondary} style={{ marginBottom: 16, lineHeight: 20 }}>
+                Include what you want to do and when:
               </Typography>
-              <Typography variant="body" color={colors.text} style={{ marginBottom: 12, lineHeight: 22 }}>
-                I couldn't extract a clear action. Try saying:
-              </Typography>
-              <Typography variant="callout" color={colors.textSecondary} style={{ marginBottom: 4 }}>
-                • "Remind me to call mom tomorrow at 3pm"
-              </Typography>
-              <Typography variant="callout" color={colors.textSecondary} style={{ marginBottom: 4 }}>
-                • "Pay electricity bill by Friday"
-              </Typography>
-              <Typography variant="callout" color={colors.textSecondary} style={{ marginBottom: 4 }}>
-                • "Schedule doctor appointment next week"
-              </Typography>
-              <Typography variant="callout" color={colors.textSecondary} style={{ marginBottom: 12 }}>
-                • "Remember to submit report by end of day"
-              </Typography>
+              
+              <View style={styles.exampleContainer}>
+                <Typography variant="callout" color={colors.text} style={styles.exampleText}>
+                  "Remind me to call mom tomorrow at 3pm"
+                </Typography>
+                <Typography variant="callout" color={colors.text} style={styles.exampleText}>
+                  "Pay electricity bill by Friday"
+                </Typography>
+                <Typography variant="callout" color={colors.text} style={styles.exampleText}>
+                  "Schedule doctor appointment next week"
+                </Typography>
+              </View>
+              
               {transcription && (
-                <View style={{ marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.separator }}>
+                <View style={[styles.transcriptionBox, { backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.03)' }]}>
                   <Typography variant="caption1" color={colors.textTertiary} style={{ marginBottom: 4 }}>
-                    You said:
+                    What I heard:
                   </Typography>
                   <Typography variant="callout" color={colors.textSecondary} style={{ fontStyle: 'italic' }}>
                     "{transcription}"
                   </Typography>
                 </View>
               )}
-            </Card>
+            </View>
           )}
 
           {/* Waveform Visualizer */}
@@ -415,9 +421,37 @@ const styles = StyleSheet.create({
   clarificationBanner: {
     marginHorizontal: 20,
     marginBottom: 24,
-    padding: 16,
-    borderLeftWidth: 4,
+    padding: 20,
+    borderRadius: 16,
     maxWidth: 400,
+  },
+  bannerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 12,
+  },
+  bannerIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  exampleContainer: {
+    gap: 8,
+    marginBottom: 16,
+  },
+  exampleText: {
+    paddingLeft: 8,
+    borderLeftWidth: 2,
+    borderLeftColor: '#FF9500',
+    paddingVertical: 4,
+  },
+  transcriptionBox: {
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 4,
   },
   waveformContainer: {
     flexDirection: 'row',
