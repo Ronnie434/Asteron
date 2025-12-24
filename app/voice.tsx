@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Animated, Modal, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Mic } from 'lucide-react-native';
@@ -197,7 +197,8 @@ export default function VoiceScreen() {
                   type: result.type,
                   priority: result.priority,
                   details: result.details,
-                  dueAt: result.dueAt,
+                  dueAt: result.dueAt || '',
+                  remindAt: result.remindAt || '',
               }
           });
         }
@@ -291,48 +292,90 @@ export default function VoiceScreen() {
             </Typography>
           </View>
 
-          {/* Clarification Banner */}
-          {needsClarification && !recorderState.isRecording && (
-            <View style={[styles.clarificationBanner, { 
-              backgroundColor: isDark ? 'rgba(255, 152, 0, 0.12)' : 'rgba(255, 152, 0, 0.08)',
-            }]}>
-              <View style={styles.bannerHeader}>
-                <View style={[styles.bannerIconContainer, { backgroundColor: isDark ? 'rgba(255, 152, 0, 0.2)' : 'rgba(255, 152, 0, 0.15)' }]}>
-                  <Typography style={{ fontSize: 20 }}>💡</Typography>
-                </View>
-                <Typography variant="headline" style={{ color: '#FF9500', flex: 1 }}>
-                  Try being more specific
-                </Typography>
-              </View>
-              
-              <Typography variant="callout" color={colors.textSecondary} style={{ marginBottom: 16, lineHeight: 20 }}>
-                Include what you want to do and when:
-              </Typography>
-              
-              <View style={styles.exampleContainer}>
-                <Typography variant="callout" color={colors.text} style={styles.exampleText}>
-                  "Remind me to call mom tomorrow at 3pm"
-                </Typography>
-                <Typography variant="callout" color={colors.text} style={styles.exampleText}>
-                  "Pay electricity bill by Friday"
-                </Typography>
-                <Typography variant="callout" color={colors.text} style={styles.exampleText}>
-                  "Schedule doctor appointment next week"
-                </Typography>
-              </View>
-              
-              {transcription && (
-                <View style={[styles.transcriptionBox, { backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.03)' }]}>
-                  <Typography variant="caption1" color={colors.textTertiary} style={{ marginBottom: 4 }}>
-                    What I heard:
+          {/* Clarification Bottom Sheet Modal */}
+          <Modal
+            visible={needsClarification && !recorderState.isRecording}
+            transparent={true}
+            animationType="slide"
+            onRequestClose={() => setNeedsClarification(false)}
+          >
+            <Pressable 
+              style={styles.modalOverlay} 
+              onPress={() => setNeedsClarification(false)}
+            >
+              <Pressable 
+                style={[styles.bottomSheet, { backgroundColor: colors.card }]}
+                onPress={(e) => e.stopPropagation()}
+              >
+                {/* Handle bar */}
+                <View style={[styles.handleBar, { backgroundColor: colors.textTertiary }]} />
+                
+                {/* Header */}
+                <View style={styles.sheetHeader}>
+                  <View style={[styles.sheetIconContainer, { backgroundColor: isDark ? 'rgba(255, 152, 0, 0.2)' : 'rgba(255, 152, 0, 0.12)' }]}>
+                    <Typography style={{ fontSize: 28 }}>💡</Typography>
+                  </View>
+                  <Typography variant="title2" style={{ color: colors.text, marginTop: 12 }}>
+                    Try being more specific
                   </Typography>
-                  <Typography variant="callout" color={colors.textSecondary} style={{ fontStyle: 'italic' }}>
-                    "{transcription}"
+                  <Typography variant="callout" color={colors.textSecondary} style={{ marginTop: 8, textAlign: 'center' }}>
+                    Include what you want to do and when
                   </Typography>
                 </View>
-              )}
-            </View>
-          )}
+                
+                {/* Examples */}
+                <View style={[styles.examplesCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
+                  <Typography variant="callout" color={colors.text} style={styles.exampleItem}>
+                    "Remind me to call mom tomorrow at 3pm"
+                  </Typography>
+                  <View style={[styles.exampleDivider, { backgroundColor: colors.separator }]} />
+                  <Typography variant="callout" color={colors.text} style={styles.exampleItem}>
+                    "Pay electricity bill by Friday"
+                  </Typography>
+                  <View style={[styles.exampleDivider, { backgroundColor: colors.separator }]} />
+                  <Typography variant="callout" color={colors.text} style={styles.exampleItem}>
+                    "Schedule doctor appointment next week"
+                  </Typography>
+                </View>
+                
+                {/* Transcription */}
+                {transcription && (
+                  <View style={[styles.transcriptionCard, { backgroundColor: isDark ? 'rgba(255, 152, 0, 0.1)' : 'rgba(255, 152, 0, 0.08)' }]}>
+                    <Typography variant="caption1" color={colors.textTertiary} style={{ marginBottom: 4 }}>
+                      What I heard:
+                    </Typography>
+                    <Typography variant="callout" color={colors.textSecondary} style={{ fontStyle: 'italic' }}>
+                      "{transcription}"
+                    </Typography>
+                  </View>
+                )}
+                
+                {/* Try Again Button */}
+                <TouchableOpacity 
+                  style={[styles.tryAgainButton, { backgroundColor: colors.primary }]}
+                  onPress={() => {
+                    setNeedsClarification(false);
+                    handleStartRecording();
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Typography variant="headline" style={{ color: '#FFFFFF' }}>
+                    Try Again
+                  </Typography>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.dismissButton}
+                  onPress={() => setNeedsClarification(false)}
+                  activeOpacity={0.6}
+                >
+                  <Typography variant="body" color={colors.textSecondary}>
+                    Dismiss
+                  </Typography>
+                </TouchableOpacity>
+              </Pressable>
+            </Pressable>
+          </Modal>
 
           {/* Waveform Visualizer */}
           {recorderState.isRecording ? (
@@ -418,40 +461,65 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 40,
   },
-  clarificationBanner: {
-    marginHorizontal: 20,
-    marginBottom: 24,
-    padding: 20,
-    borderRadius: 16,
-    maxWidth: 400,
+  // Bottom Sheet Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
   },
-  bannerHeader: {
-    flexDirection: 'row',
+  bottomSheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+    paddingTop: 12,
+  },
+  handleBar: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  sheetHeader: {
     alignItems: 'center',
-    marginBottom: 12,
-    gap: 12,
+    marginBottom: 24,
   },
-  bannerIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  sheetIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  exampleContainer: {
-    gap: 8,
+  examplesCard: {
+    borderRadius: 12,
+    overflow: 'hidden',
     marginBottom: 16,
   },
-  exampleText: {
-    paddingLeft: 8,
-    borderLeftWidth: 2,
-    borderLeftColor: '#FF9500',
-    paddingVertical: 4,
+  exampleItem: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    textAlign: 'center',
   },
-  transcriptionBox: {
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 4,
+  exampleDivider: {
+    height: 1,
+    marginHorizontal: 16,
+  },
+  transcriptionCard: {
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 24,
+  },
+  tryAgainButton: {
+    paddingVertical: 16,
+    borderRadius: 14,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  dismissButton: {
+    paddingVertical: 12,
+    alignItems: 'center',
   },
   waveformContainer: {
     flexDirection: 'row',

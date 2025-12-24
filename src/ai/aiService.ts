@@ -7,8 +7,10 @@ export interface AIAnalysisResult {
     priority: ItemPriority;
     confidence: number;
     details?: string;
-    dueAt?: string;
+    dueAt?: string | null;
+    remindAt?: string | null;
     needsClarification?: boolean;
+    clarificationReason?: 'missing_date' | 'missing_person' | 'missing_amount' | 'ambiguous_action' | 'other';
 }
 
 export interface AIService {
@@ -23,8 +25,8 @@ if (!OPENROUTER_API_KEY) {
     console.error('⚠️ EXPO_PUBLIC_OPENROUTER_API_KEY is not set. Please create a .env file with your API key.');
 }
 
+// Use the same model for both (cost-effective)
 const MODEL = 'google/gemini-2.0-flash-lite-001';
-// const MODEL = 'google/gemini-2.0-flash-exp:free';
 
 async function fetchWithRetry(url: string, options: RequestInit, retries = 5, delay = 2000): Promise<Response> {
     for (let i = 0; i < retries; i++) {
@@ -67,8 +69,16 @@ export const aiService: AIService = {
                 model: MODEL,
                 messages: [
                     {
+                        role: "system",
+                        content: "You are a speech-to-text transcriber. Your ONLY job is to transcribe the audio exactly as spoken. Do NOT respond to the content, do NOT have a conversation, do NOT answer questions. Just output the exact words that were spoken in the audio. If the audio is unclear or silent, output '[unclear]' or '[silence]'."
+                    },
+                    {
                         role: "user",
                         content: [
+                            {
+                                type: "text",
+                                text: "Transcribe this audio exactly. Only output the spoken words, nothing else."
+                            },
                             {
                                 type: "input_audio",
                                 input_audio: {
@@ -111,40 +121,61 @@ export const aiService: AIService = {
         console.log('Analyzing text:', text);
 
         try {
-            const prompt = `You are an AI assistant helping users capture tasks, reminders, bills, and follow-ups through voice input.
+            // Get current timezone and time for date resolution
+            // Get current LOCAL timezone and time for date resolution
+            const now = new Date();
+            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            // Format as local ISO with timezone offset (e.g., "2024-12-23T17:31:00-08:00")
+            const tzOffset = -now.getTimezoneOffset();
+            const offsetHours = Math.floor(Math.abs(tzOffset) / 60).toString().padStart(2, '0');
+            const offsetMins = (Math.abs(tzOffset) % 60).toString().padStart(2, '0');
+            const offsetSign = tzOffset >= 0 ? '+' : '-';
+            const localIso = now.getFullYear() + '-' +
+                String(now.getMonth() + 1).padStart(2, '0') + '-' +
+                String(now.getDate()).padStart(2, '0') + 'T' +
+                String(now.getHours()).padStart(2, '0') + ':' +
+                String(now.getMinutes()).padStart(2, '0') + ':' +
+                String(now.getSeconds()).padStart(2, '0') +
+                offsetSign + offsetHours + ':' + offsetMins;
 
-Your job is to analyze what the user said and extract a structured item from it.
+            const prompt = `You extract a single actionable item from the user's voice input for a task/reminder/bill/follow-up app.
 
-IMPORTANT RULES:
-1. The user is trying to CREATE a task/reminder/bill/follow-up, not have a conversation
-2. Extract the actionable item from their speech
-3. If the input is too vague or unclear, set "needsClarification" to true
-4. Be smart about inferring intent - "call mom tomorrow" is clearly a task/reminder
-5. Don't ask questions back - just extract what you can
+Return ONLY valid JSON. No extra text. No markdown.
 
-Return ONLY a valid JSON object with this exact schema:
+INTERPRETATION RULES
+- The user is creating an item, not chatting.
+- Extract ONE best item. If multiple items are mentioned, pick the most urgent/time-bound one.
+- "dueAt" is the deadline date/time (when it must be done/paid).
+- "remindAt" is when to notify the user.
+- If the user gives a date without a time, choose a sensible default time:
+  - default remind time: 09:00 local time
+  - default due time: 17:00 local time (or 23:59 for bills if phrased "by end of day")
+- If the user says "tomorrow", "next week", "Friday", etc., resolve it using:
+  - USER_TIMEZONE: ${timezone}
+  - NOW: ${localIso}
+- If date/time is unclear, still extract the action and set needsClarification=true with a reason.
+- Never ask the user questions; only set needsClarification flags.
+- Keep title short and verb-first (e.g., "Call mom", "Pay electricity bill").
+
+PRIORITY RULES
+- high: bills, deadlines, legal/medical, "urgent", "ASAP", "today/tomorrow"
+- med: normal tasks and follow-ups
+- low: someday/maybe/ideas
+
+OUTPUT SCHEMA (exact keys)
 {
-    "title": "string (concise, actionable summary - max 60 chars)",
-    "type": "task" | "bill" | "reminder" | "followup",
-    "priority": "low" | "med" | "high",
-    "confidence": number (0.0 to 1.0 - how confident you are in the extraction),
-    "details": "string (additional context or full transcription)",
-    "dueAt": "string (ISO 8601 date if mentioned, otherwise null)",
-    "needsClarification": boolean (true if input is too vague to extract a clear action)
+  "title": "string (max 60 chars)",
+  "type": "task" | "bill" | "reminder" | "followup",
+  "priority": "low" | "med" | "high",
+  "confidence": number (0.0 to 1.0),
+  "details": "string (the original text or cleaned transcript)",
+  "dueAt": "string (ISO 8601 with timezone offset) | null",
+  "remindAt": "string (ISO 8601 with timezone offset) | null",
+  "needsClarification": boolean,
+  "clarificationReason": "missing_date" | "missing_person" | "missing_amount" | "ambiguous_action" | "other" | null
 }
 
-EXAMPLES:
-
-Input: "Call mom tomorrow"
-Output: {"title": "Call mom", "type": "reminder", "priority": "med", "confidence": 0.9, "details": "Call mom tomorrow", "dueAt": "2024-01-15T12:00:00Z", "needsClarification": false}
-
-Input: "Pay electricity bill by Friday"
-Output: {"title": "Pay electricity bill", "type": "bill", "priority": "high", "confidence": 0.95, "details": "Pay electricity bill by Friday", "dueAt": "2024-01-12T23:59:59Z", "needsClarification": false}
-
-Input: "um... something"
-Output: {"title": "Awaiting instruction", "type": "task", "priority": "low", "confidence": 0.1, "details": "um... something", "dueAt": null, "needsClarification": true}
-
-Now analyze this user input:
+USER INPUT:
 "${text}"
 `;
 

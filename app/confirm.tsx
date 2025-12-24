@@ -23,12 +23,32 @@ export default function ConfirmScreen() {
     priority?: string;
     details?: string;
     dueAt?: string;
+    remindAt?: string;
   }>();
   
   const [title, setTitle] = useState(params.title || '');
   const [type, setType] = useState(params.type || 'task');
   const [priority, setPriority] = useState(params.priority || 'med');
   const [details, setDetails] = useState(params.details || '');
+  const [dueAt, setDueAt] = useState(params.dueAt || '');
+  const [remindAt, setRemindAt] = useState(params.remindAt || '');
+
+  // Format ISO date to readable string
+  const formatDateTime = (isoString: string): string => {
+    if (!isoString) return 'None';
+    try {
+      const date = new Date(isoString);
+      return date.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch {
+      return 'None';
+    }
+  };
 
   const handleSave = async () => {
     if (!title.trim()) return;
@@ -139,8 +159,8 @@ export default function ConfirmScreen() {
             <Typography variant="body" style={{ marginLeft: 12, flex: 1 }}>
               Due Date
             </Typography>
-            <Typography variant="body" color={colors.textSecondary}>
-              None
+            <Typography variant="body" color={dueAt ? colors.text : colors.textSecondary}>
+              {formatDateTime(dueAt)}
             </Typography>
             <ChevronRight size={18} color={colors.textTertiary} />
           </TouchableOpacity>
@@ -150,8 +170,8 @@ export default function ConfirmScreen() {
             <Typography variant="body" style={{ marginLeft: 12, flex: 1 }}>
               Reminder
             </Typography>
-            <Typography variant="body" color={colors.textSecondary}>
-              None
+            <Typography variant="body" color={remindAt ? colors.text : colors.textSecondary}>
+              {formatDateTime(remindAt)}
             </Typography>
             <ChevronRight size={18} color={colors.textTertiary} />
           </TouchableOpacity>
