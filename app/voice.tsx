@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Mic } from 'lucide-react-native';
 import { theme } from '../src/ui/theme';
 import { Typography } from '../src/ui/components/Typography';
+import { Card } from '../src/ui/components/Card';
 import { useAudioRecorder, useAudioRecorderState, RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, IOSOutputFormat, AudioQuality } from 'expo-audio';
 import { aiService } from '../src/ai/aiService';
 import { useTheme } from '../src/contexts/ThemeContext';
@@ -86,6 +87,8 @@ export default function VoiceScreen() {
   const recorderState = useAudioRecorderState(recorder);
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusText, setStatusText] = useState('Tap mic to speak');
+  const [needsClarification, setNeedsClarification] = useState(false);
+  const [transcription, setTranscription] = useState('');
 
   useEffect(() => {
     if (recorderState.isRecording) {
@@ -130,6 +133,10 @@ export default function VoiceScreen() {
 
   async function handleStartRecording() {
     console.log('Starting recording func...');
+    // Clear previous clarification state
+    setNeedsClarification(false);
+    setTranscription('');
+    
     try {
       const permission = await requestRecordingPermissionsAsync();
       console.log('Permission status:', permission.status);
@@ -168,25 +175,32 @@ export default function VoiceScreen() {
       if (uri) {
         // Step 1: Transcribe
         const text = await aiService.transcribeAudio(uri);
+        setTranscription(text);
         
         setStatusText('Analyzing...');
         
         // Step 2: Analyze
         const result = await aiService.analyzeText(text);
         
-        // Step 3: Navigate to confirm (with clarification info if needed)
-        router.push({
-            pathname: '/confirm',
-            params: {
-                title: result.title,
-                type: result.type,
-                priority: result.priority,
-                details: result.details,
-                dueAt: result.dueAt,
-                needsClarification: result.needsClarification ? 'true' : 'false',
-                transcription: text, // Pass original transcription for reference
-            }
-        });
+        // Step 3: Check if clarification is needed
+        if (result.needsClarification || result.confidence < 0.5) {
+          // Stay on voice screen and show clarification banner
+          setNeedsClarification(true);
+          setIsProcessing(false);
+          setStatusText('Tap mic to try again');
+        } else {
+          // Navigate to confirm only if we have valid data
+          router.push({
+              pathname: '/confirm',
+              params: {
+                  title: result.title,
+                  type: result.type,
+                  priority: result.priority,
+                  details: result.details,
+                  dueAt: result.dueAt,
+              }
+          });
+        }
       }
     } catch (err) {
       console.error('Failed to stop recording', err);
@@ -277,6 +291,40 @@ export default function VoiceScreen() {
             </Typography>
           </View>
 
+          {/* Clarification Banner */}
+          {needsClarification && !recorderState.isRecording && (
+            <Card style={[styles.clarificationBanner, { 
+              backgroundColor: isDark ? 'rgba(255, 152, 0, 0.15)' : 'rgba(255, 152, 0, 0.1)',
+              borderLeftColor: '#FF9500',
+            }]}>
+              <Typography variant="footnote" style={{ color: '#FF9500', fontWeight: '600', marginBottom: 8 }}>
+                ⚠️ COULDN'T UNDERSTAND
+              </Typography>
+              <Typography variant="body" color={colors.text} style={{ marginBottom: 12, lineHeight: 22 }}>
+                I couldn't extract a clear action. Try saying:
+              </Typography>
+              <Typography variant="callout" color={colors.textSecondary} style={{ marginBottom: 4 }}>
+                • "Remind me to call mom tomorrow"
+              </Typography>
+              <Typography variant="callout" color={colors.textSecondary} style={{ marginBottom: 4 }}>
+                • "Remember to buy groceries"
+              </Typography>
+              <Typography variant="callout" color={colors.textSecondary} style={{ marginBottom: 12 }}>
+                • "Keep a record of my meeting notes"
+              </Typography>
+              {transcription && (
+                <View style={{ marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.separator }}>
+                  <Typography variant="caption1" color={colors.textTertiary} style={{ marginBottom: 4 }}>
+                    You said:
+                  </Typography>
+                  <Typography variant="callout" color={colors.textSecondary} style={{ fontStyle: 'italic' }}>
+                    "{transcription}"
+                  </Typography>
+                </View>
+              )}
+            </Card>
+          )}
+
           {/* Waveform Visualizer */}
           {recorderState.isRecording ? (
             <View style={styles.waveformContainer}>
@@ -360,6 +408,13 @@ const styles = StyleSheet.create({
   textContainer: {
     alignItems: 'center',
     marginBottom: 40,
+  },
+  clarificationBanner: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+    padding: 16,
+    borderLeftWidth: 4,
+    maxWidth: 400,
   },
   waveformContainer: {
     flexDirection: 'row',
