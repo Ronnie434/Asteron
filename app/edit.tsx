@@ -124,7 +124,7 @@ export default function EditScreen() {
           TYPE
         </Typography>
         <View style={styles.chipRow}>
-          {['task', 'bill', 'reminder', 'followup'].map(t => (
+          {['task', 'bill', 'reminder', 'followup', 'note'].map(t => (
             <Chip 
               key={t} 
               label={t.charAt(0).toUpperCase() + t.slice(1)} 

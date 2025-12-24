@@ -120,7 +120,7 @@ export default function BriefScreen() {
       <View style={styles.content}>
         {/* Daily Brief Card */}
         <Card style={[styles.briefCard, { flex: 1 }]}>
-          <View style={styles.briefHeader}>
+          <View style={[styles.briefHeader, { backgroundColor: colors.card, zIndex: 10 }]}>
             <View style={styles.briefTitleContainer}>
               <Image 
                 source={require('../../assets/AI_Companion_icon.png')}
@@ -140,6 +140,7 @@ export default function BriefScreen() {
           <ScrollView 
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 150 }}
+            style={{ zIndex: 1 }}
           >
             {/* Today Section */}
             <View style={styles.section}>

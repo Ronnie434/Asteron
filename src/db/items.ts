@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 import { type SQLiteDatabase } from 'expo-sqlite';
 
-export type ItemType = 'task' | 'bill' | 'renewal' | 'followup' | 'reminder';
+export type ItemType = 'task' | 'bill' | 'renewal' | 'followup' | 'reminder' | 'note';
 export type ItemPriority = 'low' | 'med' | 'high';
 export type ItemStatus = 'active' | 'done' | 'archived';
 

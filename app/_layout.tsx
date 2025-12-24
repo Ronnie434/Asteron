@@ -8,7 +8,7 @@ import { useEffect, useCallback } from 'react';
 import { View, StyleSheet, Dimensions, Pressable, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Home, PlusCircle, Calendar, Settings } from 'lucide-react-native';
+import { Home, PlusCircle, Calendar, Settings, FileText } from 'lucide-react-native';
 import { theme } from '../src/ui/theme';
 import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
 
@@ -18,8 +18,9 @@ const { width } = Dimensions.get('window');
 
 const TAB_ROUTES = [
   { name: 'brief', path: '/(tabs)/brief', Icon: Home },
-  { name: 'capture', path: '/(tabs)/capture', Icon: PlusCircle },
   { name: 'upcoming', path: '/(tabs)/upcoming', Icon: Calendar },
+  { name: 'capture', path: '/(tabs)/capture', Icon: PlusCircle }, // Center the capture button
+  { name: 'notes', path: '/(tabs)/notes', Icon: FileText },
   { name: 'settings', path: '/(tabs)/settings', Icon: Settings },
 ];
 
@@ -43,14 +44,14 @@ function AppContent() {
           <Stack.Screen 
             name="confirm" 
             options={{ 
-              presentation: 'fullScreenModal',
+              presentation: 'modal',
               headerShown: false,
             }} 
           />
           <Stack.Screen 
             name="edit" 
             options={{ 
-              presentation: 'fullScreenModal',
+              presentation: 'modal',
               headerShown: false,
             }} 
           />

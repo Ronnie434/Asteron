@@ -52,10 +52,13 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
     },
 
     addItem: async (title, initialProps = {}) => {
+        // Ensure title is never null or empty
+        const safeTitle = (title || '').trim() || 'Untitled';
+
         const now = new Date().toISOString();
         const newItem: Item = {
             id: Crypto.randomUUID(),
-            title,
+            title: safeTitle,
             type: 'task',
             priority: 'med',
             status: 'active',
@@ -73,6 +76,7 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
             await get().loadItems();
         } catch (e) {
             console.error("Failed to add item:", e);
+            throw e; // Re-throw so caller can handle
         }
     },
 

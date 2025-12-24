@@ -36,8 +36,8 @@ export default function UpcomingScreen() {
     })
     .sort((a, b) => new Date(getEffectiveDate(a)!).getTime() - new Date(getEffectiveDate(b)!).getTime());
 
-  // Items without any date
-  const unscheduled = items.filter(i => i.status === 'active' && !getEffectiveDate(i));
+  // Items without any date (excluding notes)
+  const unscheduled = items.filter(i => i.status === 'active' && !getEffectiveDate(i) && i.type !== 'note');
 
   // Group by date
   const grouped: { [key: string]: Item[] } = {};

@@ -157,15 +157,22 @@ INTERPRETATION RULES
 - Never ask the user questions; only set needsClarification flags.
 - Keep title short and verb-first (e.g., "Call mom", "Pay electricity bill").
 
+TYPE SELECTION RULES
+- task: Clear actionable to-dos with a verb ("Buy milk", "Clean garage", "Fix the bug")
+- bill: Payment related ("Pay internet", "Netflix subscription")
+- reminder: Explicit "remind me" or time-bound alerts
+- followup: "Call X", "Email Y", "Reply to Z"
+- note: DEFAULT TYPE. Use for: random thoughts, information to remember, unclear/gibberish text, questions, ideas, anything without a clear actionable verb or deadline. When in doubt, use "note".
+
 PRIORITY RULES
 - high: bills, deadlines, legal/medical, "urgent", "ASAP", "today/tomorrow"
 - med: normal tasks and follow-ups
-- low: someday/maybe/ideas
+- low: notes, ideas, someday/maybe
 
 OUTPUT SCHEMA (exact keys)
 {
   "title": "string (max 60 chars)",
-  "type": "task" | "bill" | "reminder" | "followup",
+  "type": "task" | "bill" | "reminder" | "followup" | "note",
   "priority": "low" | "med" | "high",
   "confidence": number (0.0 to 1.0),
   "details": "string (the original text or cleaned transcript)",
@@ -216,13 +223,13 @@ USER INPUT:
 
         } catch (error) {
             console.error('Analysis failed:', error);
-            // Fallback for debugging
+            // Fallback: default to note type
             return {
                 title: text.slice(0, 50),
-                type: 'task',
-                priority: 'med',
+                type: 'note',
+                priority: 'low',
                 confidence: 0.5,
-                details: "Analysis failed, saved raw text.",
+                details: text,
             };
         }
     }
