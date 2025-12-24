@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, ViewProps, StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { theme, glassStyle } from '../theme';
+import { theme } from '../theme';
 
 interface GlassCardProps extends ViewProps {
   intensity?: number;

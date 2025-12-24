@@ -3,6 +3,7 @@ import { Home, PlusCircle, Calendar, Settings, HelpCircle } from 'lucide-react-n
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { theme } from '../theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../../contexts/ThemeContext';
 
 const { width } = Dimensions.get('window');
 
@@ -15,6 +16,7 @@ const iconMap: { [key: string]: typeof Home } = {
 
 export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const { colors, isDark } = useTheme();
   const bottomOffset = Math.max(insets.bottom, 20);
 
   return (
@@ -24,7 +26,13 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       style={[styles.wrapper, { bottom: bottomOffset }]}
       pointerEvents="box-none"
     >
-      <View style={styles.container}>
+      <View style={[
+        styles.container,
+        {
+          backgroundColor: isDark ? 'rgba(28, 28, 30, 0.85)' : 'rgba(255, 255, 255, 0.70)',
+          borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.5)',
+        }
+      ]}>
         {state.routes.map((route, index) => {
           const isFocused = state.index === index;
 
@@ -54,11 +62,11 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
             >
               <View style={[
                 styles.iconWrapper,
-                isFocused && styles.iconWrapperActive,
+                isFocused && { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : colors.primaryLight },
               ]}>
                 <IconComponent
                   size={26}
-                  color={isFocused ? theme.colors.primary : theme.colors.textTertiary}
+                  color={isFocused ? colors.primary : colors.textTertiary}
                   strokeWidth={2}
                 />
               </View>
@@ -82,7 +90,6 @@ const styles = StyleSheet.create({
     width: width * 0.9,
     height: 64,
     borderRadius: 32,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
@@ -95,7 +102,6 @@ const styles = StyleSheet.create({
     elevation: 10,
     // Border for glassmorphism effect
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.8)',
   },
   tabItem: {
     flex: 1,

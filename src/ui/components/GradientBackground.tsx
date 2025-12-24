@@ -6,13 +6,13 @@ import { theme } from '../theme';
 interface GradientBackgroundProps {
   children: React.ReactNode;
   style?: ViewStyle;
-  colors?: string[];
+  colors?: readonly [string, string, ...string[]];
 }
 
 export function GradientBackground({ 
   children, 
   style,
-  colors = theme.gradients.background,
+  colors = theme.gradients.background as unknown as readonly [string, string, ...string[]],
 }: GradientBackgroundProps) {
   return (
     <LinearGradient

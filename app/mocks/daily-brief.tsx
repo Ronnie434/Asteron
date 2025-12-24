@@ -47,8 +47,8 @@ export default function DailyBriefMock() {
           </Typography>
         </View>
         <View style={styles.itemMeta}>
-           {timeStr ? <Typography variant="caption" style={styles.dateText}>{timeStr}</Typography> : null}
-           {dateStr && !todayItems.includes(item) ? <Typography variant="caption" style={styles.dateText}>{dateStr}</Typography> : null}
+           {timeStr ? <Typography variant="caption1" style={styles.dateText}>{timeStr}</Typography> : null}
+           {dateStr && !todayItems.includes(item) ? <Typography variant="caption1" style={styles.dateText}>{dateStr}</Typography> : null}
         </View>
       </TouchableOpacity>
     );
@@ -60,14 +60,14 @@ export default function DailyBriefMock() {
         
         {/* Header */}
         <View style={styles.header}>
-          <Typography variant="h1" style={styles.headerTitle}>Daily Brief</Typography>
+          <Typography variant="title1" style={styles.headerTitle}>Daily Brief</Typography>
           <Ionicons name="sparkles" size={24} color={theme.colors.primaryLight} />
         </View>
 
         <Card style={styles.mainCard}>
           {/* Today Section */}
           <View style={styles.sectionHeader}>
-            <Typography variant="h3">Today</Typography>
+            <Typography variant="title3">Today</Typography>
           </View>
           
           <View style={styles.list}>
@@ -78,7 +78,7 @@ export default function DailyBriefMock() {
 
           {/* Soon Section */}
           <View style={styles.sectionHeader}>
-            <Typography variant="h3">Soon</Typography>
+            <Typography variant="title3">Soon</Typography>
           </View>
           
           <View style={styles.list}>
@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: theme.colors.border,
+    backgroundColor: theme.colors.separator,
     marginVertical: theme.spacing.lg,
   },
   bottomNav: {
@@ -190,6 +190,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingBottom: 20,
     borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    borderTopColor: theme.colors.separator,
   }
 });

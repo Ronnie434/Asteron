@@ -32,6 +32,7 @@ export const lightColors = {
     // Glass effect
     glass: 'rgba(255,255,255,0.8)',
     glassBorder: 'rgba(0,0,0,0.04)',
+    glassHighlight: 'rgba(255,255,255,0.4)',
 
     // Surface variants
     surface: '#FFFFFF',
@@ -69,6 +70,7 @@ export const darkColors = {
     // Glass effect
     glass: 'rgba(28, 28, 30, 0.8)',
     glassBorder: 'rgba(255,255,255,0.08)',
+    glassHighlight: 'rgba(255,255,255,0.1)',
 
     // Surface variants
     surface: '#1C1C1E',
@@ -77,6 +79,10 @@ export const darkColors = {
 
 export const theme = {
     colors: lightColors, // Default to light
+
+    gradients: {
+        background: ['#F2F2F7', '#FFFFFF'],
+    },
 
     spacing: {
         xs: 4,

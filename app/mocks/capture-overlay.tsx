@@ -38,7 +38,7 @@ export default function CaptureMock() {
          </Card>
          
          <View style={styles.tips}>
-            <Typography variant="caption" style={{ textAlign: 'center', marginTop: 20 }}>
+            <Typography variant="caption1" style={{ textAlign: 'center', marginTop: 20 }}>
               Tap outside to cancel
             </Typography>
          </View>
@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: theme.spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.accentBlue,
+    borderBottomColor: theme.colors.separator,
     paddingBottom: theme.spacing.sm,
   },
   input: {

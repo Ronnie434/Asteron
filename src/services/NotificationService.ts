@@ -1,29 +1,34 @@
-import * as Notifications from 'expo-notifications';
+// import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 // Configure how notifications behave when the app is in foreground
-Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-        shouldShowBanner: true,
-        shouldShowList: true,
-    }),
-});
+// Notifications.setNotificationHandler({
+//     handleNotification: async () => ({
+//         shouldShowAlert: true,
+//         shouldPlaySound: true,
+//         shouldSetBadge: false,
+//         shouldShowBanner: true,
+//         shouldShowList: true,
+//     }),
+// });
 
 export const NotificationService = {
     requestPermissions: async () => {
-        const { status: existingStatus } = await Notifications.getPermissionsAsync();
-        let finalStatus = existingStatus;
-        if (existingStatus !== 'granted') {
-            const { status } = await Notifications.requestPermissionsAsync();
-            finalStatus = status;
-        }
-        return finalStatus === 'granted';
+        // Mock permission grant
+        console.warn('Notifications provided by expo-notifications are not supported in Expo Go SDK 53 on Android. Returning fake "granted".');
+        return true;
+        // const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        // let finalStatus = existingStatus;
+        // if (existingStatus !== 'granted') {
+        //     const { status } = await Notifications.requestPermissionsAsync();
+        //     finalStatus = status;
+        // }
+        // return finalStatus === 'granted';
     },
 
     scheduleReminder: async (id: string, title: string, body: string, dateStr: string) => {
+        console.log(`[MOCK] Scheduled notification for ${id} (Notifications disabled in Expo Go Android)`);
+        /*
         try {
             const date = new Date(dateStr);
             const now = new Date();
@@ -51,13 +56,17 @@ export const NotificationService = {
         } catch (e) {
             console.error("Failed to schedule notification:", e);
         }
+        */
     },
 
     cancelReminder: async (id: string) => {
+        console.log(`[MOCK] Cancelled notification for ${id}`);
+        /*
         try {
             await Notifications.cancelScheduledNotificationAsync(id);
         } catch (e) {
             console.error("Failed to cancel notification:", e);
         }
+        */
     }
 };
