@@ -16,8 +16,8 @@ const WAV_PRESET = {
   bitRate: 128000,
   android: {
     extension: '.wav',
-    outputFormat: 'mpeg_4', // Fallback for android, actually produces m4a usually but let's try standard
-    audioEncoder: 'aac',
+    outputFormat: 'mpeg4' as const,
+    audioEncoder: 'aac' as const,
   },
   ios: {
     extension: '.wav',

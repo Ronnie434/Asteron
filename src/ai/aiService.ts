@@ -15,8 +15,13 @@ export interface AIService {
     analyzeText: (text: string) => Promise<AIAnalysisResult>;
 }
 
-// TODO: The user will replace this with their actual key.
-const OPENROUTER_API_KEY = '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';
+// Load API key from environment variables
+const OPENROUTER_API_KEY = process.env.EXPO_PUBLIC_OPENROUTER_API_KEY;
+
+if (!OPENROUTER_API_KEY) {
+    console.error('⚠️ EXPO_PUBLIC_OPENROUTER_API_KEY is not set. Please create a .env file with your API key.');
+}
+
 const MODEL = 'google/gemini-2.0-flash-lite-001';
 // const MODEL = 'google/gemini-2.0-flash-exp:free';
 
