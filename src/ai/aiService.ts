@@ -8,6 +8,7 @@ export interface AIAnalysisResult {
     confidence: number;
     details?: string;
     dueAt?: string;
+    needsClarification?: boolean;
 }
 
 export interface AIService {
@@ -110,20 +111,42 @@ export const aiService: AIService = {
         console.log('Analyzing text:', text);
 
         try {
-            const prompt = `
-            Analyze the following text and extract a structured task.
-            Return ONLY a valid JSON object with the following schema:
-            {
-                "title": "string (concise summary)",
-                "type": "task" | "bill" | "renewal" | "followup" | "reminder",
-                "priority": "low" | "med" | "high",
-                "confidence": number (0.0 to 1.0),
-                "details": "string (additional context)",
-                "dueAt": "string (ISO 8601 date, optional)"
-            }
-            
-            Text to analyze: "${text}"
-            `;
+            const prompt = `You are an AI assistant helping users capture tasks, reminders, bills, and follow-ups through voice input.
+
+Your job is to analyze what the user said and extract a structured item from it.
+
+IMPORTANT RULES:
+1. The user is trying to CREATE a task/reminder/bill/follow-up, not have a conversation
+2. Extract the actionable item from their speech
+3. If the input is too vague or unclear, set "needsClarification" to true
+4. Be smart about inferring intent - "call mom tomorrow" is clearly a task/reminder
+5. Don't ask questions back - just extract what you can
+
+Return ONLY a valid JSON object with this exact schema:
+{
+    "title": "string (concise, actionable summary - max 60 chars)",
+    "type": "task" | "bill" | "reminder" | "followup",
+    "priority": "low" | "med" | "high",
+    "confidence": number (0.0 to 1.0 - how confident you are in the extraction),
+    "details": "string (additional context or full transcription)",
+    "dueAt": "string (ISO 8601 date if mentioned, otherwise null)",
+    "needsClarification": boolean (true if input is too vague to extract a clear action)
+}
+
+EXAMPLES:
+
+Input: "Call mom tomorrow"
+Output: {"title": "Call mom", "type": "reminder", "priority": "med", "confidence": 0.9, "details": "Call mom tomorrow", "dueAt": "2024-01-15T12:00:00Z", "needsClarification": false}
+
+Input: "Pay electricity bill by Friday"
+Output: {"title": "Pay electricity bill", "type": "bill", "priority": "high", "confidence": 0.95, "details": "Pay electricity bill by Friday", "dueAt": "2024-01-12T23:59:59Z", "needsClarification": false}
+
+Input: "um... something"
+Output: {"title": "Awaiting instruction", "type": "task", "priority": "low", "confidence": 0.1, "details": "um... something", "dueAt": null, "needsClarification": true}
+
+Now analyze this user input:
+"${text}"
+`;
 
             const body = {
                 model: MODEL,

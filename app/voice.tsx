@@ -174,7 +174,7 @@ export default function VoiceScreen() {
         // Step 2: Analyze
         const result = await aiService.analyzeText(text);
         
-        // Step 3: Navigate to confirm
+        // Step 3: Navigate to confirm (with clarification info if needed)
         router.push({
             pathname: '/confirm',
             params: {
@@ -183,6 +183,8 @@ export default function VoiceScreen() {
                 priority: result.priority,
                 details: result.details,
                 dueAt: result.dueAt,
+                needsClarification: result.needsClarification ? 'true' : 'false',
+                transcription: text, // Pass original transcription for reference
             }
         });
       }

@@ -23,8 +23,11 @@ export default function ConfirmScreen() {
     priority?: string;
     details?: string;
     dueAt?: string;
+    needsClarification?: string;
+    transcription?: string;
   }>();
   
+  const needsClarification = params.needsClarification === 'true';
   const [title, setTitle] = useState(params.title || '');
   const [type, setType] = useState(params.type || 'task');
   const [priority, setPriority] = useState(params.priority || 'med');
@@ -61,6 +64,23 @@ export default function ConfirmScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        {/* Clarification Banner */}
+        {needsClarification && (
+          <Card style={[styles.titleCard, { backgroundColor: colors.primaryLight, borderLeftWidth: 4, borderLeftColor: colors.primary }]}>
+            <Typography variant="footnote" color={colors.primary} style={{ fontWeight: '600', marginBottom: 4 }}>
+              ⚠️ NEEDS MORE DETAILS
+            </Typography>
+            <Typography variant="body" color={colors.text} style={{ marginBottom: 8 }}>
+              The AI couldn't extract a clear action from your recording. Please review and edit the details below.
+            </Typography>
+            {params.transcription && (
+              <Typography variant="callout" color={colors.textSecondary} style={{ fontStyle: 'italic' }}>
+                You said: "{params.transcription}"
+              </Typography>
+            )}
+          </Card>
+        )}
+
         {/* Title */}
         <Card style={styles.titleCard}>
           <TextInput
