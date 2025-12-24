@@ -1,5 +1,5 @@
 import { View, ScrollView, StyleSheet, TouchableOpacity, Image } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Check } from 'lucide-react-native';
 import { theme } from '../../src/ui/theme';
 import { Typography } from '../../src/ui/components/Typography';
@@ -10,6 +10,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { RainbowSparkles } from '../../src/ui/components/RainbowSparkles';
+import { GlassyHeader } from '../../src/ui/components/GlassyHeader';
 
 export default function BriefScreen() {
   const router = useRouter();
@@ -142,37 +143,37 @@ export default function BriefScreen() {
     );
   };
 
+  const insets = useSafeAreaInsets();
+
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      edges={['top', 'left', 'right']}
-      pointerEvents="box-none"
-    >
-      <View style={styles.briefHeader}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <GlassyHeader
+        rightAction={
+          <TouchableOpacity 
+            onPress={() => router.push('/voice')}
+            activeOpacity={0.6}
+          >
+            <RainbowSparkles size={24} />
+          </TouchableOpacity>
+        }
+      >
         <View style={styles.briefTitleContainer}>
           <Image 
             source={require('../../assets/AI_Companion_icon.png')}
             style={styles.headerIcon}
             resizeMode="contain"
           />
-          <Typography variant="title1">Daily Brief</Typography>
+          <Typography variant="headline">Daily Brief</Typography>
         </View>
-        <TouchableOpacity 
-          onPress={() => router.push('/voice')}
-          activeOpacity={0.6}
-        >
-          <RainbowSparkles size={24} />
-        </TouchableOpacity>
-      </View>
+      </GlassyHeader>
 
-      <View style={styles.content}>
-        {/* Daily Brief Card */}
-        <Card style={[styles.briefCard, { flex: 1 }]}>
-          <ScrollView 
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 150 }}
-            style={{ zIndex: 1 }}
-          >
+      <ScrollView 
+        contentContainerStyle={[
+           styles.content,
+           { paddingTop: insets.top + 80 }
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
             {/* Today Section */}
             <View style={styles.section}>
               <Typography variant="headline" style={styles.sectionTitle}>
@@ -205,9 +206,7 @@ export default function BriefScreen() {
               That's all for now.
             </Typography>
           </ScrollView>
-        </Card>
-      </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -228,14 +227,6 @@ const styles = StyleSheet.create({
     paddingBottom: 0, // Remove bottom padding from card implementation to allow scrollview to handle it
     borderRadius: theme.borderRadius.xl,
     overflow: 'hidden', // Ensure content clips to rounded corners
-  },
-  briefHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.lg + 4, // Match upcoming/notes padding
-    marginTop: theme.spacing.sm,
-    marginBottom: theme.spacing.lg,
   },
   briefTitleContainer: {
     flexDirection: 'row',

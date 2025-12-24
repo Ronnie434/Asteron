@@ -1,5 +1,5 @@
 import { View, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Modal, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { theme } from '../src/ui/theme';
 import { Typography } from '../src/ui/components/Typography';
@@ -10,10 +10,12 @@ import { useState, useEffect } from 'react';
 import { useItemsStore } from '../src/store/useItemsStore';
 import { useTheme } from '../src/contexts/ThemeContext';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { GlassyHeader } from '../src/ui/components/GlassyHeader';
 
 export default function NoteDetailScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const { updateItem, deleteItem } = useItemsStore();
   const params = useLocalSearchParams<{ 
     id: string;
@@ -99,19 +101,25 @@ export default function NoteDetailScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.separator }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <GlassyHeader
+        title="Note"
+        rightAction={
+          <TouchableOpacity onPress={() => setShowReminderModal(true)}>
+            <Clock size={22} color={colors.primary} />
+          </TouchableOpacity>
+        }
+      >
         <TouchableOpacity onPress={handleBack}>
           <Typography variant="body" color={colors.primary}>Done</Typography>
         </TouchableOpacity>
-        <Typography variant="headline">Note</Typography>
-        <TouchableOpacity onPress={() => setShowReminderModal(true)}>
-          <Clock size={22} color={colors.primary} />
-        </TouchableOpacity>
-      </View>
+      </GlassyHeader>
 
       <ScrollView 
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content, 
+          { paddingTop: insets.top + 80 } // Add padding for header
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <Card style={styles.noteCard}>
@@ -186,7 +194,7 @@ export default function NoteDetailScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -194,14 +202,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
+
   content: {
     padding: theme.spacing.lg,
     paddingBottom: 100,

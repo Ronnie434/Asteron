@@ -1,5 +1,5 @@
 import { View, ScrollView, StyleSheet, Switch, TouchableOpacity, Alert, Image, Modal, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../../src/ui/theme';
 import { Typography } from '../../src/ui/components/Typography';
 import { Card } from '../../src/ui/components/Card';
@@ -14,6 +14,7 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { useItemsStore } from '../../src/store/useItemsStore';
 import { TERMS_OF_SERVICE, PRIVACY_POLICY } from '../../src/data/legal';
 import { GradientSparkles } from '../../src/ui/components/RainbowSparkles';
+import { GlassyHeader } from '../../src/ui/components/GlassyHeader';
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -27,6 +28,7 @@ import { useSettingsStore } from '../../src/store/useSettingsStore';
 
 export default function SettingsScreen() {
   const { themeMode, setThemeMode, colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const { quietHoursEnabled, setQuietHoursEnabled, dailyBriefEnabled, setDailyBriefEnabled } = useSettingsStore();
   const [themeModalVisible, setThemeModalVisible] = useState(false);
   const [documentType, setDocumentType] = useState<'terms' | 'privacy' | null>(null);
@@ -275,17 +277,18 @@ export default function SettingsScreen() {
   );
 
   return (
-    <SafeAreaView
+    <View
       style={[styles.container, { backgroundColor: colors.background }]}
-      edges={['top']}
     >
+      <GlassyHeader title="Settings" />
+
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + 80 }
+        ]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
-          <Typography variant="largeTitle">Settings</Typography>
-        </View>
 
         <UserProfileSection />
 
@@ -418,7 +421,7 @@ export default function SettingsScreen() {
           </Typography>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -430,9 +433,7 @@ const styles = StyleSheet.create({
     padding: theme.spacing.lg,
     paddingBottom: 120, // Enough space for tab bar and scrolling
   },
-  header: {
-    marginBottom: theme.spacing.lg,
-  },
+
   sectionLabel: {
     marginTop: theme.spacing.lg,
     marginBottom: theme.spacing.sm,

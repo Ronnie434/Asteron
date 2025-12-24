@@ -1,5 +1,5 @@
 import { View, ScrollView, StyleSheet, Image, TouchableOpacity, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../../src/ui/theme';
 import { Typography } from '../../src/ui/components/Typography';
 import { Card } from '../../src/ui/components/Card';
@@ -9,10 +9,12 @@ import { FileText, Trash2, Edit2 } from 'lucide-react-native';
 import { useEffect } from 'react';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useRouter } from 'expo-router';
+import { GlassyHeader } from '../../src/ui/components/GlassyHeader';
 
 export default function NotesScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const { items, init, deleteItem } = useItemsStore();
 
   useEffect(() => {
@@ -51,19 +53,14 @@ export default function NotesScreen() {
   };
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      edges={['top']}
-      pointerEvents="box-none"
-    >
-      <View style={styles.header}>
-        <View style={styles.headerContainer}>
-          <Typography variant="largeTitle">Notes</Typography>
-        </View>
-      </View>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <GlassyHeader title="Notes" />
 
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + 80 }
+        ]}
         showsVerticalScrollIndicator={false}
       >
 
@@ -122,7 +119,7 @@ export default function NotesScreen() {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -135,16 +132,7 @@ const styles = StyleSheet.create({
     paddingTop: 0,
     paddingBottom: 150,
   },
-  header: {
-    paddingHorizontal: theme.spacing.lg,
-    marginTop: theme.spacing.sm,
-    marginBottom: theme.spacing.lg,
-  },
-  headerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-  },
+
   notesGrid: {
     gap: theme.spacing.md,
   },
