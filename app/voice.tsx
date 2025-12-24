@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, Animated, Modal, Pressable } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Animated, Modal, Pressable, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Mic } from 'lucide-react-native';
@@ -16,7 +16,7 @@ const WAV_PRESET = {
   numberOfChannels: 1,
   bitRate: 128000,
   android: {
-    extension: '.wav',
+    extension: '.m4a',
     outputFormat: 'mpeg4' as const,
     audioEncoder: 'aac' as const,
   },
@@ -115,12 +115,29 @@ export default function VoiceScreen() {
     }
   }, [recorderState.isRecording]);
 
-  // Initial setup - don't start recording automatically anymore to avoid confusion
+  // Initial setup
   useEffect(() => {
-    // Only cleanup on unmount
+    console.log('[VoiceScreen] Mounted');
+    // Pre-configure audio mode to avoid first-time latency/failures
+    const initAudio = async () => {
+      try {
+        console.log('[VoiceScreen] Initializing audio mode...');
+        await setAudioModeAsync({
+          allowsRecording: true,
+          playsInSilentMode: true,
+        });
+        console.log('[VoiceScreen] Audio mode initialized');
+      } catch (e) {
+        console.warn('[VoiceScreen] Failed to init audio mode:', e);
+      }
+    };
+    initAudio();
+
     return () => {
+        console.log('[VoiceScreen] Unmounted/Cleanup');
         try {
             if (recorder.isRecording) {
+                console.log('[VoiceScreen] Stopping recording on unmount');
                 recorder.stop();
             }
         } catch (e) {
@@ -130,57 +147,85 @@ export default function VoiceScreen() {
   }, []);
 
   async function handleStartRecording() {
+    console.log('[VoiceScreen] handleStartRecording called');
     // Clear previous clarification state
     setNeedsClarification(false);
     setTranscription('');
     
     try {
+      // Safety check: ensure any previous session is fully stopped
+      if (recorder.isRecording) {
+        console.log('[VoiceScreen] Stopping existing recording before starting new one');
+        await recorder.stop();
+      }
+
+      console.log('[VoiceScreen] Requesting permissions...');
       const permission = await requestRecordingPermissionsAsync();
+      console.log('[VoiceScreen] Permission status:', permission.status);
       
       if (permission.status === 'granted') {
         setStatusText('Starting...');
+        
+        // Ensure audio mode is active
         await setAudioModeAsync({
           allowsRecording: true,
           playsInSilentMode: true,
         });
+
+        console.log('[VoiceScreen] Preparing recorder...');
         await recorder.prepareToRecordAsync(WAV_PRESET);
+        console.log('[VoiceScreen] Starting recording...');
         recorder.record();
+        console.log('[VoiceScreen] Recording started');
       } else {
+        console.log('[VoiceScreen] Permission denied');
         setStatusText('Permission denied');
       }
     } catch (err) {
-      console.error('Failed to start recording', err);
+      console.error('[VoiceScreen] Failed to start recording', err);
       setStatusText('Failed to start');
     }
   }
 
   async function handleStopRecording() {
-    if (!recorder.isRecording) return;
+    console.log('[VoiceScreen] handleStopRecording called');
+    if (!recorder.isRecording) {
+       console.log('[VoiceScreen] Recorder is not recording, ignoring stop request');
+       return;
+    }
 
     setIsProcessing(true);
     setStatusText('Transcribing...');
 
     try {
+      console.log('[VoiceScreen] Stopping recorder...');
       await recorder.stop();
       const uri = recorder.uri;
+      console.log('[VoiceScreen] Recording stopped, URI:', uri);
       
       if (uri) {
         // Step 1: Transcribe
-        const text = await aiService.transcribeAudio(uri);
+        console.log('[VoiceScreen] Starting transcription...');
+        const text = await aiService.transcribeAudio(uri, Platform.OS === 'android' ? 'aac' : 'wav');
+        console.log('[VoiceScreen] Transcription complete:', text ? text.substring(0, 50) + '...' : '(empty)');
         setTranscription(text);
         
         setStatusText('Analyzing...');
         
         // Step 2: Analyze
+        console.log('[VoiceScreen] Starting analysis...');
         const result = await aiService.analyzeText(text);
+        console.log('[VoiceScreen] Analysis complete:', JSON.stringify(result));
         
         // Step 3: Check if clarification is needed
         if (result.needsClarification || result.confidence < 0.5) {
+          console.log('[VoiceScreen] Clarification needed or low confidence');
           // Stay on voice screen and show clarification banner
           setNeedsClarification(true);
           setIsProcessing(false);
           setStatusText('Tap mic to try again');
         } else {
+          console.log('[VoiceScreen] Success, navigating to confirm');
           // Navigate to confirm only if we have valid data
           router.push({
               pathname: '/confirm',
@@ -194,22 +239,27 @@ export default function VoiceScreen() {
               }
           });
         }
+      } else {
+          console.warn('[VoiceScreen] No URI found after stopping recorder');
       }
     } catch (err) {
-      console.error('Failed to stop recording', err);
+      console.error('[VoiceScreen] Failed to stop recording/process', err);
       setIsProcessing(false);
       setStatusText('Error. Try again.');
     }
   }
 
   async function handleCancel() {
+    console.log('[VoiceScreen] handleCancel called');
     try {
         if (recorder.isRecording) {
+            console.log('[VoiceScreen] Stopping recording on cancel');
             await recorder.stop();
         }
     } catch (err) {
         console.warn('Error stopping recording on cancel:', err);
     } finally {
+        console.log('[VoiceScreen] Navigating back');
         router.back();
     }
   }

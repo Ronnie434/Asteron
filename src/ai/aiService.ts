@@ -14,7 +14,7 @@ export interface AIAnalysisResult {
 }
 
 export interface AIService {
-    transcribeAudio: (audioUri: string) => Promise<string>;
+    transcribeAudio: (audioUri: string, format?: 'wav' | 'aac') => Promise<string>;
     analyzeText: (text: string) => Promise<AIAnalysisResult>;
 }
 
@@ -24,8 +24,7 @@ const OPENROUTER_API_KEY = process.env.EXPO_PUBLIC_OPENROUTER_API_KEY;
 if (!OPENROUTER_API_KEY) {
     console.error('⚠️ EXPO_PUBLIC_OPENROUTER_API_KEY is not set. Please create a .env file with your API key.');
 }
-
-// Use the same model for both (cost-effective)
+// Use Gemini 2.0 Flash Lite for cost-effective multimodal support
 const MODEL = 'google/gemini-2.0-flash-lite-001';
 
 async function fetchWithRetry(url: string, options: RequestInit, retries = 5, delay = 2000): Promise<Response> {
@@ -50,10 +49,10 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 5, de
 }
 
 /**
- * AI Service implementation using OpenRouter with Gemini 2.0 Flash.
+ * AI Service implementation using OpenRouter with Gemini 1.5 Flash.
  */
 export const aiService: AIService = {
-    transcribeAudio: async (audioUri: string): Promise<string> => {
+    transcribeAudio: async (audioUri: string, format: 'wav' | 'aac' = 'wav'): Promise<string> => {
         try {
             const base64Audio = await FileSystem.readAsStringAsync(audioUri, {
                 encoding: 'base64',
@@ -78,7 +77,7 @@ export const aiService: AIService = {
                                 type: "input_audio",
                                 input_audio: {
                                     data: base64Audio,
-                                    format: "wav"
+                                    format: format
                                 }
                             }
                         ]
@@ -91,7 +90,7 @@ export const aiService: AIService = {
                 headers: {
                     "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
                     "Content-Type": "application/json",
-                    "HTTP-Referer": "https://ai-companion-eta-cyan.vercel.app", // Required by OpenRouter
+                    "HTTP-Referer": "https://asteron.app",
                     "X-Title": "Asteron",
                 },
                 body: JSON.stringify(body)

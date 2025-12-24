@@ -3,7 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../../src/ui/theme';
 import { Typography } from '../../src/ui/components/Typography';
 import { Card } from '../../src/ui/components/Card';
-import { SimpleMarkdown } from '../../src/ui/components/SimpleMarkdown';
+
 import { 
   Sun, Moon, Smartphone, X, CheckCircle, ChevronRight, 
   ShieldCheck, FileText, Info, Trash
@@ -12,8 +12,8 @@ import { useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useItemsStore } from '../../src/store/useItemsStore';
-import { TERMS_OF_SERVICE, PRIVACY_POLICY } from '../../src/data/legal';
 import { GradientSparkles } from '../../src/ui/components/RainbowSparkles';
+import * as WebBrowser from 'expo-web-browser';
 import { GlassyHeader } from '../../src/ui/components/GlassyHeader';
 
 type ThemeMode = 'light' | 'dark' | 'system';
@@ -31,7 +31,6 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { quietHoursEnabled, setQuietHoursEnabled, dailyBriefEnabled, setDailyBriefEnabled } = useSettingsStore();
   const [themeModalVisible, setThemeModalVisible] = useState(false);
-  const [documentType, setDocumentType] = useState<'terms' | 'privacy' | null>(null);
 
   const getThemeLabel = () => {
     switch (themeMode) {
@@ -117,44 +116,7 @@ export default function SettingsScreen() {
   );
 
 
-  const DocumentModal = () => (
-    <Modal
-      visible={!!documentType}
-      transparent
-      animationType="slide"
-      onRequestClose={() => setDocumentType(null)}
-    >
-      <View style={styles.modalOverlay}>
-        <Pressable 
-          style={StyleSheet.absoluteFill} 
-          onPress={() => setDocumentType(null)}
-        />
-        <View 
-          style={[styles.modalContent, styles.documentModal, { backgroundColor: colors.card }]}
-        >
-          {/* Draggable Handle Indicator */}
-          <View style={styles.dragHandle} />
 
-          <View style={styles.modalHeader}>
-            <Typography variant="headline">
-              {documentType === 'privacy' ? 'Privacy Policy' : 'Terms of Service'}
-            </Typography>
-            <TouchableOpacity onPress={() => setDocumentType(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <X size={24} color={colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView 
-            showsVerticalScrollIndicator={true}
-            style={{ flex: 1 }}
-            contentContainerStyle={{ paddingBottom: 60 }}
-          >
-            <SimpleMarkdown content={documentType === 'privacy' ? PRIVACY_POLICY : TERMS_OF_SERVICE} />
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
-  );
 
 
   const UserProfileSection = () => (
@@ -215,6 +177,14 @@ export default function SettingsScreen() {
         },
       ]
     );
+  };
+
+  const openLegalDocument = async (url: string) => {
+    try {
+      await WebBrowser.openBrowserAsync(url);
+    } catch (error) {
+      Alert.alert('Error', 'Could not open the link.');
+    }
   };
 
   const SettingRow = ({ 
@@ -323,7 +293,6 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </Card>
         <ThemeModal />
-        <DocumentModal />
 
         {/* Notifications */}
         <Typography 
@@ -364,14 +333,14 @@ export default function SettingsScreen() {
             Icon={ShieldCheck}
             title="Privacy Policy"
             showArrow
-            onPress={() => setDocumentType('privacy')}
+            onPress={() => openLegalDocument('https://asteron.app/#privacy')}
           />
           <View style={styles.separator} />
           <SettingRow
             Icon={FileText}
             title="Terms of Service"
             showArrow
-            onPress={() => setDocumentType('terms')}
+            onPress={() => openLegalDocument('https://asteron.app/#terms')}
           />
           <View style={styles.separator} />
           <SettingRow
@@ -541,9 +510,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40, 
     ...theme.shadows.elevated,
   },
-  documentModal: {
-    height: '92%', // Taller for reading content
-  },
+
   dragHandle: {
     width: 40,
     height: 4,
