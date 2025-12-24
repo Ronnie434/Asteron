@@ -148,26 +148,26 @@ export default function BriefScreen() {
       edges={['top', 'left', 'right']}
       pointerEvents="box-none"
     >
+      <View style={styles.briefHeader}>
+        <View style={styles.briefTitleContainer}>
+          <Image 
+            source={require('../../assets/AI_Companion_icon.png')}
+            style={styles.headerIcon}
+            resizeMode="contain"
+          />
+          <Typography variant="title1">Daily Brief</Typography>
+        </View>
+        <TouchableOpacity 
+          onPress={() => router.push('/voice')}
+          activeOpacity={0.6}
+        >
+          <RainbowSparkles size={24} />
+        </TouchableOpacity>
+      </View>
+
       <View style={styles.content}>
         {/* Daily Brief Card */}
         <Card style={[styles.briefCard, { flex: 1 }]}>
-          <View style={[styles.briefHeader, { backgroundColor: colors.card, zIndex: 10 }]}>
-            <View style={styles.briefTitleContainer}>
-              <Image 
-                source={require('../../assets/AI_Companion_icon.png')}
-                style={styles.headerIcon}
-                resizeMode="contain"
-              />
-              <Typography variant="title1">Daily Brief</Typography>
-            </View>
-            <TouchableOpacity 
-              onPress={() => router.push('/voice')}
-              activeOpacity={0.6}
-            >
-              <RainbowSparkles size={24} />
-            </TouchableOpacity>
-          </View>
-
           <ScrollView 
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 150 }}
@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1, // fill the screen
     paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.sm,
+    paddingTop: 0,
     paddingBottom: 120,
   },
 
@@ -233,7 +233,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: theme.spacing.xl,
+    paddingHorizontal: theme.spacing.lg + 4, // Match upcoming/notes padding
+    marginTop: theme.spacing.sm,
+    marginBottom: theme.spacing.lg,
   },
   briefTitleContainer: {
     flexDirection: 'row',

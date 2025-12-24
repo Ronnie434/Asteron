@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import * as Crypto from 'expo-crypto';
 import * as DB from '../db/items';
 import type { Item, ItemStatus } from '../db/items';
+import { NotificationService } from '../services/NotificationService';
 
 interface ItemsState {
     items: Item[];
@@ -73,6 +74,17 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
 
         try {
             await DB.createItem(newItem);
+
+            // Schedule notification if reminder is set
+            if (newItem.remindAt) {
+                await NotificationService.scheduleReminder(
+                    newItem.id,
+                    newItem.title,
+                    newItem.details || "It's time!",
+                    newItem.remindAt
+                );
+            }
+
             await get().loadItems();
         } catch (e) {
             console.error("Failed to add item:", e);
@@ -82,8 +94,34 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
 
     updateItem: async (id, patch) => {
         try {
+            // Get current item to compare
+            const currentItem = get().items.find(i => i.id === id);
+
             const updatedAt = new Date().toISOString();
             await DB.updateItem(id, { ...patch, updatedAt });
+
+            // Handle Notification logic
+            if (patch.status === 'done' || patch.status === 'archived') {
+                // If completing, remove reminder
+                await NotificationService.cancelReminder(id);
+            } else if (patch.remindAt !== undefined) {
+                // If reminder time changed
+                if (patch.remindAt) {
+                    // Re-schedule
+                    // Use new title/details if provided, else fall back to current
+                    const title = patch.title ?? currentItem?.title ?? "Reminder";
+                    const details = patch.details ?? currentItem?.details ?? "It's time!";
+
+                    await NotificationService.scheduleReminder(id, title, details, patch.remindAt);
+                } else {
+                    // Reminder cleared
+                    await NotificationService.cancelReminder(id);
+                }
+            } else if (patch.title && currentItem?.remindAt) {
+                // If title changed but reminder exists, update notification text
+                await NotificationService.scheduleReminder(id, patch.title, currentItem.details || "", currentItem.remindAt);
+            }
+
             await get().loadItems();
         } catch (e) {
             console.error("Failed to update item:", e);
@@ -92,6 +130,7 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
 
     deleteItem: async (id) => {
         try {
+            await NotificationService.cancelReminder(id);
             await DB.deleteItem(id);
             await get().loadItems();
         } catch (e) {
@@ -100,6 +139,7 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
     },
 
     markAsDone: async (id) => {
+        // This calls updateItem, which handles the cancellation logic
         await get().updateItem(id, { status: 'done' });
     },
 
@@ -107,9 +147,14 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
         try {
             const items = get().items;
             for (const item of items) {
+                await NotificationService.cancelReminder(item.id);
                 await DB.deleteItem(item.id);
             }
             set({ items: [] });
+
+            // Also cancel all notifications in system generally? 
+            // Better to stay precise to IDs, but we could do cancelAll
+            // await Notifications.cancelAllScheduledNotificationsAsync(); 
         } catch (e) {
             console.error("Failed to clear all items:", e);
         }

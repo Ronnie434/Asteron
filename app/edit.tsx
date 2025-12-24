@@ -5,9 +5,11 @@ import { theme } from '../src/ui/theme';
 import { Typography } from '../src/ui/components/Typography';
 import { Card } from '../src/ui/components/Card';
 import { Chip } from '../src/ui/components/Chip';
-import { Calendar, Clock, ChevronRight, Trash2 } from 'lucide-react-native';
+import { Calendar, Clock, ChevronRight, Trash2, X } from 'lucide-react-native';
 import { useState } from 'react';
 import { useLocalSearchParams } from 'expo-router';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Platform } from 'react-native';
 
 import { useItemsStore } from '../src/store/useItemsStore';
 import { useTheme } from '../src/contexts/ThemeContext';
@@ -33,6 +35,46 @@ export default function EditScreen() {
   const [details, setDetails] = useState(params.details || '');
   const [dueAt, setDueAt] = useState(params.dueAt || '');
   const [remindAt, setRemindAt] = useState(params.remindAt || '');
+  
+  // Date Picker State
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [activeDateType, setActiveDateType] = useState<'due' | 'remind' | null>(null);
+  const [tempDate, setTempDate] = useState<Date>(new Date());
+
+  const openDatePicker = (type: 'due' | 'remind') => {
+    setActiveDateType(type);
+    const existingStr = type === 'due' ? dueAt : remindAt;
+    setTempDate(existingStr ? new Date(existingStr) : new Date());
+    setShowDatePicker(true);
+  };
+
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    // On Android, dismissing gives 'dismissed' event. On iOS, change gives date.
+    if (event.type === 'dismissed') {
+      setShowDatePicker(false);
+      return;
+    }
+    
+    const currentDate = selectedDate || tempDate;
+    setTempDate(currentDate);
+
+    if (Platform.OS === 'android') {
+        setShowDatePicker(false);
+        if (activeDateType === 'due') setDueAt(currentDate.toISOString());
+        else if (activeDateType === 'remind') setRemindAt(currentDate.toISOString());
+    }
+  };
+
+  const confirmIOSDate = () => {
+    if (activeDateType === 'due') setDueAt(tempDate.toISOString());
+    else if (activeDateType === 'remind') setRemindAt(tempDate.toISOString());
+    setShowDatePicker(false);
+  };
+
+  const clearDate = (type: 'due' | 'remind') => {
+    if (type === 'due') setDueAt('');
+    else setRemindAt('');
+  };
 
   // Format ISO date to readable string
   const formatDateTime = (isoString: string): string => {
@@ -177,28 +219,97 @@ export default function EditScreen() {
           SCHEDULE
         </Typography>
         <Card style={styles.scheduleCard}>
-          <TouchableOpacity style={styles.scheduleRow}>
+          <View style={styles.scheduleRow}>
             <Calendar size={20} color={colors.primary} strokeWidth={2} />
-            <Typography variant="body" style={{ marginLeft: 12, flex: 1 }}>
-              Due Date
-            </Typography>
-            <Typography variant="body" color={dueAt ? colors.text : colors.textSecondary}>
-              {formatDateTime(dueAt)}
-            </Typography>
-            <ChevronRight size={18} color={colors.textTertiary} />
-          </TouchableOpacity>
+            <TouchableOpacity 
+              style={{ flex: 1, marginLeft: 12 }} 
+              onPress={() => openDatePicker('due')}
+            >
+              <Typography variant="body">Due Date</Typography>
+            </TouchableOpacity>
+            
+            {dueAt ? (
+               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                 <TouchableOpacity onPress={() => openDatePicker('due')}>
+                    <Typography variant="body" color={colors.text}>
+                       {formatDateTime(dueAt)}
+                    </Typography>
+                 </TouchableOpacity>
+                 <TouchableOpacity onPress={() => clearDate('due')}>
+                   <X size={16} color={colors.textTertiary} />
+                 </TouchableOpacity>
+               </View>
+            ) : (
+                <TouchableOpacity onPress={() => openDatePicker('due')}>
+                  <Typography variant="body" color={colors.textSecondary}>None</Typography>
+                </TouchableOpacity>
+            )}
+          </View>
+
           <View style={[styles.separator, { backgroundColor: colors.separator }]} />
-          <TouchableOpacity style={styles.scheduleRow}>
+
+          <View style={styles.scheduleRow}>
             <Clock size={20} color={colors.primary} strokeWidth={2} />
-            <Typography variant="body" style={{ marginLeft: 12, flex: 1 }}>
-              Reminder
-            </Typography>
-            <Typography variant="body" color={remindAt ? colors.text : colors.textSecondary}>
-              {formatDateTime(remindAt)}
-            </Typography>
-            <ChevronRight size={18} color={colors.textTertiary} />
-          </TouchableOpacity>
+            <TouchableOpacity 
+              style={{ flex: 1, marginLeft: 12 }} 
+              onPress={() => openDatePicker('remind')}
+            >
+              <Typography variant="body">Reminder</Typography>
+            </TouchableOpacity>
+            
+            {remindAt ? (
+               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                 <TouchableOpacity onPress={() => openDatePicker('remind')}>
+                    <Typography variant="body" color={colors.text}>
+                       {formatDateTime(remindAt)}
+                    </Typography>
+                 </TouchableOpacity>
+                 <TouchableOpacity onPress={() => clearDate('remind')}>
+                   <X size={16} color={colors.textTertiary} />
+                 </TouchableOpacity>
+               </View>
+            ) : (
+                <TouchableOpacity onPress={() => openDatePicker('remind')}>
+                  <Typography variant="body" color={colors.textSecondary}>None</Typography>
+                </TouchableOpacity>
+            )}
+          </View>
         </Card>
+
+        {/* Date Picker (Platform specific) */}
+        {showDatePicker && (
+            Platform.OS === 'ios' ? (
+                <View style={styles.iosDatePickerOverlay}>
+                    <View style={[styles.iosDatePickerContainer, { backgroundColor: colors.card }]}>
+                        <View style={styles.iosDatePickerHeader}>
+                            <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                                <Typography variant="body" color={colors.textSecondary}>Cancel</Typography>
+                            </TouchableOpacity>
+                            <Typography variant="headline">
+                                {activeDateType === 'due' ? 'Set Due Date' : 'Set Reminder'}
+                            </Typography>
+                            <TouchableOpacity onPress={confirmIOSDate}>
+                                <Typography variant="headline" color={colors.primary}>Done</Typography>
+                            </TouchableOpacity>
+                        </View>
+                        <DateTimePicker
+                            value={tempDate}
+                            mode="datetime"
+                            display="spinner"
+                            onChange={onDateChange}
+                            textColor={colors.text}
+                        />
+                    </View>
+                </View>
+            ) : (
+                <DateTimePicker
+                    value={tempDate}
+                    mode="datetime" // Android might need separate date/time pickers usually, but 'datetime' works on some versions or defaults to date
+                    display="default"
+                    onChange={onDateChange}
+                />
+            )
+        )}
 
         {/* Delete Button */}
         <TouchableOpacity 
@@ -270,5 +381,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: theme.spacing.md,
     borderRadius: theme.borderRadius.md,
+  },
+  // iOS Date Picker Styles
+  iosDatePickerOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    top: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+    zIndex: 1000,
+  },
+  iosDatePickerContainer: {
+    padding: theme.spacing.lg,
+    borderTopLeftRadius: theme.borderRadius.xl,
+    borderTopRightRadius: theme.borderRadius.xl,
+  },
+  iosDatePickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
   },
 });

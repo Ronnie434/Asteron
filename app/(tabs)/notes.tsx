@@ -56,20 +56,16 @@ export default function NotesScreen() {
       edges={['top']}
       pointerEvents="box-none"
     >
+      <View style={styles.header}>
+        <View style={styles.headerContainer}>
+          <Typography variant="largeTitle">Notes</Typography>
+        </View>
+      </View>
+
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
-          <View style={styles.headerContainer}>
-            <Image 
-              source={require('../../assets/AI_Companion_icon.png')}
-              style={styles.headerIcon}
-              resizeMode="contain"
-            />
-            <Typography variant="largeTitle">Notes</Typography>
-          </View>
-        </View>
 
         {notes.length > 0 ? (
           <View style={styles.notesGrid}>
@@ -136,20 +132,18 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: theme.spacing.lg,
+    paddingTop: 0,
     paddingBottom: 150,
   },
   header: {
-    marginBottom: theme.spacing.xl,
+    paddingHorizontal: theme.spacing.lg,
+    marginTop: theme.spacing.sm,
+    marginBottom: theme.spacing.lg,
   },
   headerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.sm,
-  },
-  headerIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 9,
   },
   notesGrid: {
     gap: theme.spacing.md,

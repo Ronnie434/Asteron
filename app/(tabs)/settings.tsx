@@ -23,10 +23,11 @@ const THEME_OPTIONS: { value: ThemeMode; label: string; description: string; Ico
   { value: 'system', label: 'System', description: 'Follow system theme', Icon: Smartphone },
 ];
 
+import { useSettingsStore } from '../../src/store/useSettingsStore';
+
 export default function SettingsScreen() {
   const { themeMode, setThemeMode, colors, isDark } = useTheme();
-  const [quietHours, setQuietHours] = useState(true);
-  const [dailyBrief, setDailyBrief] = useState(true);
+  const { quietHoursEnabled, setQuietHoursEnabled, dailyBriefEnabled, setDailyBriefEnabled } = useSettingsStore();
   const [themeModalVisible, setThemeModalVisible] = useState(false);
   const [documentType, setDocumentType] = useState<'terms' | 'privacy' | null>(null);
 
@@ -334,16 +335,16 @@ export default function SettingsScreen() {
             Icon={Moon}
             title="Quiet Hours"
             subtitle="10 PM – 7 AM"
-            value={quietHours}
-            onToggle={setQuietHours}
+            value={quietHoursEnabled}
+            onToggle={setQuietHoursEnabled}
           />
           <View style={styles.separator} />
           <SettingRow
             Icon={Sun}
             title="Daily Brief"
             subtitle="Every morning at 8 AM"
-            value={dailyBrief}
-            onToggle={setDailyBrief}
+            value={dailyBriefEnabled}
+            onToggle={setDailyBriefEnabled}
           />
         </Card>
 
