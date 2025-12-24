@@ -70,6 +70,21 @@ export default function BriefScreen() {
     }
   };
 
+  const handleEditItem = (item: Item) => {
+    router.push({
+      pathname: '/edit',
+      params: {
+        id: item.id,
+        title: item.title,
+        type: item.type,
+        priority: item.priority,
+        details: item.details || '',
+        dueAt: item.dueAt || '',
+        remindAt: item.remindAt || '',
+      }
+    });
+  };
+
   const TaskRow = ({ item }: { item: Item }) => {
     const effectiveDate = getEffectiveDate(item);
     const time = effectiveDate
@@ -78,36 +93,51 @@ export default function BriefScreen() {
     const isDone = item.status === 'done';
       
     return (
-      <TouchableOpacity 
-        style={styles.taskRow}
-        onPress={() => handleToggleItem(item)}
-        activeOpacity={0.6}
-      >
-        <View style={[
-          styles.checkbox, 
-          { borderColor: isDone ? colors.success : colors.textTertiary },
-          isDone && { backgroundColor: colors.success, borderColor: colors.success }
-        ]}>
-          {isDone && <Check size={14} color="#FFFFFF" strokeWidth={3} />}
-        </View>
-        <View style={styles.taskContent}>
+      <View style={styles.taskRow}>
+        {/* Checkbox - only toggles completion */}
+        <TouchableOpacity 
+          onPress={() => handleToggleItem(item)}
+          activeOpacity={0.6}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <View style={[
+            styles.checkbox, 
+            { borderColor: isDone ? colors.success : colors.textTertiary },
+            isDone && { backgroundColor: colors.success, borderColor: colors.success }
+          ]}>
+            {isDone && <Check size={14} color="#FFFFFF" strokeWidth={3} />}
+          </View>
+        </TouchableOpacity>
+        
+        {/* Task content - opens edit modal */}
+        <TouchableOpacity 
+          style={styles.taskContent}
+          onPress={() => handleEditItem(item)}
+          activeOpacity={0.6}
+        >
           <Typography 
             variant="body" 
             style={isDone ? { textDecorationLine: 'line-through', opacity: 0.5 } : undefined}
           >
             {item.title}
           </Typography>
-        </View>
+        </TouchableOpacity>
+        
         {time ? (
-          <Typography 
-            variant="caption2" 
-            color={colors.textSecondary}
-            style={isDone ? { opacity: 0.5 } : undefined}
+          <TouchableOpacity 
+            onPress={() => handleEditItem(item)}
+            activeOpacity={0.6}
           >
-            {time}
-          </Typography>
+            <Typography 
+              variant="caption2" 
+              color={colors.textSecondary}
+              style={isDone ? { opacity: 0.5 } : undefined}
+            >
+              {time}
+            </Typography>
+          </TouchableOpacity>
         ) : null}
-      </TouchableOpacity>
+      </View>
     );
   };
 
