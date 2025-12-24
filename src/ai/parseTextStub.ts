@@ -7,14 +7,14 @@ export interface ParsedItemStub {
     confidence: number;
 }
 
-export const parseTextStub = async (text: string): Promise<ParsedItemStub> => {
-    // Simulate AI delay
-    await new Promise(resolve => setTimeout(resolve, 500));
+import { aiService } from './aiService';
 
+export const parseTextStub = async (text: string): Promise<ParsedItemStub> => {
+    const result = await aiService.analyzeText(text);
     return {
-        title: text.trim(),
-        type: 'task',
-        priority: 'med',
-        confidence: 0.8,
+        title: result.title,
+        type: result.type,
+        priority: result.priority,
+        confidence: result.confidence,
     };
 };

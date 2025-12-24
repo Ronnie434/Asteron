@@ -24,21 +24,31 @@ const TAB_ROUTES = [
 ];
 
 function AppContent() {
-  const { isDark } = useTheme();
+  const { isDark, colors } = useTheme();
   
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={{ flex: 1 }}>
-        <Stack>
+        <Stack screenOptions={{
+            headerStyle: {
+              backgroundColor: colors.background,
+            },
+            headerTintColor: colors.text,
+            headerTitleStyle: {
+              color: colors.text,
+              fontFamily: 'Manrope_700Bold',
+            },
+        }}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="confirm" options={{ presentation: 'modal', title: 'Confirm' }} />
           <Stack.Screen 
             name="voice" 
             options={{ 
               title: 'Voice Input',
-              headerTitleStyle: {
+               headerTitleStyle: {
                 fontFamily: 'Manrope_700Bold',
                 fontSize: 17,
+                color: colors.text,
               },
               headerBackButtonDisplayMode: 'minimal',
             }} 
