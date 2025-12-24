@@ -304,13 +304,16 @@ export default function VoiceScreen() {
                 I couldn't extract a clear action. Try saying:
               </Typography>
               <Typography variant="callout" color={colors.textSecondary} style={{ marginBottom: 4 }}>
-                • "Remind me to call mom tomorrow"
+                • "Remind me to call mom tomorrow at 3pm"
               </Typography>
               <Typography variant="callout" color={colors.textSecondary} style={{ marginBottom: 4 }}>
-                • "Remember to buy groceries"
+                • "Pay electricity bill by Friday"
+              </Typography>
+              <Typography variant="callout" color={colors.textSecondary} style={{ marginBottom: 4 }}>
+                • "Schedule doctor appointment next week"
               </Typography>
               <Typography variant="callout" color={colors.textSecondary} style={{ marginBottom: 12 }}>
-                • "Keep a record of my meeting notes"
+                • "Remember to submit report by end of day"
               </Typography>
               {transcription && (
                 <View style={{ marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.separator }}>
