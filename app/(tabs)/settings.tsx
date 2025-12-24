@@ -470,7 +470,7 @@ const styles = StyleSheet.create({
   },
   footer: {
     alignItems: 'center',
-    marginTop: theme.spacing.xxl,
+    marginTop: theme.spacing.xs,
   },
   // Profile Card Styles
   profileCard: {
@@ -578,8 +578,8 @@ const styles = StyleSheet.create({
   },
   appBrandingContainer: {
     alignItems: 'center',
-    marginTop: theme.spacing.xxl,
-    marginBottom: theme.spacing.lg,
+    marginTop: theme.spacing.xl,
+    marginBottom: 0,
   },
   appIcon: {
     width: 80,
