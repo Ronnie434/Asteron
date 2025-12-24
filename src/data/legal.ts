@@ -4,30 +4,30 @@ export const TERMS_OF_SERVICE = `# Terms of Service
 
 ## 1. Acceptance of Terms
 
-By accessing or using AI Companion services, including our website (ai-companion-web) and mobile application (ai-companion-app), you agree to be bound by these Terms of Service ("Terms"). If you do not agree to these Terms, please do not use our services.
+By accessing or using Asteron services, including our website (asteron-web) and mobile application (asteron-app), you agree to be bound by these Terms of Service ("Terms"). If you do not agree to these Terms, please do not use our services.
 
-These Terms constitute a legally binding agreement between you and AI Companion ("we," "us," or "our"). We may update these Terms from time to time as described in Section 15.
+These Terms constitute a legally binding agreement between you and Asteron ("we," "us," or "our"). We may update these Terms from time to time as described in Section 15.
 
 Your continued use of our services after any changes to these Terms will constitute your acceptance of such changes.
 
 ## 2. Description of Services
 
-AI Companion provides productivity and task management services through two platforms:
+Asteron provides productivity and task management services through two platforms:
 
-### 2.1 AI Companion Website
+### 2.1 Asteron Website
 
-Our website (ai-companion-web) is a marketing landing page that provides:
+Our website (asteron-web) is a marketing landing page that provides:
 
-- Information about the AI Companion mobile application
+- Information about the Asteron mobile application
 - Feature descriptions and product showcase
 - Waitlist signup with optional survey questions
 - Dark and light theme viewing options
 
 The website does not require user accounts or authentication.
 
-### 2.2 AI Companion Mobile App
+### 2.2 Asteron Mobile App
 
-Our mobile application (ai-companion-app) is available for iOS and Android devices and provides:
+Our mobile application (asteron-app) is available for iOS and Android devices and provides:
 
 | Feature | Description |
 |---------|-------------|
@@ -44,7 +44,7 @@ Our mobile application (ai-companion-app) is available for iOS and Android devic
 
 ## 3. Eligibility
 
-To use AI Companion services, you must:
+To use Asteron services, you must:
 
 - Be at least **13 years of age**
 - Have the legal capacity to enter into these Terms
@@ -58,7 +58,7 @@ We do not knowingly collect information from or provide services to children und
 
 ### 4.1 No Account Required
 
-AI Companion operates without user accounts. This means:
+Asteron operates without user accounts. This means:
 
 - **No registration** — You do not need to create an account to use the mobile app
 - **No passwords** — There are no credentials to remember or recover
@@ -74,7 +74,7 @@ All your data is stored locally on your device. As a result:
 
 ## 5. User Responsibilities
 
-By using AI Companion, you agree to the following responsibilities:
+By using Asteron, you agree to the following responsibilities:
 
 ### 5.1 Device Security
 
@@ -83,7 +83,7 @@ Since your data is stored locally on your device, you are responsible for:
 - Keeping your device secure with a passcode, PIN, or biometric authentication
 - Maintaining your device's operating system with security updates
 - Protecting physical access to your device
-- Understanding that anyone with access to your unlocked device may access your AI Companion data
+- Understanding that anyone with access to your unlocked device may access your Asteron data
 
 ### 5.2 Data Backup
 
@@ -117,7 +117,7 @@ You agree not to use our services to:
 
 ### 6.1 Ownership
 
-You retain full ownership of all content you create within AI Companion, including:
+You retain full ownership of all content you create within Asteron, including:
 
 - Tasks and reminders
 - Notes and descriptions
@@ -148,7 +148,7 @@ Since your content never leaves your device, we have no ability to monitor, revi
 
 ### 7.1 AI Text Parsing
 
-AI Companion includes AI-powered text parsing features that attempt to:
+Asteron includes AI-powered text parsing features that attempt to:
 
 - Extract task titles from your input
 - Identify dates and times
@@ -222,9 +222,9 @@ All notifications are generated and delivered locally on your device. We do not:
 
 ### 9.1 Our Property
 
-AI Companion and all associated intellectual property are owned by us, including:
+Asteron and all associated intellectual property are owned by us, including:
 
-- The AI Companion name and brand
+- The Asteron name and brand
 - Logos, icons, and visual design
 - App interface and user experience design
 - Source code and software
@@ -343,7 +343,7 @@ We reserve the right to modify these Terms at any time. When we make changes we 
 
 If you have questions, concerns, or feedback about these Terms of Service, please contact us:
 
-**Email:** legal@aicompanion.app
+**Email:** legal@asteron.app
 `;
 
 export const PRIVACY_POLICY = `# Privacy Policy
@@ -352,10 +352,10 @@ export const PRIVACY_POLICY = `# Privacy Policy
 
 ## 1. Introduction
 
-This Privacy Policy explains how AI Companion ("we," "us," or "our") collects, uses, and protects your information when you use our services, which include:
+This Privacy Policy explains how Asteron ("we," "us," or "our") collects, uses, and protects your information when you use our services, which include:
 
-- **AI Companion Website** (ai-companion-web) — Our marketing landing page and waitlist signup
-- **AI Companion Mobile App** (ai-companion-app) — Our iOS and Android application
+- **Asteron Website** (asteron-web) — Our marketing landing page and waitlist signup
+- **Asteron Mobile App** (asteron-app) — Our iOS and Android application
 
 We are committed to protecting your privacy and being transparent about our data practices. This policy applies to all users of our website and mobile application.
 
@@ -363,7 +363,7 @@ We are committed to protecting your privacy and being transparent about our data
 
 ### 2.1 Website Waitlist Information
 
-When you sign up for our waitlist through the AI Companion website, we collect the following information:
+When you sign up for our waitlist through the Asteron website, we collect the following information:
 
 | Information | Required | Purpose |
 |-------------|----------|---------|
@@ -374,7 +374,7 @@ When you sign up for our waitlist through the AI Companion website, we collect t
 
 ### 2.2 Mobile App Information
 
-The AI Companion mobile app stores all your data **locally on your device**. We do not have access to this data, and it is never transmitted to our servers. Information stored locally includes:
+The Asteron mobile app stores all your data **locally on your device**. We do not have access to this data, and it is never transmitted to our servers. Information stored locally includes:
 
 - **Task titles** — Names you give to your tasks and items
 - **Task details** — Optional additional notes you add
@@ -405,7 +405,7 @@ When you visit our website, certain information is collected automatically:
 We use your waitlist information to:
 
 - Add you to our launch notification list
-- Send you updates about AI Companion availability
+- Send you updates about Asteron availability
 - Conduct user research to improve our product
 - Analyze signup patterns to better understand our audience
 
@@ -515,7 +515,7 @@ We believe in privacy-first design. Our commitments to you:
 
 ## 8. Children's Privacy
 
-AI Companion is not intended for children under the age of 13. We do not knowingly collect personal information from children under 13 years of age. If you are a parent or guardian and believe your child has provided us with personal information, please contact us immediately using the information in Section 10.
+Asteron is not intended for children under the age of 13. We do not knowingly collect personal information from children under 13 years of age. If you are a parent or guardian and believe your child has provided us with personal information, please contact us immediately using the information in Section 10.
 
 ## 9. Changes to This Policy
 
@@ -531,5 +531,5 @@ Your continued use of our services after any changes indicates your acceptance o
 
 If you have any questions, concerns, or requests regarding this Privacy Policy or our data practices, please contact us:
 
-**Email:** privacy@aicompanion.app
+**Email:** privacy@asteron.app
 `;

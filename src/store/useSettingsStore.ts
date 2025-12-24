@@ -26,7 +26,7 @@ export const useSettingsStore = create<SettingsState>()(
             setDailyBriefEnabled: (enabled) => set({ dailyBriefEnabled: enabled }),
         }),
         {
-            name: 'ai-companion-settings',
+            name: 'asteron-settings',
             storage: createJSONStorage(() => AsyncStorage),
         }
     )

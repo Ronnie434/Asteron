@@ -1,4 +1,4 @@
-# 🤖 AI Companion - Expo App
+# 🤖 Asteron - AI Personal Assistant
 
 A premium, AI-powered personal assistant mobile application built with Expo and React Native. Features a beautiful glassmorphic UI, intelligent task management, and voice-powered capture.
 
@@ -35,8 +35,8 @@ A premium, AI-powered personal assistant mobile application built with Expo and 
 
 ```bash
 # Clone the repository
-git clone https://github.com/Ronnie434/AI-Companion-Expo.git
-cd ai-companion-app
+git clone git@github.com:Ronnie434/Asteron.git
+cd asteron
 
 # Install dependencies
 npm install
@@ -62,7 +62,7 @@ npm start
 ## 📁 Project Structure
 
 ```
-ai-companion-app/
+asteron/
 ├── app/                      # Expo Router screens
 │   ├── (tabs)/              # Tab navigation screens
 │   │   ├── brief.tsx        # Daily brief/home

@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "ai-companion-app",
-    "slug": "ai-companion-app",
-    "scheme": "ai-companion",
+    "name": "Asteron",
+    "slug": "asteron",
+    "scheme": "asteron",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/AI_Companion_icon.png",
@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.ronnie39.aicompanionapp"
+      "bundleIdentifier": "com.ronnie39.asteron"
     },
     "android": {
       "adaptiveIcon": {
@@ -24,7 +24,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.ronnie39.aicompanionapp"
+      "package": "com.ronnie39.asteron"
     },
     "web": {
       "favicon": "./assets/AI_Companion_icon.png"

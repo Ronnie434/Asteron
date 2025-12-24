@@ -92,7 +92,7 @@ export const aiService: AIService = {
                     "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
                     "Content-Type": "application/json",
                     "HTTP-Referer": "https://ai-companion-eta-cyan.vercel.app", // Required by OpenRouter
-                    "X-Title": "AI Companion App",
+                    "X-Title": "Asteron",
                 },
                 body: JSON.stringify(body)
             });
@@ -195,8 +195,8 @@ USER INPUT:
                 headers: {
                     "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
                     "Content-Type": "application/json",
-                    "HTTP-Referer": "https://ai-companion.app",
-                    "X-Title": "AI Companion App",
+                    "HTTP-Referer": "https://asteron.app",
+                    "X-Title": "Asteron",
                 },
                 body: JSON.stringify(body)
             });

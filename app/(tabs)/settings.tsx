@@ -407,7 +407,7 @@ export default function SettingsScreen() {
             resizeMode="contain"
           />
           <Typography variant="headline" style={styles.appName}>
-            AI Companion
+            Asteron
           </Typography>
           <Typography variant="footnote" color={colors.textSecondary}>
             Your intelligent personal assistant
