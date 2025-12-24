@@ -86,7 +86,7 @@ ai-companion-app/
 
 The app uses a custom design system with:
 - **Typography**: Manrope (headings) & DM Sans (body)
-- **Color Palette**: Premium blue primary (#007AFF) with semantic colors
+- **Color Palette**: Modern Indigo primary (#6366F1) with semantic colors
 - **Spacing**: 4px base unit with consistent scale
 - **Components**: Fully typed, reusable UI components
 

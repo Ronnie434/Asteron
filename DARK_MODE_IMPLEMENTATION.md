@@ -40,15 +40,15 @@
 - Background: `#F2F2F7` (iOS light gray)
 - Card: `#FFFFFF`
 - Text: `#000000`
-- Primary: `#007AFF` (iOS blue)
-- Accent: `#5856D6` (iOS purple)
+- Primary: `#6366F1` (Modern Indigo)
+- Accent: `#EC4899` (Rose pink)
 
 #### Dark Theme:
 - Background: `#000000` (Pure black)
 - Card: `#1C1C1E`
 - Text: `#FFFFFF`
-- Primary: `#0A84FF` (Brighter blue for dark)
-- Accent: `#5E5CE6` (Adjusted purple)
+- Primary: `#818CF8` (Brighter Indigo for dark)
+- Accent: `#F472B6` (Lighter rose)
 
 ## 📱 How It Works
 

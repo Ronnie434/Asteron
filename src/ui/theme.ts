@@ -16,15 +16,15 @@ export const lightColors = {
     textSecondary: '#8E8E93',
     textTertiary: '#C7C7CC',
 
-    // Primary accent - iOS blue
-    primary: '#007AFF',
-    primaryLight: 'rgba(0, 122, 255, 0.1)',
-    accent: '#5856D6', // iOS purple for premium features
+    // Primary accent - Modern Indigo (AI-inspired)
+    primary: '#6366F1',
+    primaryLight: 'rgba(99, 102, 241, 0.12)',
+    accent: '#EC4899', // Rose pink for premium features
 
     // Semantic colors
-    success: '#34C759',
-    warning: '#FF9500',
-    danger: '#FF3B30',
+    success: '#10B981', // Modern emerald
+    warning: '#F59E0B', // Amber
+    danger: '#EF4444', // Modern red
 
     // Borders
     separator: 'rgba(60, 60, 67, 0.12)',
@@ -53,15 +53,15 @@ export const darkColors = {
     textSecondary: '#AEAEB2',
     textTertiary: '#8E8E93', // iOS standard tertiary text for dark mode
 
-    // Primary accent - iOS blue (same in dark)
-    primary: '#0A84FF',
-    primaryLight: 'rgba(10, 132, 255, 0.15)',
-    accent: '#5E5CE6', // iOS purple for premium features (dark mode)
+    // Primary accent - Brighter Indigo for dark mode
+    primary: '#818CF8',
+    primaryLight: 'rgba(129, 140, 248, 0.18)',
+    accent: '#F472B6', // Lighter rose for dark mode
 
     // Semantic colors (brighter for dark mode)
-    success: '#32D74B',
-    warning: '#FF9F0A',
-    danger: '#FF453A',
+    success: '#34D399', // Brighter emerald
+    warning: '#FBBF24', // Brighter amber
+    danger: '#F87171', // Brighter red
 
     // Borders
     separator: 'rgba(84, 84, 88, 0.6)',

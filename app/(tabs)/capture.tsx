@@ -16,12 +16,13 @@ import { Card } from '../../src/ui/components/Card';
 import { Button } from '../../src/ui/components/Button';
 import { Typography } from '../../src/ui/components/Typography';
 import { Chip } from '../../src/ui/components/Chip';
-import { Sparkles, Calendar, Flag, Clock, X, Check } from 'lucide-react-native';
+import { Calendar, Flag, Clock, X, Check } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useItemsStore } from '../../src/store/useItemsStore';
 import { aiService } from '../../src/ai/aiService';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { RainbowSparkles } from '../../src/ui/components/RainbowSparkles';
 
 export default function CaptureScreen() {
   const router = useRouter();
@@ -196,7 +197,7 @@ export default function CaptureScreen() {
               onPress={() => router.push('/voice')}
               activeOpacity={0.6}
             >
-              <Sparkles size={24} color={colors.primary} />
+              <RainbowSparkles size={24} />
             </TouchableOpacity>
 
             {/* Main Input Area */}

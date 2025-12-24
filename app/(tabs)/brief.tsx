@@ -1,6 +1,6 @@
 import { View, ScrollView, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Sparkles, Check } from 'lucide-react-native';
+import { Check } from 'lucide-react-native';
 import { theme } from '../../src/ui/theme';
 import { Typography } from '../../src/ui/components/Typography';
 import { Card } from '../../src/ui/components/Card';
@@ -9,6 +9,7 @@ import { Item } from '../../src/db/items';
 import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
+import { RainbowSparkles } from '../../src/ui/components/RainbowSparkles';
 
 export default function BriefScreen() {
   const router = useRouter();
@@ -163,7 +164,7 @@ export default function BriefScreen() {
               onPress={() => router.push('/voice')}
               activeOpacity={0.6}
             >
-              <Sparkles size={24} color={colors.primary} />
+              <RainbowSparkles size={24} />
             </TouchableOpacity>
           </View>
 

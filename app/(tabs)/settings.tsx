@@ -5,7 +5,7 @@ import { Typography } from '../../src/ui/components/Typography';
 import { Card } from '../../src/ui/components/Card';
 import { SimpleMarkdown } from '../../src/ui/components/SimpleMarkdown';
 import { 
-  Sun, Moon, Smartphone, X, CheckCircle, Sparkles, ChevronRight, 
+  Sun, Moon, Smartphone, X, CheckCircle, ChevronRight, 
   ShieldCheck, FileText, Info, Trash
 } from 'lucide-react-native';
 import { useState } from 'react';
@@ -13,6 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useItemsStore } from '../../src/store/useItemsStore';
 import { TERMS_OF_SERVICE, PRIVACY_POLICY } from '../../src/data/legal';
+import { GradientSparkles } from '../../src/ui/components/RainbowSparkles';
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -180,7 +181,7 @@ export default function SettingsScreen() {
             Ronak Patel
           </Typography>
           <View style={styles.membershipBadge}>
-            <Sparkles size={14} color={colors.accent} fill={colors.accent} />
+            <GradientSparkles size={14} />
             <Typography 
               variant="footnote" 
               color={colors.accent}
