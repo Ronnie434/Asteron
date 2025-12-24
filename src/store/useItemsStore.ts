@@ -18,6 +18,7 @@ interface ItemsState {
     updateItem: (id: string, patch: Partial<Item>) => Promise<void>;
     deleteItem: (id: string) => Promise<void>;
     markAsDone: (id: string) => Promise<void>;
+    clearAllItems: () => Promise<void>;
 }
 
 export const useItemsStore = create<ItemsState>((set, get) => ({
@@ -29,21 +30,6 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
         if (get().initialized) return;
         try {
             await DB.initDb();
-
-            // Force clear and reseed to get fresh mock data with updated dates
-            const existing = await DB.listItems();
-
-            // Delete all existing items to get fresh mock data
-            for (const item of existing) {
-                await DB.deleteItem(item.id);
-            }
-
-            // Seed fresh mock data
-            const { MOCK_ITEMS } = require('../data/mock');
-            for (const item of MOCK_ITEMS) {
-                await DB.createItem(item);
-            }
-
             set({ initialized: true });
             await get().loadItems();
         } catch (e) {
@@ -111,5 +97,17 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
 
     markAsDone: async (id) => {
         await get().updateItem(id, { status: 'done' });
+    },
+
+    clearAllItems: async () => {
+        try {
+            const items = get().items;
+            for (const item of items) {
+                await DB.deleteItem(item.id);
+            }
+            set({ items: [] });
+        } catch (e) {
+            console.error("Failed to clear all items:", e);
+        }
     },
 }));

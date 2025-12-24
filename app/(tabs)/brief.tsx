@@ -1,6 +1,6 @@
 import { View, ScrollView, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Sparkles } from 'lucide-react-native';
+import { Sparkles, Check } from 'lucide-react-native';
 import { theme } from '../../src/ui/theme';
 import { Typography } from '../../src/ui/components/Typography';
 import { Card } from '../../src/ui/components/Card';
@@ -13,44 +13,97 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 export default function BriefScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { items, init, markAsDone } = useItemsStore();
+  const { items, init, markAsDone, updateItem } = useItemsStore();
   
   useEffect(() => {
     init();
   }, []);
 
   const now = new Date();
+
+  // Helper to get the effective date (dueAt or remindAt)
+  const getEffectiveDate = (item: Item): string | null => {
+    return item.dueAt || item.remindAt || null;
+  };
   
-  const todayItems = items.filter(i => {
-    if (i.status !== 'active' || !i.dueAt) return false;
-    return new Date(i.dueAt).toDateString() === now.toDateString();
-  });
+  // Include both active AND done items for today, sort by time then done items to end
+  const todayItems = items
+    .filter(i => {
+      if (i.status !== 'active' && i.status !== 'done') return false;
+      const effectiveDate = getEffectiveDate(i);
+      if (!effectiveDate) return false;
+      return new Date(effectiveDate).toDateString() === now.toDateString();
+    })
+    .sort((a, b) => {
+      // First: sort done items to the end
+      if (a.status === 'done' && b.status !== 'done') return 1;
+      if (a.status !== 'done' && b.status === 'done') return -1;
+      // Then: sort by time (earliest first)
+      const aDate = new Date(getEffectiveDate(a)!).getTime();
+      const bDate = new Date(getEffectiveDate(b)!).getTime();
+      return aDate - bDate;
+    });
   
-  const upcomingItems = items.filter(i => {
-    if (i.status !== 'active' || !i.dueAt) return false;
-    const dueDate = new Date(i.dueAt);
-    return dueDate > now && dueDate.toDateString() !== now.toDateString();
-  }).slice(0, 4);
+  // Only active upcoming items, sorted by time (earliest first)
+  const upcomingItems = items
+    .filter(i => {
+      if (i.status !== 'active') return false;
+      const effectiveDate = getEffectiveDate(i);
+      if (!effectiveDate) return false;
+      const date = new Date(effectiveDate);
+      return date > now && date.toDateString() !== now.toDateString();
+    })
+    .sort((a, b) => {
+      const aDate = new Date(getEffectiveDate(a)!).getTime();
+      const bDate = new Date(getEffectiveDate(b)!).getTime();
+      return aDate - bDate;
+    })
+    .slice(0, 4);
+
+  const handleToggleItem = async (item: Item) => {
+    if (item.status === 'done') {
+      // Uncheck - set back to active
+      await updateItem(item.id, { status: 'active' });
+    } else {
+      // Check - mark as done
+      await markAsDone(item.id);
+    }
+  };
 
   const TaskRow = ({ item }: { item: Item }) => {
-    const time = item.dueAt 
-      ? new Date(item.dueAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    const effectiveDate = getEffectiveDate(item);
+    const time = effectiveDate
+      ? new Date(effectiveDate).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
       : '';
+    const isDone = item.status === 'done';
       
     return (
       <TouchableOpacity 
         style={styles.taskRow}
-        onPress={() => markAsDone(item.id)}
+        onPress={() => handleToggleItem(item)}
         activeOpacity={0.6}
       >
-        <View style={[styles.checkbox, { borderColor: colors.textTertiary }]}>
-          <View style={styles.checkboxInner} />
+        <View style={[
+          styles.checkbox, 
+          { borderColor: isDone ? colors.success : colors.textTertiary },
+          isDone && { backgroundColor: colors.success, borderColor: colors.success }
+        ]}>
+          {isDone && <Check size={14} color="#FFFFFF" strokeWidth={3} />}
         </View>
         <View style={styles.taskContent}>
-          <Typography variant="body">{item.title}</Typography>
+          <Typography 
+            variant="body" 
+            style={isDone ? { textDecorationLine: 'line-through', opacity: 0.5 } : undefined}
+          >
+            {item.title}
+          </Typography>
         </View>
         {time ? (
-          <Typography variant="caption2" color={colors.textSecondary}>
+          <Typography 
+            variant="caption2" 
+            color={colors.textSecondary}
+            style={isDone ? { opacity: 0.5 } : undefined}
+          >
             {time}
           </Typography>
         ) : null}

@@ -11,6 +11,7 @@ import {
 import { useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../src/contexts/ThemeContext';
+import { useItemsStore } from '../../src/store/useItemsStore';
 import { TERMS_OF_SERVICE, PRIVACY_POLICY } from '../../src/data/legal';
 
 type ThemeMode = 'light' | 'dark' | 'system';
@@ -197,10 +198,17 @@ export default function SettingsScreen() {
   const handleDeleteData = () => {
     Alert.alert(
       'Delete All Data',
-      'This will permanently delete all your items.',
+      'This will permanently delete all your items. This action cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive' },
+        { 
+          text: 'Delete', 
+          style: 'destructive',
+          onPress: async () => {
+            await useItemsStore.getState().clearAllItems();
+            Alert.alert('Done', 'All data has been deleted.');
+          }
+        },
       ]
     );
   };

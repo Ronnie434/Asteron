@@ -1,23 +1,23 @@
-import { View, StyleSheet, TextInput, ScrollView, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, TextInput, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { theme } from '../src/ui/theme';
 import { Typography } from '../src/ui/components/Typography';
 import { Card } from '../src/ui/components/Card';
-import { Button } from '../src/ui/components/Button';
 import { Chip } from '../src/ui/components/Chip';
-import { Calendar, Clock, ChevronRight } from 'lucide-react-native';
-import { useState, useEffect } from 'react';
+import { Calendar, Clock, ChevronRight, Trash2 } from 'lucide-react-native';
+import { useState } from 'react';
 import { useLocalSearchParams } from 'expo-router';
 
 import { useItemsStore } from '../src/store/useItemsStore';
 import { useTheme } from '../src/contexts/ThemeContext';
 
-export default function ConfirmScreen() {
+export default function EditScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const addItem = useItemsStore(state => state.addItem);
+  const { updateItem, deleteItem } = useItemsStore();
   const params = useLocalSearchParams<{ 
+    id: string;
     title?: string; 
     type?: string; 
     priority?: string;
@@ -26,6 +26,7 @@ export default function ConfirmScreen() {
     remindAt?: string;
   }>();
   
+  const itemId = params.id;
   const [title, setTitle] = useState(params.title || '');
   const [type, setType] = useState(params.type || 'task');
   const [priority, setPriority] = useState(params.priority || 'med');
@@ -51,19 +52,40 @@ export default function ConfirmScreen() {
   };
 
   const handleSave = async () => {
-    if (!title.trim()) return;
+    if (!title.trim() || !itemId) return;
     try {
-        await addItem(title, {
+        await updateItem(itemId, {
+            title,
             type: type as any,
             priority: priority as any,
             details: details || null,
             dueAt: dueAt || null,
             remindAt: remindAt || null,
         });
-        router.replace('/success');
+        router.back();
     } catch (e) {
-        console.error('Failed to save item:', e);
+        console.error('Failed to update item:', e);
     }
+  };
+
+  const handleDelete = () => {
+    Alert.alert(
+      'Delete Item',
+      'Are you sure you want to delete this item?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive',
+          onPress: async () => {
+            if (itemId) {
+              await deleteItem(itemId);
+              router.back();
+            }
+          }
+        },
+      ]
+    );
   };
 
   return (
@@ -177,6 +199,18 @@ export default function ConfirmScreen() {
             <ChevronRight size={18} color={colors.textTertiary} />
           </TouchableOpacity>
         </Card>
+
+        {/* Delete Button */}
+        <TouchableOpacity 
+          style={[styles.deleteButton, { backgroundColor: colors.danger + '15' }]}
+          onPress={handleDelete}
+          activeOpacity={0.7}
+        >
+          <Trash2 size={20} color={colors.danger} strokeWidth={2} />
+          <Typography variant="body" color={colors.danger} style={{ marginLeft: 8 }}>
+            Delete Item
+          </Typography>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -185,7 +219,6 @@ export default function ConfirmScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    // backgroundColor: theme.colors.background, // Set via inline style
   },
   header: {
     flexDirection: 'row',
@@ -194,8 +227,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    // borderBottomColor: theme.colors.separator, // Set via inline style
-    // backgroundColor: theme.colors.card, // Set via inline style
   },
   content: {
     padding: theme.spacing.lg,
@@ -209,7 +240,6 @@ const styles = StyleSheet.create({
     fontFamily: 'DMSans_500Medium',
     fontSize: 20,
     fontWeight: '500',
-    // color: theme.colors.text, // Set via inline style
   },
   label: {
     marginBottom: theme.spacing.sm,
@@ -223,6 +253,7 @@ const styles = StyleSheet.create({
   },
   scheduleCard: {
     padding: 0,
+    marginBottom: theme.spacing.xl,
   },
   scheduleRow: {
     flexDirection: 'row',
@@ -231,7 +262,13 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: StyleSheet.hairlineWidth,
-    // backgroundColor: theme.colors.separator, // Set via inline style
     marginLeft: 48,
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
   },
 });

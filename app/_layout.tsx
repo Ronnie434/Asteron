@@ -40,7 +40,28 @@ function AppContent() {
             },
         }}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="confirm" options={{ presentation: 'modal', title: 'Confirm' }} />
+          <Stack.Screen 
+            name="confirm" 
+            options={{ 
+              presentation: 'fullScreenModal',
+              headerShown: false,
+            }} 
+          />
+          <Stack.Screen 
+            name="edit" 
+            options={{ 
+              presentation: 'fullScreenModal',
+              headerShown: false,
+            }} 
+          />
+          <Stack.Screen 
+            name="success" 
+            options={{ 
+              presentation: 'fullScreenModal',
+              headerShown: false,
+              animation: 'fade',
+            }} 
+          />
           <Stack.Screen 
             name="voice" 
             options={{ 
@@ -110,8 +131,8 @@ function FloatingTabBar() {
     pathname.startsWith(`${route.path}/`)
   )?.name || 'brief';
 
-  // Hide on voice and confirm screens
-  if (pathname === '/voice' || pathname === '/confirm') {
+  // Hide on voice, confirm, edit, and success screens
+  if (pathname === '/voice' || pathname === '/confirm' || pathname === '/edit' || pathname === '/success') {
     return null;
   }
 
