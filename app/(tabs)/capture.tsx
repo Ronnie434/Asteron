@@ -1,429 +1,400 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   View, 
-  TextInput, 
   StyleSheet, 
   Keyboard, 
-  TouchableOpacity,
+  KeyboardAvoidingView,
   Platform,
+  ScrollView,
   Animated,
-  Modal,
-  Pressable
+  AppState,
+  AppStateStatus,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { theme } from '../../src/ui/theme';
-import { Card } from '../../src/ui/components/Card';
-import { Button } from '../../src/ui/components/Button';
-import { Typography } from '../../src/ui/components/Typography';
-import { Chip } from '../../src/ui/components/Chip';
-import { Calendar, Flag, Clock, X, Check } from 'lucide-react-native';
+import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
+import { useTheme } from '../../src/contexts/ThemeContext';
+import { Typography } from '../../src/ui/components/Typography';
+import { ChatInputBar } from '../../src/ui/components/ChatInputBar';
+import { ChatMessage } from '../../src/ui/components/ChatMessage';
+import { useChatStore } from '../../src/store/useChatStore';
 import { useItemsStore } from '../../src/store/useItemsStore';
 import { aiService } from '../../src/ai/aiService';
-import { useTheme } from '../../src/contexts/ThemeContext';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { RainbowSparkles } from '../../src/ui/components/RainbowSparkles';
+import { ChevronLeft } from 'lucide-react-native';
+import type { Item } from '../../src/db/items';
 
 export default function CaptureScreen() {
   const router = useRouter();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const scrollViewRef = useRef<ScrollView>(null);
+  
+  // Chat store
+  const messages = useChatStore(state => state.messages);
+  const isProcessing = useChatStore(state => state.isProcessing);
+  const addUserMessage = useChatStore(state => state.addUserMessage);
+  const addAssistantMessage = useChatStore(state => state.addAssistantMessage);
+  const setProcessing = useChatStore(state => state.setProcessing);
+  const clearSession = useChatStore(state => state.clearSession);
+  
+  // Items store
+  const items = useItemsStore(state => state.items);
   const addItem = useItemsStore(state => state.addItem);
-  const [text, setText] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [keyboardHeight] = useState(new Animated.Value(0));
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const updateItem = useItemsStore(state => state.updateItem);
+  const deleteItem = useItemsStore(state => state.deleteItem);
 
-  // User selections
-  const [selectedDueAt, setSelectedDueAt] = useState<Date | null>(null);
-  const [selectedRemindAt, setSelectedRemindAt] = useState<Date | null>(null);
-  const [selectedPriority, setSelectedPriority] = useState<'low' | 'med' | 'high' | null>(null);
+  // Voice state
+  const [isRecording, setIsRecording] = useState(false);
 
-  // Modal states
-  const [showDateModal, setShowDateModal] = useState(false);
-  const [showPriorityModal, setShowPriorityModal] = useState(false);
-  const [showReminderModal, setShowReminderModal] = useState(false);
-  const [tempDate, setTempDate] = useState(new Date());
-
+  // Handle app state changes to clear session when app goes to background
   useEffect(() => {
-    const keyboardWillShow = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      (e) => {
-        setIsKeyboardVisible(true);
-        Animated.timing(keyboardHeight, {
-          toValue: e.endCoordinates.height,
-          duration: Platform.OS === 'ios' ? 250 : 0,
-          useNativeDriver: false,
-        }).start();
+    const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (nextState === 'background' || nextState === 'inactive') {
+        clearSession();
       }
-    );
-
-    const keyboardWillHide = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => {
-        setIsKeyboardVisible(false);
-        Animated.timing(keyboardHeight, {
-          toValue: 0,
-          duration: Platform.OS === 'ios' ? 250 : 0,
-          useNativeDriver: false,
-        }).start();
-      }
-    );
-
-    return () => {
-      keyboardWillShow.remove();
-      keyboardWillHide.remove();
-    };
-  }, []);
-
-  const handleSave = async () => {
-    if (!text.trim()) return;
+    });
     
-    setIsProcessing(true);
-    Keyboard.dismiss();
-    try {
-      const result = await aiService.analyzeText(text);
-      
-      const title = result.title?.trim() || text.slice(0, 50).trim();
-      
-      // User selections override AI results
-      const finalDueAt = selectedDueAt?.toISOString() || result.dueAt || null;
-      const finalRemindAt = selectedRemindAt?.toISOString() || result.remindAt || null;
-      const finalPriority = selectedPriority || result.priority || 'med';
-      
-      // Determine type: if user set date/reminder, treat as task/reminder, otherwise use AI
-      let finalType = result.type || 'note';
-      if (selectedDueAt || selectedRemindAt) {
-        finalType = selectedRemindAt ? 'reminder' : 'task';
-      }
-      
-      await addItem(title, {
-        type: finalType,
-        priority: finalPriority,
-        confidence: result.confidence || 0.5,
-        details: result.details || text,
-        dueAt: finalDueAt,
-        remindAt: finalRemindAt,
-        status: 'active'
-      });
-      
-      // Reset state
-      setText('');
-      setSelectedDueAt(null);
-      setSelectedRemindAt(null);
-      setSelectedPriority(null);
-      
-      // Navigate based on whether it has a date
-      if (finalDueAt || finalRemindAt) {
-        router.push('/(tabs)/upcoming');
-      } else if (finalType === 'note') {
-        router.push('/(tabs)/notes');
-      } else {
-        router.push('/(tabs)/brief');
-      }
-    } catch (e) {
-      console.error('Failed to save:', e);
-      await addItem(text.slice(0, 50), {
-        type: 'note',
-        priority: 'low',
-        confidence: 1.0,
-        details: text,
-        status: 'active'
-      });
-      setText('');
-      router.push('/(tabs)/notes');
-    } finally {
-      setIsProcessing(false);
+    return () => subscription.remove();
+  }, [clearSession]);
+
+  // Scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
     }
+  }, [messages.length]);
+
+  // Get time-based greeting
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
   };
 
-  const handleSetToday = () => {
-    const today = new Date();
-    today.setHours(17, 0, 0, 0); // Default to 5 PM
-    setSelectedDueAt(today);
-    setShowDateModal(false);
-  };
+  // Handle sending a message
+  const handleSend = useCallback(async (text: string) => {
+    // Add user message to chat
+    addUserMessage(text);
+    setProcessing(true);
 
-  const handleSetTomorrow = () => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(17, 0, 0, 0);
-    setSelectedDueAt(tomorrow);
-    setShowDateModal(false);
-  };
+    try {
+      // Prepare existing items for context
+      const existingItems = items
+        .filter(i => i.status === 'active')
+        .map(i => ({ id: i.id, title: i.title, type: i.type }));
 
-  const handleConfirmDate = () => {
-    setSelectedDueAt(tempDate);
-    setShowDateModal(false);
-  };
+      // Analyze intent
+      const result = await aiService.analyzeIntent(text, existingItems);
 
-  const handleConfirmReminder = () => {
-    setSelectedRemindAt(tempDate);
-    setShowReminderModal(false);
-  };
+      // Handle based on intent
+      switch (result.intent) {
+        case 'create': {
+          if (result.itemData) {
+            await addItem(result.itemData.title, {
+              type: result.itemData.type,
+              priority: result.itemData.priority,
+              details: result.itemData.details,
+              dueAt: result.itemData.dueAt,
+              remindAt: result.itemData.remindAt,
+              status: 'active',
+              confidence: result.confidence,
+            });
+            
+            addAssistantMessage(result.responseText, {
+              type: 'created',
+              itemType: result.itemData.type,
+              itemId: '', // We don't have access to the new ID here
+              itemTitle: result.itemData.title,
+            });
+          } else {
+            addAssistantMessage(result.responseText);
+          }
+          break;
+        }
 
-  const formatDate = (date: Date | null) => {
-    if (!date) return null;
-    const today = new Date();
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    if (date.toDateString() === today.toDateString()) return 'Today';
-    if (date.toDateString() === tomorrow.toDateString()) return 'Tomorrow';
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
+        case 'update': {
+          if (result.searchQuery && result.updates) {
+            // Find matching item
+            const matchingItem = findMatchingItem(items, result.searchQuery);
+            
+            if (matchingItem) {
+              await updateItem(matchingItem.id, result.updates);
+              
+              addAssistantMessage(result.responseText, {
+                type: 'updated',
+                itemType: matchingItem.type,
+                itemId: matchingItem.id,
+                itemTitle: matchingItem.title,
+              });
+            } else {
+              addAssistantMessage("I couldn't find that item. Could you be more specific?");
+            }
+          } else {
+            addAssistantMessage(result.responseText);
+          }
+          break;
+        }
 
-  const formatTime = (date: Date | null) => {
-    if (!date) return null;
-    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  };
+        case 'delete': {
+          if (result.searchQuery) {
+            const matchingItem = findMatchingItem(items, result.searchQuery);
+            
+            if (matchingItem) {
+              await deleteItem(matchingItem.id);
+              
+              addAssistantMessage(result.responseText, {
+                type: 'deleted',
+                itemType: matchingItem.type,
+                itemId: matchingItem.id,
+                itemTitle: matchingItem.title,
+              });
+            } else {
+              addAssistantMessage("I couldn't find that item. Could you be more specific?");
+            }
+          } else {
+            addAssistantMessage(result.responseText);
+          }
+          break;
+        }
+
+        case 'query': {
+          // For now, just respond with the AI's response
+          addAssistantMessage(result.responseText);
+          break;
+        }
+
+        case 'chat':
+        default:
+          addAssistantMessage(result.responseText);
+          break;
+      }
+    } catch (error) {
+      console.error('Failed to process message:', error);
+      addAssistantMessage("Sorry, something went wrong. Please try again.");
+    }
+  }, [items, addUserMessage, addItem, updateItem, deleteItem, addAssistantMessage, setProcessing]);
+
+  // Handle voice button press - navigate to voice screen for now
+  const handleVoicePress = useCallback(() => {
+    router.push('/voice');
+  }, [router]);
+
+  // Handle plus button press
+  const handlePlusPress = useCallback(() => {
+    // For now, just show a placeholder - could open action menu later
+    console.log('Plus pressed');
+  }, []);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-        <Animated.View 
-          style={[
-            styles.content,
-            { 
-              paddingBottom: isKeyboardVisible ? 0 : 120,
-              marginBottom: keyboardHeight,
-            }
-          ]}
+        {/* Header with Back Button */}
+        <View style={styles.header}>
+          <TouchableOpacity 
+            onPress={() => router.back()}
+            activeOpacity={0.7}
+            style={styles.backButtonTouchable}
+          >
+            <BlurView
+              intensity={isDark ? 40 : 60}
+              tint={isDark ? 'dark' : 'light'}
+              style={[
+                styles.backButton,
+                { 
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                  borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+                }
+              ]}
+            >
+              <ChevronLeft size={24} color={colors.text} strokeWidth={2} />
+            </BlurView>
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <RainbowSparkles size={20} />
+          </View>
+          <View style={styles.headerRight} />
+        </View>
+
+        <KeyboardAvoidingView 
+          style={styles.keyboardAvoid}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
-          <Card style={styles.mainCard}>
-            {/* AI Voice Mode Button */}
-            <TouchableOpacity 
-              style={styles.aiButton}
-              onPress={() => router.push('/voice')}
-              activeOpacity={0.6}
-            >
-              <RainbowSparkles size={24} />
-            </TouchableOpacity>
-
-            {/* Main Input Area */}
-            <View style={styles.inputWrapper}>
-              <TextInput 
-                placeholder="What's on your mind?" 
-                placeholderTextColor={colors.textTertiary}
-                style={[styles.input, { color: colors.text }]}
-                multiline
-                value={text}
-                onChangeText={setText}
-                textAlignVertical="top"
-              />
-            </View>
-
-            {/* Bottom Actions Section */}
-            <View style={styles.footer}>
-              {/* Quick Actions */}
-              <View style={styles.quickActions}>
-                <TouchableOpacity 
-                  style={[
-                    styles.actionChip, 
-                    { backgroundColor: selectedDueAt ? colors.primaryLight : colors.background }
-                  ]}
-                  onPress={() => {
-                    Keyboard.dismiss();
-                    setTempDate(selectedDueAt || new Date());
-                    setShowDateModal(true);
-                  }}
+          {/* Chat Messages Area */}
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.messagesContainer}
+            contentContainerStyle={[
+              styles.messagesContent,
+              messages.length === 0 && styles.emptyContent,
+            ]}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {messages.length === 0 ? (
+              // Empty State
+              <View style={styles.emptyState}>
+                <View style={styles.iconContainer}>
+                  <RainbowSparkles size={48} />
+                </View>
+                <Typography 
+                  variant="title1" 
+                  style={[styles.greeting, { color: colors.text }]}
                 >
-                  <Calendar size={18} color={selectedDueAt ? colors.primary : colors.text} />
-                  <Typography 
-                    variant="footnote" 
-                    style={{ marginLeft: 6 }}
-                    color={selectedDueAt ? colors.primary : colors.text}
-                  >
-                    {formatDate(selectedDueAt) || 'Date'}
-                  </Typography>
-                  {selectedDueAt && (
-                    <TouchableOpacity 
-                      onPress={(e) => { e.stopPropagation(); setSelectedDueAt(null); }}
-                      style={{ marginLeft: 4 }}
-                    >
-                      <X size={14} color={colors.primary} />
-                    </TouchableOpacity>
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity 
-                  style={[
-                    styles.actionChip, 
-                    { backgroundColor: selectedPriority ? colors.primaryLight : colors.background }
-                  ]}
-                  onPress={() => {
-                    Keyboard.dismiss();
-                    setShowPriorityModal(true);
-                  }}
+                  {getGreeting()}
+                </Typography>
+                <Typography 
+                  variant="body" 
+                  color={colors.textSecondary}
+                  style={styles.subtitle}
                 >
-                  <Flag size={18} color={selectedPriority ? colors.primary : colors.text} />
-                  <Typography 
-                    variant="footnote" 
-                    style={{ marginLeft: 6 }}
-                    color={selectedPriority ? colors.primary : colors.text}
-                  >
-                    {selectedPriority ? selectedPriority.charAt(0).toUpperCase() + selectedPriority.slice(1) : 'Priority'}
-                  </Typography>
-                </TouchableOpacity>
-
-                <TouchableOpacity 
-                  style={[
-                    styles.actionChip, 
-                    { backgroundColor: selectedRemindAt ? colors.primaryLight : colors.background }
-                  ]}
-                  onPress={() => {
-                    Keyboard.dismiss();
-                    setTempDate(selectedRemindAt || new Date());
-                    setShowReminderModal(true);
-                  }}
-                >
-                  <Clock size={18} color={selectedRemindAt ? colors.primary : colors.text} />
-                  <Typography 
-                    variant="footnote" 
-                    style={{ marginLeft: 6 }}
-                    color={selectedRemindAt ? colors.primary : colors.text}
-                  >
-                    {formatTime(selectedRemindAt) || 'Remind'}
-                  </Typography>
-                  {selectedRemindAt && (
-                    <TouchableOpacity 
-                      onPress={(e) => { e.stopPropagation(); setSelectedRemindAt(null); }}
-                      style={{ marginLeft: 4 }}
-                    >
-                      <X size={14} color={colors.primary} />
-                    </TouchableOpacity>
-                  )}
-                </TouchableOpacity>
+                  What would you like to capture?
+                </Typography>
+                
+                {/* Suggested Prompts */}
+                <View style={styles.suggestions}>
+                  <SuggestionChip 
+                    text="Create a reminder" 
+                    onPress={() => handleSend("I need to set a reminder")}
+                  />
+                  <SuggestionChip 
+                    text="Add a task" 
+                    onPress={() => handleSend("I want to add a task")}
+                  />
+                  <SuggestionChip 
+                    text="Take a note" 
+                    onPress={() => handleSend("I want to take a note")}
+                  />
+                </View>
               </View>
+            ) : (
+              // Messages List
+              messages.map((message) => (
+                <ChatMessage key={message.id} message={message} />
+              ))
+            )}
+            
+            {/* Processing Indicator */}
+            {isProcessing && (
+              <View style={styles.thinkingContainer}>
+                <View style={[styles.thinkingBubble, { backgroundColor: isDark ? '#1C1C1E' : '#F0F0F5' }]}>
+                  <ThinkingDots color={colors.textSecondary} />
+                </View>
+              </View>
+            )}
+          </ScrollView>
 
-              <Button 
-                label={isProcessing ? "Saving..." : "Save Note"}
-                onPress={handleSave}
-                loading={isProcessing}
-                disabled={!text.trim()}
-                variant="primary"
-              />
-            </View>
-          </Card>
-        </Animated.View>
+          {/* Input Bar */}
+          <ChatInputBar
+            onSend={handleSend}
+            onVoicePress={handleVoicePress}
+            onPlusPress={handlePlusPress}
+            isRecording={isRecording}
+            isProcessing={isProcessing}
+          />
+        </KeyboardAvoidingView>
       </SafeAreaView>
+    </View>
+  );
+}
 
-      {/* Date Picker Modal */}
-      <Modal visible={showDateModal} transparent animationType="slide">
-        <Pressable style={styles.modalOverlay} onPress={() => setShowDateModal(false)}>
-          <Pressable style={[styles.modalContent, { backgroundColor: colors.card }]} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.modalHeader}>
-              <Typography variant="headline">Due Date</Typography>
-              <TouchableOpacity onPress={() => setShowDateModal(false)}>
-                <X size={24} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-            
-            <View style={styles.quickDateButtons}>
-              <TouchableOpacity 
-                style={[styles.quickDateBtn, { backgroundColor: colors.background }]}
-                onPress={handleSetToday}
-              >
-                <Typography variant="body">Today</Typography>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.quickDateBtn, { backgroundColor: colors.background }]}
-                onPress={handleSetTomorrow}
-              >
-                <Typography variant="body">Tomorrow</Typography>
-              </TouchableOpacity>
-            </View>
-            
-            <DateTimePicker
-              value={tempDate}
-              mode="datetime"
-              display="spinner"
-              onChange={(e, date) => date && setTempDate(date)}
-              style={{ height: 150 }}
-            />
-            
-            <Button label="Confirm" onPress={handleConfirmDate} variant="primary" />
-          </Pressable>
-        </Pressable>
-      </Modal>
+// Helper function to find matching item based on search query
+function findMatchingItem(items: Item[], searchQuery: string): Item | undefined {
+  const query = searchQuery.toLowerCase();
+  
+  // First try exact match
+  const exactMatch = items.find(
+    i => i.status === 'active' && i.title.toLowerCase() === query
+  );
+  if (exactMatch) return exactMatch;
+  
+  // Then try partial match
+  const partialMatch = items.find(
+    i => i.status === 'active' && i.title.toLowerCase().includes(query)
+  );
+  if (partialMatch) return partialMatch;
+  
+  // Try matching individual words
+  const words = query.split(/\s+/);
+  return items.find(i => 
+    i.status === 'active' && 
+    words.some(word => i.title.toLowerCase().includes(word))
+  );
+}
 
-      {/* Priority Modal */}
-      <Modal visible={showPriorityModal} transparent animationType="slide">
-        <Pressable style={styles.modalOverlay} onPress={() => setShowPriorityModal(false)}>
-          <Pressable style={[styles.modalContent, { backgroundColor: colors.card }]} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.modalHeader}>
-              <Typography variant="headline">Priority</Typography>
-              <TouchableOpacity onPress={() => setShowPriorityModal(false)}>
-                <X size={24} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-            
-            <View style={styles.priorityOptions}>
-              {(['high', 'med', 'low'] as const).map((p) => (
-                <TouchableOpacity
-                  key={p}
-                  style={[
-                    styles.priorityOption,
-                    { 
-                      backgroundColor: selectedPriority === p ? colors.primaryLight : colors.background,
-                      borderColor: selectedPriority === p ? colors.primary : colors.separator,
-                    }
-                  ]}
-                  onPress={() => {
-                    setSelectedPriority(p);
-                    setShowPriorityModal(false);
-                  }}
-                >
-                  <View style={[
-                    styles.priorityDot,
-                    { backgroundColor: p === 'high' ? '#FF3B30' : p === 'med' ? '#FF9500' : '#34C759' }
-                  ]} />
-                  <Typography variant="body" style={{ marginLeft: 12 }}>
-                    {p === 'high' ? 'High' : p === 'med' ? 'Medium' : 'Low'}
-                  </Typography>
-                  {selectedPriority === p && (
-                    <Check size={20} color={colors.primary} style={{ marginLeft: 'auto' }} />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
+// Suggestion Chip Component
+function SuggestionChip({ text, onPress }: { text: string; onPress: () => void }) {
+  const { colors, isDark } = useTheme();
+  
+  return (
+    <Animated.View>
+      <View 
+        style={[
+          styles.suggestionChip,
+          { 
+            backgroundColor: isDark ? '#2C2C2E' : '#FFFFFF',
+            borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+          }
+        ]}
+      >
+        <Typography 
+          variant="callout" 
+          color={colors.text}
+          onPress={onPress}
+        >
+          {text}
+        </Typography>
+      </View>
+    </Animated.View>
+  );
+}
 
-            <TouchableOpacity 
-              style={styles.clearButton}
-              onPress={() => {
-                setSelectedPriority(null);
-                setShowPriorityModal(false);
-              }}
-            >
-              <Typography variant="body" color={colors.textSecondary}>Clear</Typography>
-            </TouchableOpacity>
-          </Pressable>
-        </Pressable>
-      </Modal>
+// Thinking Dots Animation
+function ThinkingDots({ color }: { color: string }) {
+  const dot1 = useRef(new Animated.Value(0.3)).current;
+  const dot2 = useRef(new Animated.Value(0.3)).current;
+  const dot3 = useRef(new Animated.Value(0.3)).current;
 
-      {/* Reminder Modal */}
-      <Modal visible={showReminderModal} transparent animationType="slide">
-        <Pressable style={styles.modalOverlay} onPress={() => setShowReminderModal(false)}>
-          <Pressable style={[styles.modalContent, { backgroundColor: colors.card }]} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.modalHeader}>
-              <Typography variant="headline">Reminder</Typography>
-              <TouchableOpacity onPress={() => setShowReminderModal(false)}>
-                <X size={24} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-            
-            <DateTimePicker
-              value={tempDate}
-              mode="datetime"
-              display="spinner"
-              onChange={(e, date) => date && setTempDate(date)}
-              style={{ height: 150 }}
-            />
-            
-            <Button label="Set Reminder" onPress={handleConfirmReminder} variant="primary" />
-          </Pressable>
-        </Pressable>
-      </Modal>
+  useEffect(() => {
+    const animate = (dot: Animated.Value, delay: number) => {
+      return Animated.loop(
+        Animated.sequence([
+          Animated.timing(dot, {
+            toValue: 1,
+            duration: 400,
+            delay,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot, {
+            toValue: 0.3,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+    };
+
+    const animations = [
+      animate(dot1, 0),
+      animate(dot2, 150),
+      animate(dot3, 300),
+    ];
+
+    animations.forEach(a => a.start());
+
+    return () => animations.forEach(a => a.stop());
+  }, []);
+
+  return (
+    <View style={styles.thinkingDots}>
+      <Animated.View style={[styles.dot, { backgroundColor: color, opacity: dot1 }]} />
+      <Animated.View style={[styles.dot, { backgroundColor: color, opacity: dot2 }]} />
+      <Animated.View style={[styles.dot, { backgroundColor: color, opacity: dot3 }]} />
     </View>
   );
 }
@@ -435,97 +406,94 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
-  content: {
+  keyboardAvoid: {
     flex: 1,
-    paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.sm,
   },
-  mainCard: {
+  messagesContainer: {
     flex: 1,
-    padding: theme.spacing.lg,
-    borderRadius: theme.borderRadius.xl,
-    overflow: 'hidden',
   },
-  input: {
+  messagesContent: {
+    paddingVertical: 16,
+    paddingBottom: 8,
+  },
+  emptyContent: {
     flex: 1,
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 18,
-    lineHeight: 28,
-    paddingVertical: theme.spacing.sm,
+    justifyContent: 'center',
   },
-  inputWrapper: {
-    flex: 1,
-    marginTop: 48,
+  emptyState: {
+    alignItems: 'center',
+    paddingHorizontal: 32,
   },
-  footer: {
-    marginTop: theme.spacing.lg,
+  iconContainer: {
+    marginBottom: 24,
   },
-  quickActions: {
+  greeting: {
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  subtitle: {
+    textAlign: 'center',
+    marginBottom: 32,
+  },
+  suggestions: {
     flexDirection: 'row',
-    marginBottom: theme.spacing.lg,
-    gap: 8,
     flexWrap: 'wrap',
-  },
-  actionChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: theme.borderRadius.md,
-  },
-  aiButton: {
-    position: 'absolute',
-    top: theme.spacing.lg,
-    right: theme.spacing.lg,
-    padding: 8,
-    zIndex: 10,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: theme.spacing.lg,
-    paddingBottom: 40,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: theme.spacing.lg,
-  },
-  quickDateButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: theme.spacing.lg,
-  },
-  quickDateBtn: {
-    flex: 1,
-    padding: theme.spacing.md,
-    borderRadius: theme.borderRadius.md,
-    alignItems: 'center',
-  },
-  priorityOptions: {
+    justifyContent: 'center',
     gap: 8,
-    marginBottom: theme.spacing.lg,
   },
-  priorityOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: theme.spacing.md,
-    borderRadius: theme.borderRadius.md,
+  suggestionChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
     borderWidth: 1,
   },
-  priorityDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+  thinkingContainer: {
+    marginVertical: 4,
+    marginHorizontal: 16,
+    alignItems: 'flex-start',
   },
-  clearButton: {
+  thinkingBubble: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 18,
+    borderBottomLeftRadius: 4,
+  },
+  thinkingDots: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  header: {
+    flexDirection: 'row',
     alignItems: 'center',
-    padding: theme.spacing.md,
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    height: 52,
+  },
+  backButtonTouchable: {
+    width: 40,
+    height: 40,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerRight: {
+    width: 44,
   },
 });

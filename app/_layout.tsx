@@ -139,8 +139,8 @@ function FloatingTabBar() {
     pathname.startsWith(`${route.path}/`)
   )?.name || 'brief';
 
-  // Hide on voice, confirm, edit, success, and note-detail screens
-  if (pathname === '/voice' || pathname === '/confirm' || pathname === '/edit' || pathname === '/success' || pathname === '/note-detail') {
+  // Hide on voice, confirm, edit, success, note-detail, and capture screens
+  if (pathname === '/voice' || pathname === '/confirm' || pathname === '/edit' || pathname === '/success' || pathname === '/note-detail' || pathname === '/capture' || pathname === '/(tabs)/capture') {
     return null;
   }
 

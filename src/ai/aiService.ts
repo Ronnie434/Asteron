@@ -13,9 +13,46 @@ export interface AIAnalysisResult {
     clarificationReason?: 'missing_date' | 'missing_person' | 'missing_amount' | 'ambiguous_action' | 'other';
 }
 
+/**
+ * Chat intent types for conversational interactions.
+ */
+export type ChatIntentType = 'create' | 'update' | 'delete' | 'query' | 'chat';
+
+/**
+ * Result from analyzing a chat message for intent.
+ */
+export interface ChatIntentResult {
+    intent: ChatIntentType;
+    confidence: number;
+    responseText: string;
+
+    // For create intent
+    itemData?: {
+        title: string;
+        type: ItemType;
+        priority: ItemPriority;
+        details?: string;
+        dueAt?: string | null;
+        remindAt?: string | null;
+    };
+
+    // For update/delete intent - search query to find existing item
+    searchQuery?: string;
+
+    // For update intent - fields to update
+    updates?: {
+        title?: string;
+        dueAt?: string | null;
+        remindAt?: string | null;
+        priority?: ItemPriority;
+        status?: 'active' | 'done' | 'archived';
+    };
+}
+
 export interface AIService {
     transcribeAudio: (audioUri: string, format?: 'wav' | 'aac') => Promise<string>;
     analyzeText: (text: string) => Promise<AIAnalysisResult>;
+    analyzeIntent: (text: string, existingItems?: { id: string; title: string; type: ItemType }[]) => Promise<ChatIntentResult>;
 }
 
 // Load API key from environment variables
@@ -222,6 +259,121 @@ USER INPUT:
                 priority: 'low',
                 confidence: 0.5,
                 details: text,
+            };
+        }
+    },
+
+    analyzeIntent: async (text: string, existingItems?: { id: string; title: string; type: ItemType }[]): Promise<ChatIntentResult> => {
+        try {
+            const now = new Date();
+            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const tzOffset = -now.getTimezoneOffset();
+            const offsetHours = Math.floor(Math.abs(tzOffset) / 60).toString().padStart(2, '0');
+            const offsetMins = (Math.abs(tzOffset) % 60).toString().padStart(2, '0');
+            const offsetSign = tzOffset >= 0 ? '+' : '-';
+            const localIso = now.getFullYear() + '-' +
+                String(now.getMonth() + 1).padStart(2, '0') + '-' +
+                String(now.getDate()).padStart(2, '0') + 'T' +
+                String(now.getHours()).padStart(2, '0') + ':' +
+                String(now.getMinutes()).padStart(2, '0') + ':' +
+                String(now.getSeconds()).padStart(2, '0') +
+                offsetSign + offsetHours + ':' + offsetMins;
+
+            // Build context about existing items for update/delete operations
+            const itemsContext = existingItems && existingItems.length > 0
+                ? `\nEXISTING ITEMS THE USER HAS:\n${existingItems.map(i => `- "${i.title}" (${i.type})`).join('\n')}\n`
+                : '\nNo existing items.\n';
+
+            const prompt = `You are a helpful AI assistant for a task/reminder app. Analyze the user's message and determine their intent.
+
+CURRENT TIME: ${localIso}
+TIMEZONE: ${timezone}
+${itemsContext}
+
+INTENT TYPES:
+- "create": User wants to create a new task, reminder, note, or bill
+- "update": User wants to modify an existing item (change date, rename, etc.)
+- "delete": User wants to remove an existing item
+- "query": User is asking about their items (what's scheduled, etc.)
+- "chat": General conversation, greeting, thanks, or unclear intent
+
+RESPONSE RULES:
+1. Always provide a friendly, conversational responseText
+2. For "create": Extract item details (title, type, priority, dates)
+3. For "update"/"delete": Provide searchQuery to find matching item
+4. For "update": Also provide the updates to apply
+5. Use existing items list to match update/delete requests
+6. If user says "change X to Y" or "move X to Y", that's an update
+7. If user says "delete X" or "remove X", that's a delete
+8. Default to "create" if user is clearly describing a task but no match found
+
+Return ONLY valid JSON:
+{
+  "intent": "create" | "update" | "delete" | "query" | "chat",
+  "confidence": 0.0 to 1.0,
+  "responseText": "string - friendly message to show user",
+  "itemData": { // only for create
+    "title": "string (max 60 chars, verb-first)",
+    "type": "task" | "bill" | "reminder" | "followup" | "note",
+    "priority": "low" | "med" | "high",
+    "details": "original text",
+    "dueAt": "ISO 8601 | null",
+    "remindAt": "ISO 8601 | null"
+  },
+  "searchQuery": "string - keywords to find item", // for update/delete
+  "updates": { // only for update
+    "title": "new title | undefined",
+    "dueAt": "ISO 8601 | null | undefined",
+    "remindAt": "ISO 8601 | null | undefined",
+    "priority": "low | med | high | undefined",
+    "status": "done | undefined" // for marking complete
+  }
+}
+
+USER MESSAGE:
+"${text}"
+`;
+
+            const body = {
+                model: MODEL,
+                messages: [
+                    {
+                        role: "user",
+                        content: prompt
+                    }
+                ],
+                response_format: { type: "json_object" }
+            };
+
+            const response = await fetchWithRetry("https://openrouter.ai/api/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://asteron.app",
+                    "X-Title": "Asteron",
+                },
+                body: JSON.stringify(body)
+            });
+
+            if (!response.ok) {
+                const errText = await response.text();
+                throw new Error(`OpenRouter API Error: ${response.status} ${errText}`);
+            }
+
+            const data = await response.json();
+            const content = data.choices[0]?.message?.content;
+            const cleanContent = content.replace(/```json/g, '').replace(/```/g, '').trim();
+
+            return JSON.parse(cleanContent);
+
+        } catch (error) {
+            console.error('Intent analysis failed:', error);
+            // Fallback: treat as chat
+            return {
+                intent: 'chat',
+                confidence: 0.5,
+                responseText: "I'm not quite sure what you meant. Could you try rephrasing that?",
             };
         }
     }
