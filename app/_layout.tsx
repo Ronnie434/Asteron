@@ -42,37 +42,10 @@ function AppContent() {
         }}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen 
-            name="confirm" 
-            options={{ 
-              presentation: 'modal',
-              headerShown: false,
-            }} 
-          />
-          <Stack.Screen 
             name="edit" 
             options={{ 
               presentation: 'modal',
               headerShown: false,
-            }} 
-          />
-          <Stack.Screen 
-            name="success" 
-            options={{ 
-              presentation: 'fullScreenModal',
-              headerShown: false,
-              animation: 'fade',
-            }} 
-          />
-          <Stack.Screen 
-            name="voice" 
-            options={{ 
-              title: 'Voice Input',
-               headerTitleStyle: {
-                fontFamily: 'Manrope_700Bold',
-                fontSize: 17,
-                color: colors.text,
-              },
-              headerBackButtonDisplayMode: 'minimal',
             }} 
           />
           <Stack.Screen 
@@ -144,7 +117,7 @@ function FloatingTabBar() {
   // Hide on edit, note-detail, and capture screens
   // reliable check using segments
   const isCapture = segments.some(s => s === 'capture');
-  const isHiddenRoute = pathname === '/edit' || pathname === '/note-detail' || pathname === '/voice' || isCapture;
+  const isHiddenRoute = pathname === '/edit' || pathname === '/note-detail' || isCapture;
 
   if (isHiddenRoute) {
     return null;
