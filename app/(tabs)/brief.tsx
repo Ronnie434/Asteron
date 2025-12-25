@@ -155,7 +155,7 @@ export default function BriefScreen() {
       <GlassyHeader
         rightAction={
           <TouchableOpacity 
-            onPress={() => router.push('/voice')}
+            onPress={() => router.push('/capture')}
             activeOpacity={0.6}
           >
             <RainbowSparkles size={24} />

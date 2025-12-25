@@ -32,7 +32,7 @@ export function ChatInputBar({
   onPlusPress,
   isRecording = false,
   isProcessing = false,
-  placeholder = 'Ask anything',
+  placeholder = "What's on your mind?",
 }: ChatInputBarProps) {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();

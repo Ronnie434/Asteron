@@ -22,6 +22,7 @@ import { useChatStore } from '../../src/store/useChatStore';
 import { useItemsStore } from '../../src/store/useItemsStore';
 import { aiService } from '../../src/ai/aiService';
 import { RainbowSparkles } from '../../src/ui/components/RainbowSparkles';
+import { LiveSparkles } from '../../src/ui/components/LiveSparkles';
 import { ChevronLeft } from 'lucide-react-native';
 import type { Item } from '../../src/db/items';
 
@@ -179,10 +180,11 @@ export default function CaptureScreen() {
     }
   }, [items, addUserMessage, addItem, updateItem, deleteItem, addAssistantMessage, setProcessing]);
 
-  // Handle voice button press - navigate to voice screen for now
+  // Handle voice button press
   const handleVoicePress = useCallback(() => {
-    router.push('/voice');
-  }, [router]);
+    // Voice screen is removed, will implement inline voice later
+    alert("Voice input coming soon directly in chat!");
+  }, []);
 
   // Handle plus button press
   const handlePlusPress = useCallback(() => {
@@ -237,10 +239,11 @@ export default function CaptureScreen() {
             showsVerticalScrollIndicator={false}
           >
             {messages.length === 0 ? (
+
               // Empty State
               <View style={styles.emptyState}>
                 <View style={styles.iconContainer}>
-                  <RainbowSparkles size={48} />
+                  <LiveSparkles size={64} />
                 </View>
                 <Typography 
                   variant="title1" 
@@ -253,7 +256,7 @@ export default function CaptureScreen() {
                   color={colors.textSecondary}
                   style={styles.subtitle}
                 >
-                  What would you like to capture?
+                  What's on your mind?
                 </Typography>
                 
                 {/* Suggested Prompts */}
