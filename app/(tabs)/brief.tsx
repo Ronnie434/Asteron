@@ -96,16 +96,30 @@ export default function BriefScreen() {
     });
   };
 
+  // Priority color mapping
+  const getPriorityColor = (priority: string): string => {
+    switch (priority) {
+      case 'high':
+        return colors.danger;  // Red for high priority
+      case 'med':
+        return colors.warning; // Amber for medium priority
+      case 'low':
+      default:
+        return colors.textTertiary; // Subtle gray for low priority
+    }
+  };
+
   const TaskRow = ({ item }: { item: Item }) => {
     const effectiveDate = getEffectiveDate(item);
     const time = effectiveDate
       ? new Date(effectiveDate).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
       : '';
     const isDone = item.status === 'done';
+    const priorityColor = getPriorityColor(item.priority);
       
     return (
       <View style={[styles.taskRow, { backgroundColor: colors.card }]}>
-        {/* Checkbox - only toggles completion */}
+        {/* Checkbox - only toggles completion, colored by priority */}
         <TouchableOpacity 
           onPress={() => handleToggleItem(item)}
           activeOpacity={0.6}
@@ -113,7 +127,7 @@ export default function BriefScreen() {
         >
           <View style={[
             styles.checkbox, 
-            { borderColor: isDone ? colors.success : colors.textTertiary },
+            { borderColor: isDone ? colors.success : priorityColor },
             isDone && { backgroundColor: colors.success, borderColor: colors.success }
           ]}>
             {isDone && <Check size={14} color="#FFFFFF" strokeWidth={3} />}
