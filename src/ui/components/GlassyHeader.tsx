@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BlurView } from 'expo-blur';
 import { useTheme } from '../../contexts/ThemeContext';
 import { theme } from '../theme';
 import { Typography } from './Typography';
@@ -14,18 +15,22 @@ interface GlassyHeaderProps {
   title?: string;
   onBack?: () => void;
   showBack?: boolean;
+  leftAction?: React.ReactNode;
   rightAction?: React.ReactNode;
   children?: React.ReactNode;
   style?: any;
+  disableTopSafeArea?: boolean;
 }
 
 export function GlassyHeader({ 
   title, 
   onBack, 
-  showBack, 
+  showBack,
+  leftAction, 
   rightAction, 
   children,
-  style 
+  style,
+  disableTopSafeArea = false
 }: GlassyHeaderProps) {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
@@ -40,29 +45,31 @@ export function GlassyHeader({
   };
 
   return (
-    <View 
+    <BlurView
+      intensity={80}
+      tint={isDark ? 'dark' : 'light'}
       style={[
         styles.container, 
         { 
-          paddingTop: insets.top,
-          backgroundColor: isDark ? 'rgba(28, 28, 30, 0.85)' : 'rgba(255, 255, 255, 0.85)',
-          borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.5)',
+          paddingTop: disableTopSafeArea ? 0 : insets.top,
+          borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
         },
         style
       ]}
     >
       <View style={styles.content}>
         <View style={styles.leftContainer}>
-          {showBack && (
-            <TouchableOpacity 
-              onPress={handleBack} 
-              style={styles.backButton}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <ChevronLeft size={24} color={colors.primary} />
-            </TouchableOpacity>
+          {leftAction ? leftAction : (
+            showBack ? (
+              <TouchableOpacity 
+                onPress={handleBack} 
+                style={styles.backButton}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <ChevronLeft size={24} color={colors.primary} />
+              </TouchableOpacity>
+            ) : children
           )}
-          {children && !title ? children : null}
         </View>
 
         {title && (
@@ -77,7 +84,7 @@ export function GlassyHeader({
           {rightAction}
         </View>
       </View>
-    </View>
+    </BlurView>
   );
 }
 
@@ -88,14 +95,18 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 100,
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderTopLeftRadius: theme.borderRadius.xl,
+    borderTopRightRadius: theme.borderRadius.xl,
+    overflow: 'hidden',
   },
   content: {
-    height: 54, // Standard header height
+    height: 60, // Increased header height for better vertical spacing
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md, // Balanced vertical padding
   },
   leftContainer: {
     flex: 1,

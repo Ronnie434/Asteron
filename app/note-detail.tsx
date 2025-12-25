@@ -104,21 +104,29 @@ export default function NoteDetailScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <GlassyHeader
         title="Note"
-        rightAction={
-          <TouchableOpacity onPress={() => setShowReminderModal(true)}>
-            <Clock size={22} color={colors.primary} />
+        disableTopSafeArea
+        leftAction={
+          <TouchableOpacity 
+            onPress={handleBack}
+            style={[styles.iconButton, { backgroundColor: colors.text + '10' }]}
+          >
+            <X size={22} color={colors.text} />
           </TouchableOpacity>
         }
-      >
-        <TouchableOpacity onPress={handleBack}>
-          <Typography variant="body" color={colors.primary}>Done</Typography>
-        </TouchableOpacity>
-      </GlassyHeader>
+        rightAction={
+          <TouchableOpacity 
+            onPress={handleSave}
+            style={[styles.iconButton, { backgroundColor: hasChanges ? colors.primary + '20' : colors.text + '10' }]}
+          >
+            <Check size={22} color={hasChanges ? colors.primary : colors.textTertiary} />
+          </TouchableOpacity>
+        }
+      />
 
       <ScrollView 
         contentContainerStyle={[
           styles.content, 
-          { paddingTop: insets.top + 80 } // Add padding for header
+          { paddingTop: 100 } // Fixed padding for header height (72) + spacing
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -154,9 +162,21 @@ export default function NoteDetailScreen() {
           />
         )}
 
+        {/* Set Reminder Button */}
+        <TouchableOpacity 
+          style={[styles.actionButton, { backgroundColor: colors.primary + '15' }]}
+          onPress={() => setShowReminderModal(true)}
+          activeOpacity={0.7}
+        >
+          <Clock size={20} color={colors.primary} strokeWidth={2} />
+          <Typography variant="body" color={colors.primary} style={{ marginLeft: 8 }}>
+            Set Reminder
+          </Typography>
+        </TouchableOpacity>
+
         {/* Delete Button */}
         <TouchableOpacity 
-          style={[styles.deleteButton, { backgroundColor: colors.danger + '15' }]}
+          style={[styles.actionButton, { backgroundColor: colors.danger + '15' }]}
           onPress={handleDelete}
           activeOpacity={0.7}
         >
@@ -226,13 +246,13 @@ const styles = StyleSheet.create({
     lineHeight: 26,
     minHeight: 200,
   },
-  deleteButton: {
+  actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     padding: theme.spacing.md,
     borderRadius: theme.borderRadius.md,
-    marginTop: theme.spacing.xl,
+    marginTop: theme.spacing.lg,
   },
   modalOverlay: {
     flex: 1,
@@ -250,5 +270,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: theme.spacing.lg,
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
