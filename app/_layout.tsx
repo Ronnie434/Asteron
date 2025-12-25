@@ -1,5 +1,5 @@
 import 'react-native-get-random-values';
-import { Stack, usePathname, useRouter } from 'expo-router';
+import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Manrope_400Regular, Manrope_600SemiBold, Manrope_700Bold } from '@expo-google-fonts/manrope';
 import { DMSans_400Regular, DMSans_500Medium, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
@@ -126,7 +126,9 @@ function FloatingTabBar() {
   const pathname = usePathname();
   const router = useRouter();
 
-  // All hooks must be called before any conditional returns
+  const segments = useSegments();
+
+  // Handle tab press
   const handleTabPress = useCallback((path: string) => {
     router.push(path as any);
   }, [router]);
@@ -140,14 +142,18 @@ function FloatingTabBar() {
   )?.name || 'brief';
 
   // Hide on edit, note-detail, and capture screens
-  if (pathname === '/edit' || pathname === '/note-detail' || pathname === '/capture' || pathname === '/(tabs)/capture') {
+  // reliable check using segments
+  const isCapture = segments.some(s => s === 'capture');
+  const isHiddenRoute = pathname === '/edit' || pathname === '/note-detail' || pathname === '/voice' || isCapture;
+
+  if (isHiddenRoute) {
     return null;
   }
 
   return (
     <View
       style={[styles.tabBarWrapper, { bottom: bottomOffset }]}
-      pointerEvents="auto"
+      pointerEvents="box-none"
     >
       <View style={[
         styles.tabBarContainer, 

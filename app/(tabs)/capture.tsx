@@ -1,19 +1,21 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { 
-  View, 
-  StyleSheet, 
-  Keyboard, 
+import {
+  View,
+  StyleSheet,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   Animated,
   AppState,
   AppStateStatus,
+  Alert,
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
+import { Audio } from 'expo-av';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { Typography } from '../../src/ui/components/Typography';
 import { ChatInputBar } from '../../src/ui/components/ChatInputBar';
@@ -48,6 +50,7 @@ export default function CaptureScreen() {
 
   // Voice state
   const [isRecording, setIsRecording] = useState(false);
+  const recordingRef = useRef<Audio.Recording | null>(null);
 
   // Handle app state changes to clear session when app goes to background
   useEffect(() => {
@@ -59,6 +62,15 @@ export default function CaptureScreen() {
     
     return () => subscription.remove();
   }, [clearSession]);
+
+  // Clean up recording on unmount
+  useEffect(() => {
+    return () => {
+      if (recordingRef.current) {
+        recordingRef.current.stopAndUnloadAsync();
+      }
+    };
+  }, []);
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
@@ -177,24 +189,89 @@ export default function CaptureScreen() {
     } catch (error) {
       console.error('Failed to process message:', error);
       addAssistantMessage("Sorry, something went wrong. Please try again.");
+    } finally {
+        // Ensure processing is turned off if it wasn't already by addAssistantMessage (which updates store but we might want to be safe)
+        // Store updates handle this, but good to keep in mind.
     }
   }, [items, addUserMessage, addItem, updateItem, deleteItem, addAssistantMessage, setProcessing]);
 
-  // Handle voice button press
-  const handleVoicePress = useCallback(() => {
-    // Voice screen is removed, will implement inline voice later
-    alert("Voice input coming soon directly in chat!");
-  }, []);
+  // Start Recording
+  const startRecording = async () => {
+    try {
+      const permission = await Audio.requestPermissionsAsync();
+      if (permission.status !== 'granted') {
+        Alert.alert('Permission needed', 'Please grant microphone permission to use voice input.');
+        return;
+      }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+
+      recordingRef.current = recording;
+      setIsRecording(true);
+    } catch (err) {
+      console.error('Failed to start recording', err);
+      Alert.alert('Error', 'Failed to start recording.');
+    }
+  };
+
+  // Stop and Process Recording
+  const stopAndSendRecording = async () => {
+    if (!recordingRef.current) return;
+
+    setIsRecording(false);
+    setProcessing(true); // Show processing UI immediately
+
+    try {
+      await recordingRef.current.stopAndUnloadAsync();
+      const uri = recordingRef.current.getURI();
+
+      if (uri) {
+        // Transcribe
+        const text = await aiService.transcribeAudio(uri);
+        // Process text
+        await handleSend(text);
+      }
+    } catch (err) {
+      console.error('Failed to stop recording', err);
+      Alert.alert('Error', 'Failed to process audio.');
+      setProcessing(false);
+    } finally {
+      recordingRef.current = null;
+    }
+  };
+
+  // Cancel Recording
+  const cancelRecording = async () => {
+    if (!recordingRef.current) return;
+    
+    setIsRecording(false);
+    try {
+      await recordingRef.current.stopAndUnloadAsync();
+    } catch (err) {
+      console.error('Failed to cancel recording', err);
+    } finally {
+      recordingRef.current = null;
+    }
+  };
 
   // Handle plus button press
   const handlePlusPress = useCallback(() => {
-    // For now, just show a placeholder - could open action menu later
-    console.log('Plus pressed');
+    // TODO: Open action menu
   }, []);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <SafeAreaView
+        style={styles.safeArea}
+        edges={['top', 'left', 'right']} // Bottom handled by ChatInputBar
+      >
         {/* Header with Back Button */}
         <View style={styles.header}>
           <TouchableOpacity 
@@ -222,86 +299,86 @@ export default function CaptureScreen() {
           <View style={styles.headerRight} />
         </View>
 
-        <KeyboardAvoidingView 
-          style={styles.keyboardAvoid}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        {/* Chat Messages Area - ScrollView fills remaining space */}
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.messagesContainer}
+          contentContainerStyle={[
+            styles.messagesContent,
+            messages.length === 0 && styles.emptyContent,
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          {/* Chat Messages Area */}
-          <ScrollView
-            ref={scrollViewRef}
-            style={styles.messagesContainer}
-            contentContainerStyle={[
-              styles.messagesContent,
-              messages.length === 0 && styles.emptyContent,
-            ]}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {messages.length === 0 ? (
-
-              // Empty State
-              <View style={styles.emptyState}>
-                <View style={styles.iconContainer}>
-                  <LiveSparkles size={64} />
-                </View>
-                <Typography 
-                  variant="title1" 
-                  style={[styles.greeting, { color: colors.text }]}
-                >
-                  {getGreeting()}
-                </Typography>
-                <Typography 
-                  variant="body" 
-                  color={colors.textSecondary}
-                  style={styles.subtitle}
-                >
-                  What's on your mind?
-                </Typography>
-                
-                {/* Suggested Prompts */}
-                <View style={styles.suggestions}>
-                  <SuggestionChip 
-                    text="Create a reminder" 
-                    onPress={() => handleSend("I need to set a reminder")}
-                  />
-                  <SuggestionChip 
-                    text="Add a task" 
-                    onPress={() => handleSend("I want to add a task")}
-                  />
-                  <SuggestionChip 
-                    text="Take a note" 
-                    onPress={() => handleSend("I want to take a note")}
-                  />
-                </View>
+          {messages.length === 0 ? (
+            // Empty State
+            <View style={styles.emptyState}>
+              <View style={styles.iconContainer}>
+                <LiveSparkles size={64} />
               </View>
-            ) : (
-              // Messages List
-              messages.map((message) => (
-                <ChatMessage key={message.id} message={message} />
-              ))
-            )}
-            
-            {/* Processing Indicator */}
-            {isProcessing && (
-              <View style={styles.thinkingContainer}>
-                <View style={[styles.thinkingBubble, { backgroundColor: isDark ? '#1C1C1E' : '#F0F0F5' }]}>
-                  <ThinkingDots color={colors.textSecondary} />
-                </View>
+              <Typography 
+                variant="title1" 
+                style={[styles.greeting, { color: colors.text }]}
+              >
+                {getGreeting()}
+              </Typography>
+              <Typography 
+                variant="body" 
+                color={colors.textSecondary}
+                style={styles.subtitle}
+              >
+                What's on your mind?
+              </Typography>
+              
+              {/* Suggested Prompts */}
+              <View style={styles.suggestions}>
+                <SuggestionChip 
+                  text="Create a reminder" 
+                  onPress={() => handleSend("I need to set a reminder")}
+                />
+                <SuggestionChip 
+                  text="Add a task" 
+                  onPress={() => handleSend("I want to add a task")}
+                />
+                <SuggestionChip 
+                  text="Take a note" 
+                  onPress={() => handleSend("I want to take a note")}
+                />
               </View>
-            )}
-          </ScrollView>
-
-          {/* Input Bar */}
-          <ChatInputBar
-            onSend={handleSend}
-            onVoicePress={handleVoicePress}
-            onPlusPress={handlePlusPress}
-            isRecording={isRecording}
-            isProcessing={isProcessing}
-          />
-        </KeyboardAvoidingView>
+            </View>
+          ) : (
+            // Messages List
+            messages.map((message) => (
+              <ChatMessage key={message.id} message={message} />
+            ))
+          )}
+          
+          {/* Processing Indicator */}
+          {isProcessing && (
+            <View style={styles.thinkingContainer}>
+              <View style={[styles.thinkingBubble, { backgroundColor: isDark ? '#1C1C1E' : '#F0F0F5' }]}>
+                <ThinkingDots color={colors.textSecondary} />
+              </View>
+            </View>
+          )}
+        </ScrollView>
       </SafeAreaView>
+
+      {/* ChatInputBar - OUTSIDE SafeAreaView, handles its own bottom padding */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ChatInputBar
+          onSend={handleSend}
+          onVoicePress={startRecording}
+          onPlusPress={handlePlusPress}
+          onCancelRecording={cancelRecording}
+          onSendRecording={stopAndSendRecording}
+          isRecording={isRecording}
+          isProcessing={isProcessing}
+        />
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -335,25 +412,24 @@ function SuggestionChip({ text, onPress }: { text: string; onPress: () => void }
   const { colors, isDark } = useTheme();
   
   return (
-    <Animated.View>
-      <View 
-        style={[
-          styles.suggestionChip,
-          { 
-            backgroundColor: isDark ? '#2C2C2E' : '#FFFFFF',
-            borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
-          }
-        ]}
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.7}
+      style={[
+        styles.suggestionChip,
+        { 
+          backgroundColor: isDark ? '#2C2C2E' : '#FFFFFF',
+          borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+        }
+      ]}
+    >
+      <Typography 
+        variant="callout" 
+        color={colors.text}
       >
-        <Typography 
-          variant="callout" 
-          color={colors.text}
-          onPress={onPress}
-        >
-          {text}
-        </Typography>
-      </View>
-    </Animated.View>
+        {text}
+      </Typography>
+    </TouchableOpacity>
   );
 }
 

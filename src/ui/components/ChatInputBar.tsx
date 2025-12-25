@@ -1,22 +1,26 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   TextInput,
   StyleSheet,
-  TouchableOpacity,
   Animated,
   Keyboard,
   Platform,
+  TouchableOpacity,
+  Text,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Plus, Mic, ArrowUp, Square } from 'lucide-react-native';
+import { Plus, Mic, ArrowUp, Square, X } from 'lucide-react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { theme } from '../theme';
+import { Waveform } from './Waveform';
 
 interface ChatInputBarProps {
   onSend: (text: string) => void;
   onVoicePress: () => void;
   onPlusPress?: () => void;
+  onCancelRecording?: () => void;
+  onSendRecording?: () => void;
   isRecording?: boolean;
   isProcessing?: boolean;
   placeholder?: string;
@@ -24,12 +28,14 @@ interface ChatInputBarProps {
 
 /**
  * Floating chat input bar with plus, text input, mic, and send buttons.
- * Inspired by ChatGPT's input interface.
+ * Supports voice recording mode.
  */
 export function ChatInputBar({
   onSend,
   onVoicePress,
   onPlusPress,
+  onCancelRecording,
+  onSendRecording,
   isRecording = false,
   isProcessing = false,
   placeholder = "What's on your mind?",
@@ -38,28 +44,38 @@ export function ChatInputBar({
   const insets = useSafeAreaInsets();
   const [text, setText] = useState('');
   const [inputHeight, setInputHeight] = useState(40);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const hasText = text.trim().length > 0;
   const maxInputHeight = 120;
 
+  // Track keyboard visibility
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setKeyboardVisible(true)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setKeyboardVisible(false)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isRecording) {
+      Keyboard.dismiss();
+    }
+  }, [isRecording]);
+
   const handleSend = () => {
     if (!hasText || isProcessing) return;
     
     // Animate button press
-    Animated.sequence([
-      Animated.timing(scaleAnim, {
-        toValue: 0.9,
-        duration: 50,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 1,
-        duration: 50,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
     onSend(text.trim());
     setText('');
     setInputHeight(40);
@@ -76,7 +92,8 @@ export function ChatInputBar({
       style={[
         styles.container,
         {
-          paddingBottom: Math.max(insets.bottom, 16),
+          paddingBottom: keyboardVisible ? 8 : Math.max(insets.bottom, 16),
+          marginBottom: keyboardVisible ? 0 : 60, // Only apply margin when keyboard is hidden
           backgroundColor: colors.background,
         },
       ]}
@@ -87,68 +104,97 @@ export function ChatInputBar({
           {
             backgroundColor: isDark ? '#2C2C2E' : '#FFFFFF',
             borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+            paddingLeft: isRecording ? 6 : 8,
+            paddingRight: isRecording ? 6 : 8,
           },
         ]}
       >
-        {/* Plus Button */}
-        <TouchableOpacity
-          style={styles.iconButton}
-          onPress={onPlusPress}
-          activeOpacity={0.7}
-        >
-          <Plus size={24} color={colors.textSecondary} />
-        </TouchableOpacity>
-
-        {/* Text Input */}
-        <TextInput
-          style={[
-            styles.input,
-            {
-              color: colors.text,
-              height: inputHeight,
-            },
-          ]}
-          placeholder={placeholder}
-          placeholderTextColor={colors.textTertiary}
-          value={text}
-          onChangeText={setText}
-          multiline
-          onContentSizeChange={handleContentSizeChange}
-          editable={!isRecording && !isProcessing}
-        />
-
-        {/* Mic Button */}
-        {!hasText && (
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={onVoicePress}
-            activeOpacity={0.7}
-          >
-            {isRecording ? (
-              <Square size={20} color={colors.danger} fill={colors.danger} />
-            ) : (
-              <Mic size={22} color={colors.textSecondary} />
-            )}
-          </TouchableOpacity>
-        )}
-
-        {/* Send Button */}
-        {hasText && (
-          <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+        {isRecording ? (
+          // RECORDING UI
+          <>
+            {/* Stop/Cancel Button */}
             <TouchableOpacity
-              style={[
-                styles.sendButton,
-                {
-                  backgroundColor: isProcessing ? colors.textTertiary : colors.primary,
-                },
-              ]}
-              onPress={handleSend}
+              style={[styles.iconButton, styles.cancelButton]}
+              activeOpacity={0.7}
+              onPress={onCancelRecording}
+            >
+              <View style={[styles.stopIconWrapper, { backgroundColor: isDark ? '#3A3A3C' : '#F2F2F7' }]}>
+                <Square size={16} color={colors.danger} fill={colors.danger} />
+              </View>
+            </TouchableOpacity>
+
+            {/* Waveform Visualization */}
+            <View style={styles.waveformContainer}>
+              <Waveform active={true} count={25} />
+            </View>
+
+            {/* Send Audio Button */}
+            <TouchableOpacity
+              style={[styles.sendButton, { backgroundColor: colors.primary }]}
               activeOpacity={0.8}
-              disabled={isProcessing}
+              onPress={onSendRecording}
             >
               <ArrowUp size={20} color="#FFFFFF" strokeWidth={2.5} />
             </TouchableOpacity>
-          </Animated.View>
+          </>
+        ) : (
+          // DEFAULT TEXT INPUT UI
+          <>
+            {/* Plus Button */}
+            <TouchableOpacity
+              style={styles.iconButton}
+              activeOpacity={0.7}
+              onPress={onPlusPress}
+            >
+              <Plus size={24} color={colors.textSecondary} />
+            </TouchableOpacity>
+
+            {/* Text Input */}
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  color: colors.text,
+                  height: inputHeight,
+                },
+              ]}
+              placeholder={placeholder}
+              placeholderTextColor={colors.textTertiary}
+              value={text}
+              onChangeText={setText}
+              multiline
+              onContentSizeChange={handleContentSizeChange}
+              editable={!isProcessing}
+            />
+
+            {/* Mic Button */}
+            {!hasText && (
+              <TouchableOpacity
+                style={styles.iconButton}
+                activeOpacity={0.7}
+                onPress={onVoicePress}
+              >
+                <Mic size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+            )}
+
+            {/* Send Button */}
+            {hasText && (
+              <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+                <TouchableOpacity
+                  style={[
+                    styles.sendButton,
+                    { backgroundColor: isProcessing ? colors.textTertiary : colors.primary }
+                  ]}
+                  activeOpacity={0.8}
+                  onPress={handleSend}
+                  disabled={isProcessing}
+                >
+                  <ArrowUp size={20} color="#FFFFFF" strokeWidth={2.5} />
+                </TouchableOpacity>
+              </Animated.View>
+            )}
+          </>
         )}
       </View>
     </View>
@@ -159,6 +205,8 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 16,
     paddingTop: 12,
+    marginBottom: 60, // Push up above iOS home indicator touch zone
+    zIndex: 100,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -192,5 +240,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginLeft: 4,
     marginBottom: 2,
+  },
+  cancelButton: {
+    width: 36,
+    height: 40,
+    marginLeft: -4,
+  },
+  stopIconWrapper: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  waveformContainer: {
+    flex: 1,
+    height: 40,
+    justifyContent: 'center',
+    paddingHorizontal: 8,
   },
 });

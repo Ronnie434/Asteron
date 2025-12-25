@@ -378,14 +378,14 @@ export default function SettingsScreen() {
           <Typography variant="headline" style={styles.appName}>
             Asteron
           </Typography>
-          <Typography variant="footnote" color={colors.textSecondary}>
+          <Typography variant="footnote" color={isDark ? colors.textSecondary : '#4A4A4A'}>
             Your intelligent personal assistant
           </Typography>
         </View>
         
         {/* Footer */}
         <View style={styles.footer}>
-          <Typography variant="caption1" color={colors.textTertiary}>
+          <Typography variant="caption1" color={isDark ? colors.textTertiary : '#8E8E93'}>
             Your data is stored locally on this device.
           </Typography>
         </View>
@@ -549,10 +549,10 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   appIcon: {
-    width: 80,
-    height: 80,
+    width: 60,
+    height: 60,
     marginBottom: theme.spacing.md,
-    borderRadius: 18,
+    borderRadius: 14,
   },
   appName: {
     marginBottom: theme.spacing.xs,
