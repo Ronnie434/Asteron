@@ -1,12 +1,12 @@
 import { View, ScrollView, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Check } from 'lucide-react-native';
+import { Check, ChevronUp, Sun, Moon } from 'lucide-react-native';
 import { theme } from '../../src/ui/theme';
 import { Typography } from '../../src/ui/components/Typography';
 import { Card } from '../../src/ui/components/Card';
 import { useItemsStore } from '../../src/store/useItemsStore';
 import { Item } from '../../src/db/items';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { RainbowSparkles } from '../../src/ui/components/RainbowSparkles';
@@ -16,6 +16,10 @@ export default function BriefScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const { items, init, markAsDone, updateItem } = useItemsStore();
+  
+  // Collapsible section states
+  const [todayExpanded, setTodayExpanded] = useState(true);
+  const [soonExpanded, setSoonExpanded] = useState(true);
   
   useEffect(() => {
     init();
@@ -100,7 +104,7 @@ export default function BriefScreen() {
     const isDone = item.status === 'done';
       
     return (
-      <View style={styles.taskRow}>
+      <View style={[styles.taskRow, { backgroundColor: colors.card }]}>
         {/* Checkbox - only toggles completion */}
         <TouchableOpacity 
           onPress={() => handleToggleItem(item)}
@@ -181,26 +185,54 @@ export default function BriefScreen() {
       >
             {/* Today Section */}
             <View style={styles.section}>
-              <Typography variant="headline" style={styles.sectionTitle}>
-                Today
-              </Typography>
-              {todayItems.map((item) => (
-                <TaskRow key={item.id} item={item} />
-              ))}
-              {todayItems.length === 0 && (
-                <Typography variant="body" color={colors.textSecondary} style={{ paddingVertical: 8 }}>
-                   No tasks for today.
+              <TouchableOpacity 
+                style={[styles.sectionHeader, { backgroundColor: colors.primaryLight }]}
+                onPress={() => setTodayExpanded(!todayExpanded)}
+                activeOpacity={0.7}
+              >
+                <Sun size={18} color={colors.primary} />
+                <Typography variant="headline" style={{ textTransform: 'uppercase', letterSpacing: 1 }}>
+                  Today ({todayItems.length})
                 </Typography>
+                <ChevronUp 
+                  size={18} 
+                  color={colors.primary}
+                  style={{ transform: [{ rotate: todayExpanded ? '0deg' : '180deg' }] }}
+                />
+              </TouchableOpacity>
+              {todayExpanded && (
+                <>
+                  {todayItems.map((item) => (
+                    <TaskRow key={item.id} item={item} />
+                  ))}
+                  {todayItems.length === 0 && (
+                    <Typography variant="body" color={colors.textSecondary} style={{ paddingVertical: 8 }}>
+                       No tasks for today.
+                    </Typography>
+                  )}
+                </>
               )}
             </View>
 
             {/* Coming Up Section */}
             {upcomingItems.length > 0 && (
               <View style={styles.section}>
-                <Typography variant="headline" style={styles.sectionTitle}>
-                  Soon
-                </Typography>
-                {upcomingItems.map((item) => (
+                <TouchableOpacity 
+                  style={[styles.sectionHeader, { backgroundColor: colors.surfaceSecondary }]}
+                  onPress={() => setSoonExpanded(!soonExpanded)}
+                  activeOpacity={0.7}
+                >
+                  <Moon size={18} color={colors.textSecondary} />
+                  <Typography variant="headline" style={{ textTransform: 'uppercase', letterSpacing: 1 }}>
+                    Soon ({upcomingItems.length})
+                  </Typography>
+                  <ChevronUp 
+                    size={18} 
+                    color={colors.textSecondary}
+                    style={{ transform: [{ rotate: soonExpanded ? '0deg' : '180deg' }] }}
+                  />
+                </TouchableOpacity>
+                {soonExpanded && upcomingItems.map((item) => (
                   <TaskRow key={item.id} item={item} />
                 ))}
               </View>
@@ -210,7 +242,7 @@ export default function BriefScreen() {
             <Typography variant="footnote" color={colors.textTertiary} style={{ marginTop: 20, textAlign: 'center' }}>
               That's all for now.
             </Typography>
-          </ScrollView>
+      </ScrollView>
     </View>
   );
 }
@@ -246,13 +278,26 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: theme.spacing.xl,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.full,
+    marginBottom: theme.spacing.md,
+    gap: theme.spacing.sm,
+  },
   sectionTitle: {
     marginBottom: theme.spacing.md,
   },
   taskRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 14,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    marginBottom: theme.spacing.sm,
   },
   checkbox: {
     width: 24,
@@ -270,5 +315,20 @@ const styles = StyleSheet.create({
   },
   taskContent: {
     flex: 1,
+  },
+  mainCard: {
+    padding: theme.spacing.lg,
+    borderRadius: theme.borderRadius.xl,
+    // Add shadow for elevated look
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.05,
+    shadowRadius: 20,
+    elevation: 5,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: 'rgba(60, 60, 67, 0.12)',
+    marginVertical: theme.spacing.lg,
   },
 });
