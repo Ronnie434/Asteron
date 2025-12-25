@@ -47,15 +47,20 @@ export default function BriefScreen() {
     });
   
   // Only active upcoming items, sorted by time (earliest first)
+  // Include both active AND done items for soon section, sort by time then done items to end
   const upcomingItems = items
     .filter(i => {
-      if (i.status !== 'active') return false;
+      if (i.status !== 'active' && i.status !== 'done') return false;
       const effectiveDate = getEffectiveDate(i);
       if (!effectiveDate) return false;
       const date = new Date(effectiveDate);
       return date > now && date.toDateString() !== now.toDateString();
     })
     .sort((a, b) => {
+      // First: sort done items to the end
+      if (a.status === 'done' && b.status !== 'done') return 1;
+      if (a.status !== 'done' && b.status === 'done') return -1;
+      // Then: sort by time (earliest first)
       const aDate = new Date(getEffectiveDate(a)!).getTime();
       const bDate = new Date(getEffectiveDate(b)!).getTime();
       return aDate - bDate;
