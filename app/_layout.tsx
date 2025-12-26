@@ -82,7 +82,7 @@ export default function RootLayout() {
   useEffect(() => {
     const initNotifications = async () => {
       await NotificationService.requestPermissions();
-      // Badge persists until tasks are completed - don't clear on app open
+      // Badge is managed by useItemsStore based on pending items
     };
     
     initNotifications();

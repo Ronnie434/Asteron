@@ -112,18 +112,40 @@ export default function BriefScreen() {
     
     // Check if this occurrence is marked as completed locally
     const isLocallyCompleted = completedOccurrenceKeys.has(occurrenceKey);
+    const isDone = item.status === 'done' || isLocallyCompleted;
     
-    if (item.status === 'done' || isLocallyCompleted) {
-      // Uncheck - remove from local completed set
+    if (isDone) {
+      // Uncheck logic
+      
+      // 1. Update local state if needed
       if (isLocallyCompleted) {
         setCompletedOccurrenceKeys(prev => {
           const newSet = new Set(prev);
           newSet.delete(occurrenceKey);
           return newSet;
         });
+      }
+
+      // 2. Always update DB to ensure persistence state is correct
+      // (because markAsDone persists immediately, we must revert it)
+      if (item.repeat && item.repeat !== 'none' && occurrenceDate) {
+        // Remove this date from completedDates
+        const dateStr = occurrenceDate.toISOString().split('T')[0];
+        const completedDates = item.completedDates ? JSON.parse(item.completedDates) : [];
         
-        // Restore the notification for this occurrence (if it's a repeating item)
-        if (item.repeat && item.repeat !== 'none' && occurrenceDate && item.remindAt) {
+        // Only update if it actually contains the date to avoid unnecessary writes
+        if (completedDates.includes(dateStr)) {
+            const newDates = completedDates.filter((d: string) => d !== dateStr);
+            await updateItem(item.id, { completedDates: JSON.stringify(newDates) });
+        }
+      } else {
+        // Regular item
+        await updateItem(item.id, { status: 'active' });
+      }
+        
+      // 3. Restore notification logic
+      if (item.remindAt) {
+        if (item.repeat && item.repeat !== 'none' && occurrenceDate) {
           const baseTime = new Date(item.remindAt);
           const notificationTime = new Date(occurrenceDate);
           notificationTime.setHours(baseTime.getHours(), baseTime.getMinutes(), 0, 0);
@@ -137,16 +159,26 @@ export default function BriefScreen() {
               (item.priority as 'high' | 'med' | 'low') || 'med'
             );
           }
+        } else {
+          // Restore non-recurring if in future
+          const remindDate = new Date(item.remindAt);
+          if (remindDate > new Date()) {
+             await NotificationService.scheduleReminder(
+               item.id,
+               item.title,
+               item.details || '',
+               item.remindAt,
+               (item.priority as 'high' | 'med' | 'low') || 'med'
+             );
+          }
         }
-      } else {
-        await updateItem(item.id, { status: 'active' });
       }
     } else {
-      // Check - add to local completed set and show celebration
+      // Check logic - add to local completed set and show celebration
       setShowCelebration(true);
       setCompletedOccurrenceKeys(prev => new Set(prev).add(occurrenceKey));
       
-      // Cancel this occurrence's notification
+      // Cancel this occurrence's notification and mark as done in DB
       await markAsDone(item.id, occurrenceDate);
     }
   };
@@ -372,7 +404,12 @@ export default function BriefScreen() {
                   />
                 </TouchableOpacity>
                 {overdueExpanded && overdueItems.map((item) => (
-                  <TaskRow key={item.id} item={item} isOverdue />
+                  <TaskRow 
+                    key={`${item.id}-${(item as any).displayDate ? (item as any).displayDate.getTime() : 'single'}`} 
+                    item={item} 
+                    isOverdue 
+                    occurrenceDate={(item as any).displayDate}
+                  />
                 ))}
               </View>
             )}
