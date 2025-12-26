@@ -22,6 +22,7 @@ export interface Item {
     repeat?: RepeatFrequency | null;
     repeatConfig?: string | null; // JSON stringified CustomRepeatConfig
     skippedDates?: string | null; // JSON array of YYYY-MM-DD strings for skipped occurrences
+    completedDates?: string | null; // JSON array of YYYY-MM-DD strings for completed occurrences
     priority: ItemPriority;
     status: ItemStatus;
     confidence: number;
@@ -74,6 +75,13 @@ export const initDb = async (): Promise<void> => {
     // Migration: Add skippedDates column if it doesn't exist
     try {
         await db.execAsync(`ALTER TABLE items ADD COLUMN skippedDates TEXT;`);
+    } catch (e) {
+        // Column already exists, ignore error
+    }
+
+    // Migration: Add completedDates column if it doesn't exist
+    try {
+        await db.execAsync(`ALTER TABLE items ADD COLUMN completedDates TEXT;`);
     } catch (e) {
         // Column already exists, ignore error
     }
@@ -153,4 +161,34 @@ export const listItems = async (filter?: { status?: string }): Promise<Item[]> =
 export const deleteItem = async (id: string): Promise<void> => {
     const database = await getDb();
     await database.runAsync(`DELETE FROM items WHERE id = ?`, [id]);
+};
+
+export const cleanupOldCompletedDates = async (daysToKeep: number = 5): Promise<void> => {
+    const database = await getDb();
+    // Get all items with completedDates
+    const items = await database.getAllAsync<Item>(`SELECT * FROM items WHERE completedDates IS NOT NULL`);
+
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+    const cutoffStr = cutoffDate.toISOString().split('T')[0];
+
+    for (const item of items) {
+        if (!item.completedDates) continue;
+
+        try {
+            const completedDates: string[] = JSON.parse(item.completedDates);
+            // Filter out dates older than cutoff
+            const validDates = completedDates.filter(d => d >= cutoffStr);
+
+            if (validDates.length !== completedDates.length) {
+                // Update if we pruned some dates
+                await database.runAsync(
+                    `UPDATE items SET completedDates = ? WHERE id = ?`,
+                    [JSON.stringify(validDates), item.id]
+                );
+            }
+        } catch (e) {
+            console.error(`Failed to parse/cleanup completedDates for item ${item.id}`, e);
+        }
+    }
 };

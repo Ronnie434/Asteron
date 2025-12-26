@@ -44,6 +44,8 @@ export function expandRepeatingItems(
                 ? JSON.parse(item.skippedDates)
                 : [];
 
+            const createdAt = new Date(item.createdAt);
+
             for (let dayOffset = 0; dayOffset < daysToExpand; dayOffset++) {
                 const displayDate = new Date(now);
                 displayDate.setDate(displayDate.getDate() + dayOffset);
@@ -54,8 +56,17 @@ export function expandRepeatingItems(
                     displayDate.setHours(originalDate.getHours(), originalDate.getMinutes(), 0, 0);
                 }
 
-                // Skip if this occurrence is in the past (unless including overdue)
-                if (!includeOverdue && displayDate <= now) continue;
+                // Skip if task was created AFTER this occurrence's time
+                // (e.g., created at 10:49 AM, occurrence is 10:30 AM today - skip today)
+                if (createdAt > displayDate) continue;
+
+                // Get start of today for date comparison
+                const todayStart = new Date(now);
+                todayStart.setHours(0, 0, 0, 0);
+
+                // Skip only if occurrence is from a PREVIOUS day (not today's past time)
+                // Today's tasks stay visible until the day ends, even if time has passed
+                if (!includeOverdue && displayDate < todayStart) continue;
 
                 // Skip if this date is in the skippedDates list
                 const dateStr = displayDate.toISOString().split('T')[0]; // YYYY-MM-DD
@@ -132,23 +143,95 @@ export function expandRepeatingItems(
 }
 
 /**
- * Get overdue items (date/time has passed, still active)
+ * Get overdue items (from a PREVIOUS day, not yet completed)
+ * Items from today are NOT overdue, even if the time has passed.
+ * Overdue means a whole day has passed without completing the task.
  */
 export function getOverdueItems(items: Item[]): ExpandedItem[] {
     const now = new Date();
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0); // Start of today
 
     return items
         .filter(item => {
             if (item.status !== 'active') return false;
+            // Skip repeating items - they're handled by expansion
+            if (item.repeat && item.repeat !== 'none') return false;
             const effectiveDate = getEffectiveDate(item);
             if (!effectiveDate) return false;
-            return new Date(effectiveDate) < now;
+            // Overdue = item's date is BEFORE today (previous day)
+            return new Date(effectiveDate) < todayStart;
         })
         .map(item => ({
             ...item,
             displayDate: new Date(getEffectiveDate(item)!),
             isVirtualOccurrence: false,
         }));
+}
+
+/**
+ * Get overdue occurrences for repeating items (yesterday's uncompleted occurrences)
+ * @param items - Array of items to check
+ */
+export function getOverdueOccurrences(items: Item[]): ExpandedItem[] {
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    // Check up to 3 days back for overdue items, not just yesterday
+    // This makes it more robust if user doesn't open app for a day
+    const checkDays = 3;
+
+    const overdue: ExpandedItem[] = [];
+
+    items.forEach(item => {
+        if (item.status !== 'active') return;
+        if (!item.repeat || item.repeat === 'none') return;
+
+        const effectiveDate = getEffectiveDate(item);
+        if (!effectiveDate) return;
+
+        // Parse skipped and completed dates
+        const skippedDates: string[] = item.skippedDates
+            ? JSON.parse(item.skippedDates)
+            : [];
+
+        const completedDates: string[] = item.completedDates
+            ? JSON.parse(item.completedDates)
+            : [];
+
+        // Check past days
+        for (let i = 1; i <= checkDays; i++) {
+            const pastDate = new Date(now);
+            pastDate.setDate(pastDate.getDate() - i);
+            const pastDateStr = pastDate.toISOString().split('T')[0];
+
+            // Skip if date is skipped
+            if (skippedDates.includes(pastDateStr)) continue;
+
+            // Skip if date is completed
+            if (completedDates.includes(pastDateStr)) continue;
+
+            // Check if task was created before this occurrence
+            const createdAt = new Date(item.createdAt);
+            const baseDate = new Date(effectiveDate);
+            const pastOccurrence = new Date(pastDate);
+            pastOccurrence.setHours(baseDate.getHours(), baseDate.getMinutes(), 0, 0);
+
+            // If task created after this occurrence time, it's not overdue
+            if (createdAt > pastOccurrence) continue;
+
+            // Add as overdue
+            overdue.push({
+                ...item,
+                displayDate: pastOccurrence,
+                isVirtualOccurrence: true,
+            });
+        }
+    });
+
+    // Sort by date (oldest first)
+    return overdue.sort((a, b) => a.displayDate.getTime() - b.displayDate.getTime());
 }
 
 /**

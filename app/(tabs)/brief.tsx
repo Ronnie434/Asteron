@@ -16,6 +16,7 @@ import { TaskCelebration } from '../../src/ui/components/TaskCelebration';
 import {
   expandRepeatingItems,
   getOverdueItems,
+  getOverdueOccurrences,
   filterByDate,
   sortItemsByTimeAndStatus,
   getEffectiveDate,
@@ -72,8 +73,11 @@ export default function BriefScreen() {
   const dayAfter = new Date(now);
   dayAfter.setDate(dayAfter.getDate() + 2);
 
-  // Get overdue items (past date/time, still active)
-  const overdueItems = sortItemsByTimeAndStatus(getOverdueItems(items));
+  // Get overdue items: regular items from past days + past uncompleted repeating occurrences
+  // Now tracks back 3 days and uses persisted completedDates
+  const regularOverdue = getOverdueItems(items);
+  const repeatingOverdue = getOverdueOccurrences(items);
+  const overdueItems = sortItemsByTimeAndStatus([...regularOverdue, ...repeatingOverdue]);
 
   // Expand repeating items for the next 3 days
   const expandedItems = expandRepeatingItems(items, 3);
@@ -240,15 +244,25 @@ export default function BriefScreen() {
     
     const priorityColor = getPriorityColor(item.priority);
     
-    // Check if this task has an overdue reminder (reminder time passed but not done)
-    const isOverdueReminder = isOverdue || (!isDone && item.remindAt && new Date(item.remindAt) <= now);
+    // Calculate the actual reminder/due time for this specific occurrence
+    // For repeating items, use occurrenceDate; for regular items, use remindAt
+    const occurrenceTime = occurrenceDate || (item.remindAt ? new Date(item.remindAt) : null);
+    
+    // Get start of today for comparison
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    
+    // isOverdue prop means this item is rendered in the OVERDUE section (previous day)
+    // isOverdueStyle = should show warning styling (time has passed, today or previous day)
+    const isTimePassed = occurrenceTime && occurrenceTime <= now;
+    const isOverdueStyle = isOverdue || (!isDone && isTimePassed);
       
     return (
       <View style={[
         styles.taskRow, 
         { backgroundColor: colors.card },
         // Highlight overdue reminders with a colored border
-        isOverdueReminder && {
+        isOverdueStyle && {
           borderWidth: 2,
           borderColor: isOverdue ? colors.danger : colors.warning,
           backgroundColor: isOverdue ? hexToRgba(colors.danger, 0.1) : hexToRgba(colors.warning, 0.1), // Very subtle tint  
@@ -262,7 +276,7 @@ export default function BriefScreen() {
         >
           <View style={[
             styles.checkbox, 
-            { borderColor: isDone ? colors.success : (isOverdueReminder ? colors.warning : priorityColor) },
+            { borderColor: isDone ? colors.success : (isOverdueStyle ? colors.warning : priorityColor) },
             isDone && { backgroundColor: colors.success, borderColor: colors.success }
           ]}>
             {isDone && <Check size={14} color="#FFFFFF" strokeWidth={3} />}
@@ -283,7 +297,7 @@ export default function BriefScreen() {
             {item.title}
           </Typography>
           {/* Show "Overdue" label for overdue reminders */}
-          {isOverdueReminder && (
+          {isOverdueStyle && (
             <Typography variant="caption2" color={colors.warning} style={{ marginTop: 2 }}>
               ⏰ Reminder overdue
             </Typography>
@@ -297,7 +311,7 @@ export default function BriefScreen() {
           >
             <Typography 
               variant="caption2" 
-              color={isOverdueReminder ? colors.warning : colors.textSecondary}
+              color={isOverdueStyle ? colors.warning : colors.textSecondary}
               style={isDone ? { opacity: 0.5 } : undefined}
             >
               {time}
@@ -383,7 +397,7 @@ export default function BriefScreen() {
               {todayExpanded && (
                 <>
                   {todayItems.map((item) => (
-                    <TaskRow key={`today-${item.id}`} item={item} occurrenceDate={now} />
+                    <TaskRow key={`today-${item.id}`} item={item} occurrenceDate={item.displayDate} />
                   ))}
                   {todayItems.length === 0 && (
                     <Typography variant="body" color={colors.textSecondary} style={{ paddingVertical: 8 }}>

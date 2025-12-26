@@ -237,17 +237,34 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
         const currentItem = get().items.find(i => i.id === id);
         if (!currentItem) return;
 
-        // If it's a recurring item with an occurrence date, just cancel that occurrence's notification
+        // If it's a recurring item with an occurrence date
         if (currentItem.repeat && currentItem.repeat !== 'none' && occurrenceDate) {
             // Cancel only this occurrence's notification
             await NotificationService.cancelOccurrenceReminder(id, occurrenceDate);
             console.log(`Cancelled notification for "${currentItem.title}" on ${occurrenceDate.toDateString()}`);
-            // Do NOT modify remindAt - it stays as the template time
+
+            // Persist completed date
+            const completedDates: string[] = currentItem.completedDates
+                ? JSON.parse(currentItem.completedDates)
+                : [];
+
+            const dateStr = occurrenceDate.toISOString().split('T')[0];
+            if (!completedDates.includes(dateStr)) {
+                completedDates.push(dateStr);
+                // Update item with new completed dates
+                await get().updateItem(id, { completedDates: JSON.stringify(completedDates) });
+
+                // Decrement badge count manually since we're not changing status to 'done'
+                const currentBadge = await NotificationService.getBadgeCount();
+                if (currentBadge > 0) {
+                    await NotificationService.setBadgeCount(currentBadge - 1);
+                }
+            }
         } else if (currentItem.repeat && currentItem.repeat !== 'none') {
-            // Recurring item without occurrence date (legacy call) - cancel today's notification
+            // Recurring item without occurrence date (legacy/fallback)
+            // Just mark today as completed
             const today = new Date();
-            await NotificationService.cancelOccurrenceReminder(id, today);
-            console.log(`Cancelled today's notification for "${currentItem.title}"`);
+            await get().markAsDone(id, today);
         } else {
             // Non-recurring: mark as done and cancel notification
             await NotificationService.cancelReminder(id);
