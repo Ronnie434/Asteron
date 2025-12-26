@@ -15,6 +15,7 @@ import { useItemsStore } from '../../src/store/useItemsStore';
 import { GradientSparkles } from '../../src/ui/components/RainbowSparkles';
 import * as WebBrowser from 'expo-web-browser';
 import { GlassyHeader } from '../../src/ui/components/GlassyHeader';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -29,8 +30,21 @@ import { useSettingsStore } from '../../src/store/useSettingsStore';
 export default function SettingsScreen() {
   const { themeMode, setThemeMode, colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const { quietHoursEnabled, setQuietHoursEnabled, dailyBriefEnabled, setDailyBriefEnabled } = useSettingsStore();
+  const { 
+    quietHoursEnabled, setQuietHoursEnabled, 
+    quietHoursStart, setQuietHoursStart,
+    quietHoursEnd, setQuietHoursEnd,
+    dailyBriefEnabled, setDailyBriefEnabled 
+  } = useSettingsStore();
   const [themeModalVisible, setThemeModalVisible] = useState(false);
+
+  const formatTimeDisplay = (timeStr: string) => {
+    // Convert 24h string "HH:mm" to 12h display
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const date = new Date();
+    date.setHours(hours, minutes);
+    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  };
 
   const getThemeLabel = () => {
     switch (themeMode) {
@@ -38,6 +52,12 @@ export default function SettingsScreen() {
       case 'dark': return 'Dark';
       case 'system': return 'System';
     }
+  };
+
+  const [quietHoursModalVisible, setQuietHoursModalVisible] = useState(false);
+
+  const formatTimeRange = () => {
+    return `${formatTimeDisplay(quietHoursStart)} – ${formatTimeDisplay(quietHoursEnd)}`;
   };
 
   const ThemeModal = () => (
@@ -114,10 +134,6 @@ export default function SettingsScreen() {
       </Pressable>
     </Modal>
   );
-
-
-
-
 
   const UserProfileSection = () => (
     <Card style={styles.profileCard}>
@@ -306,9 +322,15 @@ export default function SettingsScreen() {
           <SettingRow
             Icon={Moon}
             title="Quiet Hours"
-            subtitle="10 PM – 7 AM"
+            subtitle={formatTimeRange()}
             value={quietHoursEnabled}
-            onToggle={setQuietHoursEnabled}
+            onToggle={(enabled) => {
+              setQuietHoursEnabled(enabled);
+              if (enabled) {
+                setQuietHoursModalVisible(true);
+              }
+            }}
+            onPress={() => setQuietHoursModalVisible(true)}
           />
           <View style={styles.separator} />
           <SettingRow
@@ -319,6 +341,15 @@ export default function SettingsScreen() {
             onToggle={setDailyBriefEnabled}
           />
         </Card>
+        <QuietHoursModal 
+          visible={quietHoursModalVisible} 
+          onClose={() => setQuietHoursModalVisible(false)}
+          quietHoursStart={quietHoursStart}
+          quietHoursEnd={quietHoursEnd}
+          setQuietHoursStart={setQuietHoursStart}
+          setQuietHoursEnd={setQuietHoursEnd}
+          colors={colors}
+        />
 
         {/* About */}
         <Typography 
@@ -393,6 +424,157 @@ export default function SettingsScreen() {
     </View>
   );
 }
+
+// Extracted Component to prevent re-renders
+const QuietHoursModal = ({ 
+  visible, 
+  onClose, 
+  quietHoursStart, 
+  quietHoursEnd, 
+  setQuietHoursStart, 
+  setQuietHoursEnd,
+  colors
+}: {
+  visible: boolean;
+  onClose: () => void;
+  quietHoursStart: string;
+  quietHoursEnd: string;
+  setQuietHoursStart: (val: string) => void;
+  setQuietHoursEnd: (val: string) => void;
+  colors: any;
+}) => {
+  const [activeTimeField, setActiveTimeField] = useState<'start' | 'end' | null>(null);
+
+  const formatTimeDisplay = (timeStr: string) => {
+    // Convert 24h string "HH:mm" to 12h display
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const date = new Date();
+    date.setHours(hours, minutes);
+    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  };
+
+  const getTimeDate = (field: 'start' | 'end') => {
+    const timeStr = field === 'start' ? quietHoursStart : quietHoursEnd;
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const date = new Date();
+    date.setHours(hours, minutes);
+    return date;
+  };
+
+  const onTimeChange = (event: any, selectedDate?: Date) => {
+    if (selectedDate && activeTimeField) {
+      // Format to HH:mm for storage
+      const hours = selectedDate.getHours().toString().padStart(2, '0');
+      const minutes = selectedDate.getMinutes().toString().padStart(2, '0');
+      const timeStr = `${hours}:${minutes}`;
+      
+      if (activeTimeField === 'start') {
+        setQuietHoursStart(timeStr);
+      } else {
+        setQuietHoursEnd(timeStr);
+      }
+    }
+  };
+
+  const toggleTimePicker = (field: 'start' | 'end') => {
+    if (activeTimeField === field) {
+      setActiveTimeField(null); // Close if already open
+    } else {
+      setActiveTimeField(field); // Open new
+    }
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <Pressable 
+        style={styles.modalOverlay}
+        onPress={onClose}
+      >
+        <Pressable 
+          style={[styles.modalContent, { backgroundColor: colors.card }]}
+          onPress={(e) => e.stopPropagation()}
+        >
+          <View style={styles.dragHandle} />
+
+          <View style={styles.modalHeader}>
+            <Typography variant="headline">Quiet Hours</Typography>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <X size={24} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+
+          <Typography variant="body" color={colors.textSecondary} style={{ marginBottom: theme.spacing.lg }}>
+            Notifications will be silenced and rescheduled to the end of this window.
+          </Typography>
+
+          <Card style={styles.card}>
+            {/* Start Time Row */}
+            <TouchableOpacity
+              style={[styles.row, { paddingVertical: 16 }]}
+              onPress={() => toggleTimePicker('start')}
+            >
+              <View style={styles.rowContent}>
+                <Typography variant="body">Start Time</Typography>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Typography variant="body" color={activeTimeField === 'start' ? colors.primary : colors.text}>
+                  {formatTimeDisplay(quietHoursStart)}
+                </Typography>
+                {/* No chevron needed if we expand inline, or maybe keep it but rotate? kept simple for now */}
+              </View>
+            </TouchableOpacity>
+            
+            {activeTimeField === 'start' && (
+              <DateTimePicker
+                value={getTimeDate('start')}
+                mode="time"
+                is24Hour={false}
+                display="spinner"
+                onChange={onTimeChange}
+                style={{ height: 120, width: '100%' }}
+              />
+            )}
+
+            <View style={styles.separator} />
+            
+            {/* End Time Row */}
+            <TouchableOpacity
+              style={[styles.row, { paddingVertical: 16 }]}
+              onPress={() => toggleTimePicker('end')}
+            >
+              <View style={styles.rowContent}>
+                <Typography variant="body">End Time</Typography>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Typography variant="body" color={activeTimeField === 'end' ? colors.primary : colors.text}>
+                  {formatTimeDisplay(quietHoursEnd)}
+                </Typography>
+              </View>
+            </TouchableOpacity>
+
+            {activeTimeField === 'end' && (
+              <DateTimePicker
+                value={getTimeDate('end')}
+                mode="time"
+                is24Hour={false}
+                display="spinner"
+                onChange={onTimeChange}
+                style={{ height: 120, width: '100%' }}
+              />
+            )}
+          </Card>
+          
+          <View style={{ height: 40 }} />
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -556,5 +738,13 @@ const styles = StyleSheet.create({
   },
   appName: {
     marginBottom: theme.spacing.xs,
+  },
+  subRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
+    paddingLeft: 60, // Indent to align with text above
   },
 });

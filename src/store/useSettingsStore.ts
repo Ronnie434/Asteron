@@ -10,6 +10,8 @@ interface SettingsState {
     dailyBriefTime: string;  // "08:00"
 
     setQuietHoursEnabled: (enabled: boolean) => void;
+    setQuietHoursStart: (time: string) => void;
+    setQuietHoursEnd: (time: string) => void;
     setDailyBriefEnabled: (enabled: boolean) => void;
 }
 
@@ -23,6 +25,8 @@ export const useSettingsStore = create<SettingsState>()(
             dailyBriefTime: "08:00",
 
             setQuietHoursEnabled: (enabled) => set({ quietHoursEnabled: enabled }),
+            setQuietHoursStart: (time) => set({ quietHoursStart: time }),
+            setQuietHoursEnd: (time) => set({ quietHoursEnd: time }),
             setDailyBriefEnabled: (enabled) => set({ dailyBriefEnabled: enabled }),
         }),
         {

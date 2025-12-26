@@ -1,5 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import { Platform, AppState } from 'react-native';
+import { useSettingsStore } from '../store/useSettingsStore';
 
 // Configure how notifications behave when the app is in foreground
 Notifications.setNotificationHandler({
@@ -68,6 +69,75 @@ export const NotificationService = {
         try {
             const date = new Date(dateStr);
             const now = new Date();
+
+            // Check for Quiet Hours
+            const { quietHoursEnabled, quietHoursStart, quietHoursEnd } = useSettingsStore.getState();
+
+            if (quietHoursEnabled) {
+                const [startHour, startMinute] = quietHoursStart.split(':').map(Number);
+                const [endHour, endMinute] = quietHoursEnd.split(':').map(Number);
+
+                const notifHour = date.getHours();
+                const notifMinute = date.getMinutes();
+                const notifTime = notifHour * 60 + notifMinute;
+
+                const startTime = startHour * 60 + startMinute;
+                const endTime = endHour * 60 + endMinute;
+
+                let inQuietHours = false;
+                if (startTime < endTime) {
+                    // Window is within the same day, e.g. 01:00 - 05:00
+                    if (notifTime >= startTime && notifTime < endTime) {
+                        inQuietHours = true;
+                    }
+                } else {
+                    // Window crosses midnight, e.g. 22:00 - 07:00
+                    if (notifTime >= startTime || notifTime < endTime) {
+                        inQuietHours = true;
+                    }
+                }
+
+                if (inQuietHours) {
+                    console.log(`Notification time ${date.toLocaleTimeString()} falls in Quiet Hours (${quietHoursStart}-${quietHoursEnd})`);
+
+                    // Reschedule to end of quiet hours
+                    // If current time is before end time (early morning), set to today's end time
+                    // If current time is after start time (late night), set to tomorrow's end time
+
+                    const newDate = new Date(date);
+                    newDate.setHours(endHour, endMinute, 0, 0);
+
+                    // If we are in the late night portion (after start time), we need to move to tomorrow
+                    // unless start time is < end time (unlikely for overnight quiet hours but possible logic-wise)
+                    if (startTime > endTime && notifTime >= startTime) {
+                        newDate.setDate(newDate.getDate() + 1);
+                    }
+
+                    // Add a small buffer (e.g. 1 minute) to ensure it doesn't trigger immediately if we are at the edge? 
+                    // No, end time is fine. Maybe add "Quiet Hours ended:" prefix?
+                    // Let's just reschedule.
+
+                    console.log(`Rescheduling to ${newDate.toLocaleString()}`);
+                    // recursive call with new date? Or just modify `date`?
+                    // Modifying `date` is cleaner but `date` is const `new Date(dateStr)`. 
+                    // I should update `date` variable. But I declared it const. 
+                    // I will perform the check effectively by recursively calling scheduleReminder with the new date string
+                    // BUT I need to preserve the ID.
+
+                    // Actually, I can just update the `date` object if I change it to `let` or create a new variable to use in scheduleNotificationAsync.
+                    // Let's change the downstream code to use `finalDate`.
+
+                    // Or simpler:
+                    await NotificationService.scheduleReminder(
+                        id,
+                        title,
+                        body,
+                        newDate.toISOString(),
+                        priority
+                    );
+                    return; // Exit this call
+                }
+            }
 
             // Don't schedule in the past
             if (date.getTime() <= now.getTime()) {
