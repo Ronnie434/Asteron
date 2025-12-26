@@ -5,7 +5,7 @@ import { theme } from '../src/ui/theme';
 import { Typography } from '../src/ui/components/Typography';
 import { Card } from '../src/ui/components/Card';
 import { Chip } from '../src/ui/components/Chip';
-import { Calendar, Clock, ChevronRight, Trash2, X, Check } from 'lucide-react-native';
+import { Calendar, Clock, ChevronRight, Trash2, X, Check, Repeat } from 'lucide-react-native';
 import { useState } from 'react';
 import { useLocalSearchParams } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -14,6 +14,7 @@ import { GlassyHeader } from '../src/ui/components/GlassyHeader';
 
 import { useItemsStore } from '../src/store/useItemsStore';
 import { useTheme } from '../src/contexts/ThemeContext';
+import { CustomRepeatConfig } from '../src/db/items';
 
 export default function EditScreen() {
   const router = useRouter();
@@ -28,6 +29,8 @@ export default function EditScreen() {
     details?: string;
     dueAt?: string;
     remindAt?: string;
+    repeat?: string;
+    repeatConfig?: string;
   }>();
   
   const itemId = params.id;
@@ -37,6 +40,30 @@ export default function EditScreen() {
   const [details, setDetails] = useState(params.details || '');
   const [dueAt, setDueAt] = useState(params.dueAt || '');
   const [remindAt, setRemindAt] = useState(params.remindAt || '');
+  const [repeat, setRepeat] = useState(params.repeat || 'none');
+  
+  // Custom repeat config
+  const [selectedDays, setSelectedDays] = useState<number[]>(() => {
+    if (params.repeatConfig) {
+      try {
+        const config = JSON.parse(params.repeatConfig);
+        return config.days || [];
+      } catch { return []; }
+    }
+    return [];
+  });
+  const [intervalWeeks, setIntervalWeeks] = useState<number>(() => {
+    if (params.repeatConfig) {
+      try {
+        const config = JSON.parse(params.repeatConfig);
+        return config.intervalWeeks || 1;
+      } catch { return 1; }
+    }
+    return 1;
+  });
+  
+  // Repeat Modal State
+  const [showRepeatModal, setShowRepeatModal] = useState(false);
   
   // Date Picker State
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -98,6 +125,16 @@ export default function EditScreen() {
   const handleSave = async () => {
     if (!title.trim() || !itemId) return;
     try {
+        // Build repeatConfig if custom
+        let repeatConfigStr: string | null = null;
+        if (repeat === 'custom' && selectedDays.length > 0) {
+          const config: CustomRepeatConfig = {
+            days: selectedDays,
+            intervalWeeks: intervalWeeks,
+          };
+          repeatConfigStr = JSON.stringify(config);
+        }
+        
         await updateItem(itemId, {
             title,
             type: type as any,
@@ -105,6 +142,8 @@ export default function EditScreen() {
             details: details || null,
             dueAt: dueAt || null,
             remindAt: remindAt || null,
+            repeat: repeat as any,
+            repeatConfig: repeatConfigStr,
         });
         router.back();
     } catch (e) {
@@ -290,6 +329,28 @@ export default function EditScreen() {
                 </TouchableOpacity>
             )}
           </View>
+
+          <View style={[styles.separator, { backgroundColor: colors.separator }]} />
+
+          <TouchableOpacity 
+            style={styles.scheduleRow}
+            onPress={() => setShowRepeatModal(true)}
+            activeOpacity={0.7}
+          >
+            <Repeat size={20} color={colors.primary} strokeWidth={2} />
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Typography variant="body">Repeat</Typography>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Typography variant="body" color={colors.textSecondary}>
+                {repeat === 'none' ? 'None' : 
+                 repeat === 'custom' && selectedDays.length > 0 
+                   ? `${selectedDays.sort((a, b) => a - b).map(d => ['S', 'M', 'T', 'W', 'T', 'F', 'S'][d]).join(', ')} / ${intervalWeeks}w`
+                   : repeat.charAt(0).toUpperCase() + repeat.slice(1)}
+              </Typography>
+              <ChevronRight size={18} color={colors.textTertiary} style={{ marginLeft: 4 }} />
+            </View>
+          </TouchableOpacity>
         </Card>
 
         {/* Delete Button */}
@@ -348,6 +409,146 @@ export default function EditScreen() {
                 display="default"
                 onChange={onDateChange}
               />
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Repeat Modal */}
+      <Modal
+        visible={showRepeatModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowRepeatModal(false)}
+      >
+        <Pressable 
+          style={styles.datePickerModalOverlay} 
+          onPress={() => setShowRepeatModal(false)}
+        >
+          <Pressable 
+            style={[styles.repeatModalContent, { backgroundColor: colors.card }]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <View style={styles.repeatModalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <Repeat size={22} color={colors.text} strokeWidth={2} />
+                <Typography variant="headline">Repeat</Typography>
+              </View>
+              <TouchableOpacity 
+                onPress={() => setShowRepeatModal(false)}
+                style={[styles.doneButton, { backgroundColor: colors.text + '20' }]}
+              >
+                <Typography variant="body" style={{ fontWeight: '600' }}>Done</Typography>
+              </TouchableOpacity>
+            </View>
+
+            {/* Repeat Options List */}
+            <View style={{ marginBottom: 20 }}>
+              {[
+                { value: 'none', label: 'None' },
+                { value: 'daily', label: 'Daily' },
+                { value: 'weekly', label: 'Weekly' },
+                { value: 'monthly', label: 'Monthly' },
+                { value: 'custom', label: 'Custom' },
+              ].map(option => (
+                <TouchableOpacity
+                  key={option.value}
+                  onPress={() => setRepeat(option.value)}
+                  style={[
+                    styles.repeatOption,
+                    { 
+                      backgroundColor: repeat === option.value ? colors.primary + '15' : 'transparent',
+                      borderColor: repeat === option.value ? colors.primary : colors.text + '15',
+                    }
+                  ]}
+                >
+                  <Typography 
+                    variant="body" 
+                    color={repeat === option.value ? colors.primary : colors.text}
+                    style={{ fontWeight: repeat === option.value ? '600' : '400' }}
+                  >
+                    {option.label}
+                  </Typography>
+                  {repeat === option.value && (
+                    <Check size={20} color={colors.primary} strokeWidth={2.5} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Custom Day Selection - only show when custom is selected */}
+            {repeat === 'custom' && (
+              <>
+                <Typography variant="caption1" color={colors.textSecondary} style={{ marginBottom: 12 }}>
+                  SELECT DAYS
+                </Typography>
+                <View style={styles.dayRow}>
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => {
+                    const isSelected = selectedDays.includes(index);
+                    return (
+                      <TouchableOpacity
+                        key={day}
+                        onPress={() => {
+                          if (isSelected) {
+                            setSelectedDays(selectedDays.filter(d => d !== index));
+                          } else {
+                            setSelectedDays([...selectedDays, index]);
+                          }
+                        }}
+                        style={[
+                          styles.dayButton,
+                          { 
+                            backgroundColor: isSelected ? colors.primary : colors.text + '15',
+                          }
+                        ]}
+                      >
+                        <Typography 
+                          variant="headline" 
+                          color={isSelected ? '#FFFFFF' : colors.textSecondary}
+                          style={{ fontSize: 16, fontWeight: '600' }}
+                        >
+                          {day.charAt(0)}
+                        </Typography>
+                        <Typography 
+                          variant="caption2" 
+                          color={isSelected ? '#FFFFFF' : colors.textSecondary}
+                        >
+                          {day}
+                        </Typography>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Interval Section */}
+                <Typography variant="caption1" color={colors.textSecondary} style={{ marginTop: 20, marginBottom: 12 }}>
+                  REPEAT EVERY
+                </Typography>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {[1, 2, 3, 4].map(weeks => (
+                    <TouchableOpacity
+                      key={weeks}
+                      onPress={() => setIntervalWeeks(weeks)}
+                      style={[
+                        styles.intervalChip,
+                        { 
+                          backgroundColor: intervalWeeks === weeks ? colors.primary + '20' : colors.text + '10',
+                          borderColor: intervalWeeks === weeks ? colors.primary : 'transparent',
+                        }
+                      ]}
+                    >
+                      <Typography 
+                        variant="body" 
+                        color={intervalWeeks === weeks ? colors.primary : colors.text}
+                        style={{ fontWeight: intervalWeeks === weeks ? '600' : '400' }}
+                      >
+                        {weeks}w
+                      </Typography>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
             )}
           </Pressable>
         </Pressable>
@@ -436,5 +637,74 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  repeatChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  // Repeat Modal Styles
+  repeatModalContent: {
+    borderTopLeftRadius: theme.borderRadius.xl,
+    borderTopRightRadius: theme.borderRadius.xl,
+    paddingTop: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: 40,
+  },
+  repeatModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.xl,
+  },
+  doneButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  summaryPill: {
+    borderWidth: 1.5,
+    borderRadius: 24,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    marginBottom: theme.spacing.xl,
+  },
+  dayRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  dayButton: {
+    width: 44,
+    height: 60,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  intervalRow: {
+    borderWidth: 1.5,
+    borderRadius: 24,
+    overflow: 'hidden',
+  },
+  intervalOption: {
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  repeatOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  intervalChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
   },
 });

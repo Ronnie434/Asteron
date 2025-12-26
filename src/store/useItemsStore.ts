@@ -1,8 +1,67 @@
 import { create } from 'zustand';
 import * as Crypto from 'expo-crypto';
 import * as DB from '../db/items';
-import type { Item, ItemStatus } from '../db/items';
+import type { Item, ItemStatus, RepeatFrequency, CustomRepeatConfig } from '../db/items';
 import { NotificationService } from '../services/NotificationService';
+
+/**
+ * Calculate the next occurrence date for a repeating item
+ * For 'custom' repeat, uses the repeatConfig to find the next matching day
+ */
+const calculateNextOccurrence = (
+    currentDate: Date,
+    repeat: RepeatFrequency,
+    repeatConfig?: CustomRepeatConfig | null
+): Date => {
+    const next = new Date(currentDate);
+
+    switch (repeat) {
+        case 'daily':
+            next.setDate(next.getDate() + 1);
+            break;
+        case 'weekly':
+            next.setDate(next.getDate() + 7);
+            break;
+        case 'monthly':
+            next.setMonth(next.getMonth() + 1);
+            break;
+        case 'yearly':
+            next.setFullYear(next.getFullYear() + 1);
+            break;
+        case 'custom':
+            if (repeatConfig && repeatConfig.days.length > 0) {
+                // Find the next matching day of week
+                const currentDay = next.getDay();
+                const sortedDays = [...repeatConfig.days].sort((a, b) => a - b);
+
+                // Find next day in current week
+                let foundNextDay = false;
+                for (const day of sortedDays) {
+                    if (day > currentDay) {
+                        // Found a day later this week
+                        next.setDate(next.getDate() + (day - currentDay));
+                        foundNextDay = true;
+                        break;
+                    }
+                }
+
+                if (!foundNextDay) {
+                    // No day later this week, go to first day of next interval
+                    const daysUntilNextWeek = 7 - currentDay + sortedDays[0];
+                    const intervalDays = (repeatConfig.intervalWeeks - 1) * 7;
+                    next.setDate(next.getDate() + daysUntilNextWeek + intervalDays);
+                }
+            } else {
+                // Fallback: treat as weekly if no config
+                next.setDate(next.getDate() + 7);
+            }
+            break;
+        default:
+            break;
+    }
+
+    return next;
+};
 
 interface ItemsState {
     items: Item[];
@@ -67,6 +126,8 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
             details: null,
             dueAt: null,
             remindAt: null,
+            repeat: 'none',
+            repeatConfig: null,
             createdAt: now,
             updatedAt: now,
             ...initialProps,
@@ -146,8 +207,42 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
     },
 
     markAsDone: async (id) => {
-        // This calls updateItem, which handles the cancellation logic
-        await get().updateItem(id, { status: 'done' });
+        const currentItem = get().items.find(i => i.id === id);
+
+        // If it's a recurring item, reschedule instead of marking done
+        if (currentItem?.repeat && currentItem.repeat !== 'none') {
+            const now = new Date();
+            const baseDate = currentItem.remindAt ? new Date(currentItem.remindAt) : now;
+
+            // Parse repeatConfig for custom repeat
+            let repeatConfig: CustomRepeatConfig | null = null;
+            if (currentItem.repeat === 'custom' && currentItem.repeatConfig) {
+                try {
+                    repeatConfig = JSON.parse(currentItem.repeatConfig);
+                } catch (e) {
+                    console.error('Failed to parse repeatConfig:', e);
+                }
+            }
+
+            const nextDate = calculateNextOccurrence(baseDate, currentItem.repeat, repeatConfig);
+
+            const patch: Partial<Item> = {
+                remindAt: nextDate.toISOString(),
+            };
+
+            // Also update dueAt if it was set
+            if (currentItem.dueAt) {
+                const baseDueDate = new Date(currentItem.dueAt);
+                patch.dueAt = calculateNextOccurrence(baseDueDate, currentItem.repeat, repeatConfig).toISOString();
+            }
+
+            // Update the item with new dates (notification will be rescheduled in updateItem)
+            await get().updateItem(id, patch);
+            console.log(`Recurring item "${currentItem.title}" rescheduled to ${nextDate.toLocaleString()}`);
+        } else {
+            // Non-recurring: just mark as done
+            await get().updateItem(id, { status: 'done' });
+        }
     },
 
     clearAllItems: async () => {

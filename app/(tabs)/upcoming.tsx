@@ -45,29 +45,91 @@ export default function UpcomingScreen() {
   }, [loadItems]);
 
   const now = new Date();
+  
+  // Calculate 7 days from now
+  const sevenDaysFromNow = new Date(now);
+  sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+  sevenDaysFromNow.setHours(23, 59, 59, 999);
 
   // Helper to get the effective date (dueAt or remindAt)
   const getEffectiveDate = (item: Item): string | null => {
     return item.dueAt || item.remindAt || null;
   };
 
-  const upcoming = items
-    .filter(i => {
-      if (i.status !== 'active') return false;
-      const effectiveDate = getEffectiveDate(i);
-      if (!effectiveDate) return false;
-      return new Date(effectiveDate) > now;
-    })
-    .sort((a, b) => new Date(getEffectiveDate(a)!).getTime() - new Date(getEffectiveDate(b)!).getTime());
+  // Interface for display items (can have virtual dates for repeating tasks)
+  interface DisplayItem extends Item {
+    displayDate: Date;
+  }
 
-  // Items without any date (excluding notes)
-  const unscheduled = items.filter(i => i.status === 'active' && !getEffectiveDate(i) && i.type !== 'note');
+  // Expand repeating tasks into multiple occurrences for the next 7 days
+  const expandedItems: DisplayItem[] = [];
+  
+  items.forEach(item => {
+    if (item.status !== 'active') return;
+    
+    const effectiveDate = getEffectiveDate(item);
+    
+    // Daily repeat: add an entry for each of the next 7 days
+    if (item.repeat === 'daily') {
+      for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+        const displayDate = new Date(now);
+        displayDate.setDate(displayDate.getDate() + dayOffset);
+        
+        // If item has a time, use that time, otherwise use current time
+        if (effectiveDate) {
+          const originalDate = new Date(effectiveDate);
+          displayDate.setHours(originalDate.getHours(), originalDate.getMinutes(), 0, 0);
+        }
+        
+        // Skip if this occurrence is in the past today
+        if (dayOffset === 0 && displayDate <= now) continue;
+        
+        expandedItems.push({ ...item, displayDate });
+      }
+      return;
+    }
+    
+    // Weekly repeat: add entries for each week within 7 days (so just once or twice)
+    if (item.repeat === 'weekly' && effectiveDate) {
+      const baseDate = new Date(effectiveDate);
+      for (let weekOffset = 0; weekOffset <= 1; weekOffset++) {
+        const displayDate = new Date(baseDate);
+        displayDate.setDate(displayDate.getDate() + (weekOffset * 7));
+        
+        if (displayDate > now && displayDate <= sevenDaysFromNow) {
+          expandedItems.push({ ...item, displayDate });
+        }
+      }
+      return;
+    }
+    
+    // Non-repeating or other repeat types: just add if within range
+    if (effectiveDate) {
+      const itemDate = new Date(effectiveDate);
+      if (itemDate > now && itemDate <= sevenDaysFromNow) {
+        expandedItems.push({ ...item, displayDate: itemDate });
+      }
+    } else if (item.repeat && item.repeat !== 'none') {
+      // Repeating task without date - show as today
+      expandedItems.push({ ...item, displayDate: now });
+    }
+  });
+
+  // Sort by display date
+  const upcoming = expandedItems.sort((a, b) => a.displayDate.getTime() - b.displayDate.getTime());
+
+  // Items without any date (excluding notes and repeating tasks since they show above)
+  const unscheduled = items.filter(i => 
+    i.status === 'active' && 
+    !getEffectiveDate(i) && 
+    i.type !== 'note' &&
+    (!i.repeat || i.repeat === 'none')
+  );
 
   // Group by date
-  const grouped: { [key: string]: Item[] } = {};
+  const grouped: { [key: string]: DisplayItem[] } = {};
   upcoming.forEach(item => {
-    const date = new Date(getEffectiveDate(item)!);
-    const key = date.toLocaleDateString('en-US', { 
+    const key = item.displayDate.toLocaleDateString('en-US', { 
       weekday: 'long', 
       month: 'short', 
       day: 'numeric' 
@@ -87,6 +149,8 @@ export default function UpcomingScreen() {
         details: item.details || '',
         dueAt: item.dueAt || '',
         remindAt: item.remindAt || '',
+        repeat: item.repeat || 'none',
+        repeatConfig: item.repeatConfig || '',
       }
     });
   };

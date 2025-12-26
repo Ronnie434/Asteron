@@ -115,6 +115,8 @@ export default function BriefScreen() {
         details: item.details || '',
         dueAt: item.dueAt || '',
         remindAt: item.remindAt || '',
+        repeat: item.repeat || 'none',
+        repeatConfig: item.repeatConfig || '',
       }
     });
   };

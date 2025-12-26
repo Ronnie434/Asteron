@@ -4,6 +4,13 @@ import { type SQLiteDatabase } from 'expo-sqlite';
 export type ItemType = 'task' | 'bill' | 'renewal' | 'followup' | 'reminder' | 'note';
 export type ItemPriority = 'low' | 'med' | 'high';
 export type ItemStatus = 'active' | 'done' | 'archived';
+export type RepeatFrequency = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
+
+// Custom repeat configuration for specific days and intervals
+export interface CustomRepeatConfig {
+    days: number[];        // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+    intervalWeeks: number; // 1, 2, 3, or 4 weeks
+}
 
 export interface Item {
     id: string;
@@ -12,6 +19,8 @@ export interface Item {
     type: ItemType;
     dueAt?: string | null;   // ISO 8601
     remindAt?: string | null; // ISO 8601
+    repeat?: RepeatFrequency | null;
+    repeatConfig?: string | null; // JSON stringified CustomRepeatConfig
     priority: ItemPriority;
     status: ItemStatus;
     confidence: number;
@@ -34,6 +43,8 @@ export const initDb = async (): Promise<void> => {
       type TEXT NOT NULL,
       dueAt TEXT,
       remindAt TEXT,
+      repeat TEXT DEFAULT 'none',
+      repeatConfig TEXT,
       priority TEXT NOT NULL,
       status TEXT NOT NULL,
       confidence REAL NOT NULL,
@@ -44,6 +55,20 @@ export const initDb = async (): Promise<void> => {
     CREATE INDEX IF NOT EXISTS idx_items_dueAt ON items (dueAt);
     CREATE INDEX IF NOT EXISTS idx_items_remindAt ON items (remindAt);
   `);
+
+    // Migration: Add repeat column if it doesn't exist (for existing databases)
+    try {
+        await db.execAsync(`ALTER TABLE items ADD COLUMN repeat TEXT DEFAULT 'none';`);
+    } catch (e) {
+        // Column already exists, ignore error
+    }
+
+    // Migration: Add repeatConfig column if it doesn't exist
+    try {
+        await db.execAsync(`ALTER TABLE items ADD COLUMN repeatConfig TEXT;`);
+    } catch (e) {
+        // Column already exists, ignore error
+    }
 };
 
 export const getDb = async () => {
@@ -54,8 +79,8 @@ export const getDb = async () => {
 export const createItem = async (item: Item): Promise<void> => {
     const database = await getDb();
     await database.runAsync(
-        `INSERT INTO items (id, title, details, type, dueAt, remindAt, priority, status, confidence, createdAt, updatedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO items (id, title, details, type, dueAt, remindAt, repeat, repeatConfig, priority, status, confidence, createdAt, updatedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             item.id,
             item.title,
@@ -63,6 +88,8 @@ export const createItem = async (item: Item): Promise<void> => {
             item.type,
             item.dueAt ?? null,
             item.remindAt ?? null,
+            item.repeat ?? 'none',
+            item.repeatConfig ?? null,
             item.priority,
             item.status,
             item.confidence,
