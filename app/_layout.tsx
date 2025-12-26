@@ -4,13 +4,14 @@ import { StatusBar } from 'expo-status-bar';
 import { useFonts, Manrope_400Regular, Manrope_600SemiBold, Manrope_700Bold } from '@expo-google-fonts/manrope';
 import { DMSans_400Regular, DMSans_500Medium, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useCallback } from 'react';
-import { View, StyleSheet, Dimensions, Pressable, Platform } from 'react-native';
+import { useEffect, useCallback, useRef } from 'react';
+import { View, StyleSheet, Dimensions, Pressable, Platform, AppState, AppStateStatus } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Home, PlusCircle, Calendar, Settings, FileText } from 'lucide-react-native';
 import { theme } from '../src/ui/theme';
 import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
+import { NotificationService } from '../src/services/NotificationService';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -66,6 +67,8 @@ function AppContent() {
 }
 
 export default function RootLayout() {
+  const appState = useRef(AppState.currentState);
+  
   const [fontsLoaded] = useFonts({
     Manrope_400Regular,
     Manrope_600SemiBold,
@@ -74,6 +77,16 @@ export default function RootLayout() {
     DMSans_500Medium,
     DMSans_700Bold,
   });
+
+  // Initialize notifications
+  useEffect(() => {
+    const initNotifications = async () => {
+      await NotificationService.requestPermissions();
+      // Badge persists until tasks are completed - don't clear on app open
+    };
+    
+    initNotifications();
+  }, []);
 
   useEffect(() => {
     if (fontsLoaded) {

@@ -1,4 +1,4 @@
-import { View, ScrollView, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, ScrollView, StyleSheet, TouchableOpacity, Image, AppState, AppStateStatus } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Check, ChevronUp, Sun, Moon } from 'lucide-react-native';
 import { theme } from '../../src/ui/theme';
@@ -6,7 +6,7 @@ import { Typography } from '../../src/ui/components/Typography';
 import { Card } from '../../src/ui/components/Card';
 import { useItemsStore } from '../../src/store/useItemsStore';
 import { Item } from '../../src/db/items';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { RainbowSparkles } from '../../src/ui/components/RainbowSparkles';
@@ -15,15 +15,38 @@ import { GlassyHeader } from '../../src/ui/components/GlassyHeader';
 export default function BriefScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { items, init, markAsDone, updateItem } = useItemsStore();
+  const { items, init, loadItems, markAsDone, updateItem } = useItemsStore();
   
   // Collapsible section states
   const [todayExpanded, setTodayExpanded] = useState(true);
   const [soonExpanded, setSoonExpanded] = useState(true);
   
+  // Force re-render when time changes (for overdue detection)
+  const [refreshKey, setRefreshKey] = useState(0);
+  const appState = useRef(AppState.currentState);
+  
   useEffect(() => {
     init();
   }, []);
+
+  // Refresh when app comes to foreground
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === 'active'
+      ) {
+        // Refresh items and trigger re-render to update overdue status
+        loadItems();
+        setRefreshKey(prev => prev + 1);
+      }
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [loadItems]);
 
   const now = new Date();
 
@@ -116,9 +139,21 @@ export default function BriefScreen() {
       : '';
     const isDone = item.status === 'done';
     const priorityColor = getPriorityColor(item.priority);
+    
+    // Check if this task has an overdue reminder (reminder time passed but not done)
+    const isOverdueReminder = !isDone && item.remindAt && new Date(item.remindAt) <= now;
       
     return (
-      <View style={[styles.taskRow, { backgroundColor: colors.card }]}>
+      <View style={[
+        styles.taskRow, 
+        { backgroundColor: colors.card },
+        // Highlight overdue reminders with a colored border
+        isOverdueReminder && {
+          borderWidth: 2,
+          borderColor: colors.warning,
+          backgroundColor: `${colors.warning}10`, // Very subtle tint  
+        }
+      ]}>
         {/* Checkbox - only toggles completion, colored by priority */}
         <TouchableOpacity 
           onPress={() => handleToggleItem(item)}
@@ -127,7 +162,7 @@ export default function BriefScreen() {
         >
           <View style={[
             styles.checkbox, 
-            { borderColor: isDone ? colors.success : priorityColor },
+            { borderColor: isDone ? colors.success : (isOverdueReminder ? colors.warning : priorityColor) },
             isDone && { backgroundColor: colors.success, borderColor: colors.success }
           ]}>
             {isDone && <Check size={14} color="#FFFFFF" strokeWidth={3} />}
@@ -146,6 +181,12 @@ export default function BriefScreen() {
           >
             {item.title}
           </Typography>
+          {/* Show "Overdue" label for overdue reminders */}
+          {isOverdueReminder && (
+            <Typography variant="caption2" color={colors.warning} style={{ marginTop: 2 }}>
+              ⏰ Reminder overdue
+            </Typography>
+          )}
         </TouchableOpacity>
         
         {time ? (
@@ -155,7 +196,7 @@ export default function BriefScreen() {
           >
             <Typography 
               variant="caption2" 
-              color={colors.textSecondary}
+              color={isOverdueReminder ? colors.warning : colors.textSecondary}
               style={isDone ? { opacity: 0.5 } : undefined}
             >
               {time}

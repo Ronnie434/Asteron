@@ -80,8 +80,9 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
                 await NotificationService.scheduleReminder(
                     newItem.id,
                     newItem.title,
-                    newItem.details || "It's time!",
-                    newItem.remindAt
+                    newItem.details || "",
+                    newItem.remindAt,
+                    newItem.priority
                 );
             }
 
@@ -102,24 +103,30 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
 
             // Handle Notification logic
             if (patch.status === 'done' || patch.status === 'archived') {
-                // If completing, remove reminder
+                // If completing, remove reminder and decrement badge
                 await NotificationService.cancelReminder(id);
+                // Decrement badge since task is done
+                const currentBadge = await NotificationService.getBadgeCount();
+                if (currentBadge > 0) {
+                    await NotificationService.setBadgeCount(currentBadge - 1);
+                }
             } else if (patch.remindAt !== undefined) {
                 // If reminder time changed
                 if (patch.remindAt) {
                     // Re-schedule
                     // Use new title/details if provided, else fall back to current
                     const title = patch.title ?? currentItem?.title ?? "Reminder";
-                    const details = patch.details ?? currentItem?.details ?? "It's time!";
+                    const details = patch.details ?? currentItem?.details ?? "";
+                    const priority = patch.priority ?? currentItem?.priority ?? 'med';
 
-                    await NotificationService.scheduleReminder(id, title, details, patch.remindAt);
+                    await NotificationService.scheduleReminder(id, title, details, patch.remindAt, priority);
                 } else {
                     // Reminder cleared
                     await NotificationService.cancelReminder(id);
                 }
             } else if (patch.title && currentItem?.remindAt) {
                 // If title changed but reminder exists, update notification text
-                await NotificationService.scheduleReminder(id, patch.title, currentItem.details || "", currentItem.remindAt);
+                await NotificationService.scheduleReminder(id, patch.title, currentItem.details || "", currentItem.remindAt, currentItem.priority);
             }
 
             await get().loadItems();

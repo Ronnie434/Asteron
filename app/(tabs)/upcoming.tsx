@@ -1,4 +1,4 @@
-import { View, ScrollView, StyleSheet, Image, TouchableOpacity, Animated } from 'react-native';
+import { View, ScrollView, StyleSheet, Image, TouchableOpacity, Animated, AppState, AppStateStatus } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Swipeable } from 'react-native-gesture-handler';
 import { theme } from '../../src/ui/theme';
@@ -7,7 +7,7 @@ import { Card } from '../../src/ui/components/Card';
 import { useItemsStore } from '../../src/store/useItemsStore';
 import { Item } from '../../src/db/items';
 import { Calendar, Trash2 } from 'lucide-react-native';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useRouter } from 'expo-router';
 import { GlassyHeader } from '../../src/ui/components/GlassyHeader';
@@ -16,11 +16,33 @@ export default function UpcomingScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const { items, init, deleteItem } = useItemsStore();
+  const { items, init, loadItems, deleteItem } = useItemsStore();
+
+  // Force re-render when time changes (for overdue detection)
+  const [refreshKey, setRefreshKey] = useState(0);
+  const appState = useRef(AppState.currentState);
 
   useEffect(() => {
     init();
   }, []);
+
+  // Refresh when app comes to foreground
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === 'active'
+      ) {
+        loadItems();
+        setRefreshKey(prev => prev + 1);
+      }
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [loadItems]);
 
   const now = new Date();
 
@@ -94,6 +116,9 @@ export default function UpcomingScreen() {
   const ItemRow = ({ item, showTime = true }: { item: Item; showTime?: boolean }) => {
     const swipeableRef = useRef<Swipeable>(null);
     
+    // Check if this task has an overdue reminder (reminder time passed but not done)
+    const isOverdueReminder = item.status === 'active' && item.remindAt && new Date(item.remindAt) <= now;
+    
     return (
       <Swipeable
         ref={swipeableRef}
@@ -102,13 +127,22 @@ export default function UpcomingScreen() {
         overshootRight={false}
       >
         <TouchableOpacity 
-          style={[styles.itemRow, { backgroundColor: colors.card }]}
+          style={[
+            styles.itemRow, 
+            { backgroundColor: colors.card },
+            // Highlight overdue reminders
+            isOverdueReminder && {
+              borderLeftWidth: 4,
+              borderLeftColor: colors.warning,
+              backgroundColor: `${colors.warning}10`,
+            }
+          ]}
           onPress={() => handleEditItem(item)}
           activeOpacity={0.7}
         >
           <View style={styles.timeColumn}>
             {showTime && getEffectiveDate(item) ? (
-              <Typography variant="headline">
+              <Typography variant="headline" color={isOverdueReminder ? colors.warning : colors.text}>
                 {new Date(getEffectiveDate(item)!).toLocaleTimeString([], { 
                   hour: 'numeric', 
                   minute: '2-digit' 
@@ -124,9 +158,9 @@ export default function UpcomingScreen() {
             <Typography variant="body">{item.title}</Typography>
             <Typography 
               variant="caption1" 
-              color={colors.textSecondary}
+              color={isOverdueReminder ? colors.warning : colors.textSecondary}
             >
-              {item.type}
+              {isOverdueReminder ? '⏰ Reminder overdue' : item.type}
             </Typography>
           </View>
         </TouchableOpacity>
