@@ -21,6 +21,7 @@ export interface Item {
     remindAt?: string | null; // ISO 8601
     repeat?: RepeatFrequency | null;
     repeatConfig?: string | null; // JSON stringified CustomRepeatConfig
+    skippedDates?: string | null; // JSON array of YYYY-MM-DD strings for skipped occurrences
     priority: ItemPriority;
     status: ItemStatus;
     confidence: number;
@@ -66,6 +67,13 @@ export const initDb = async (): Promise<void> => {
     // Migration: Add repeatConfig column if it doesn't exist
     try {
         await db.execAsync(`ALTER TABLE items ADD COLUMN repeatConfig TEXT;`);
+    } catch (e) {
+        // Column already exists, ignore error
+    }
+
+    // Migration: Add skippedDates column if it doesn't exist
+    try {
+        await db.execAsync(`ALTER TABLE items ADD COLUMN skippedDates TEXT;`);
     } catch (e) {
         // Column already exists, ignore error
     }

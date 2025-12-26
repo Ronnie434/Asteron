@@ -1,25 +1,41 @@
-import { View, ScrollView, StyleSheet, TouchableOpacity, Image, AppState, AppStateStatus } from 'react-native';
+import { View, ScrollView, StyleSheet, TouchableOpacity, Image, AppState, AppStateStatus, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Check, ChevronUp, Sun, Moon } from 'lucide-react-native';
-import { theme } from '../../src/ui/theme';
+import { Check, ChevronUp, Sun, Moon, Calendar, AlertCircle } from 'lucide-react-native';
+import { theme, hexToRgba } from '../../src/ui/theme';
 import { Typography } from '../../src/ui/components/Typography';
 import { Card } from '../../src/ui/components/Card';
 import { useItemsStore } from '../../src/store/useItemsStore';
+import { NotificationService } from '../../src/services/NotificationService';
 import { Item } from '../../src/db/items';
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { RainbowSparkles } from '../../src/ui/components/RainbowSparkles';
 import { GlassyHeader } from '../../src/ui/components/GlassyHeader';
+import { TaskCelebration } from '../../src/ui/components/TaskCelebration';
+import {
+  expandRepeatingItems,
+  getOverdueItems,
+  filterByDate,
+  sortItemsByTimeAndStatus,
+  getEffectiveDate,
+  ExpandedItem,
+} from '../../src/utils/repeatExpansion';
 
 export default function BriefScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { items, init, loadItems, markAsDone, updateItem } = useItemsStore();
+  const { items, init, loadItems, markAsDone, updateItem, deleteItem, skipOccurrence } = useItemsStore();
   
   // Collapsible section states
+  const [overdueExpanded, setOverdueExpanded] = useState(true);
   const [todayExpanded, setTodayExpanded] = useState(true);
-  const [soonExpanded, setSoonExpanded] = useState(true);
+  const [tomorrowExpanded, setTomorrowExpanded] = useState(true);
+  const [dayAfterExpanded, setDayAfterExpanded] = useState(true);
+  
+  // Track completed occurrence keys (itemId:dateString) for per-occurrence completion
+  const [completedOccurrenceKeys, setCompletedOccurrenceKeys] = useState<Set<string>>(new Set());
+  const [showCelebration, setShowCelebration] = useState(false);
   
   // Force re-render when time changes (for overdue detection)
   const [refreshKey, setRefreshKey] = useState(0);
@@ -50,57 +66,84 @@ export default function BriefScreen() {
 
   const now = new Date();
 
-  // Helper to get the effective date (dueAt or remindAt)
-  const getEffectiveDate = (item: Item): string | null => {
-    return item.dueAt || item.remindAt || null;
-  };
-  
-  // Include both active AND done items for today, sort by time then done items to end
-  const todayItems = items
-    .filter(i => {
-      if (i.status !== 'active' && i.status !== 'done') return false;
-      const effectiveDate = getEffectiveDate(i);
-      if (!effectiveDate) return false;
-      return new Date(effectiveDate).toDateString() === now.toDateString();
-    })
-    .sort((a, b) => {
-      // First: sort done items to the end
-      if (a.status === 'done' && b.status !== 'done') return 1;
-      if (a.status !== 'done' && b.status === 'done') return -1;
-      // Then: sort by time (earliest first)
-      const aDate = new Date(getEffectiveDate(a)!).getTime();
-      const bDate = new Date(getEffectiveDate(b)!).getTime();
-      return aDate - bDate;
-    });
-  
-  // Only active upcoming items, sorted by time (earliest first)
-  // Include both active AND done items for soon section, sort by time then done items to end
-  const upcomingItems = items
-    .filter(i => {
-      if (i.status !== 'active' && i.status !== 'done') return false;
-      const effectiveDate = getEffectiveDate(i);
-      if (!effectiveDate) return false;
-      const date = new Date(effectiveDate);
-      return date > now && date.toDateString() !== now.toDateString();
-    })
-    .sort((a, b) => {
-      // First: sort done items to the end
-      if (a.status === 'done' && b.status !== 'done') return 1;
-      if (a.status !== 'done' && b.status === 'done') return -1;
-      // Then: sort by time (earliest first)
-      const aDate = new Date(getEffectiveDate(a)!).getTime();
-      const bDate = new Date(getEffectiveDate(b)!).getTime();
-      return aDate - bDate;
-    })
-    .slice(0, 4);
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
 
-  const handleToggleItem = async (item: Item) => {
-    if (item.status === 'done') {
-      // Uncheck - set back to active
-      await updateItem(item.id, { status: 'active' });
+  const dayAfter = new Date(now);
+  dayAfter.setDate(dayAfter.getDate() + 2);
+
+  // Get overdue items (past date/time, still active)
+  const overdueItems = sortItemsByTimeAndStatus(getOverdueItems(items));
+
+  // Expand repeating items for the next 3 days
+  const expandedItems = expandRepeatingItems(items, 3);
+
+  // Custom sort that accounts for locally completed occurrences
+  const sortWithLocalCompletion = (items: ExpandedItem[], targetDate: Date) => {
+    return [...items].sort((a, b) => {
+      const aKey = `${a.id}:${targetDate.toDateString()}`;
+      const bKey = `${b.id}:${targetDate.toDateString()}`;
+      const aCompleted = a.status === 'done' || completedOccurrenceKeys.has(aKey);
+      const bCompleted = b.status === 'done' || completedOccurrenceKeys.has(bKey);
+      
+      // Completed items go to end
+      if (aCompleted && !bCompleted) return 1;
+      if (!aCompleted && bCompleted) return -1;
+      
+      // Sort by time
+      return a.displayDate.getTime() - b.displayDate.getTime();
+    });
+  };
+
+  // Filter by date and sort (with local completion awareness)
+  const todayItems = sortWithLocalCompletion(filterByDate(expandedItems, now), now).slice(0, 8);
+  const tomorrowItems = sortWithLocalCompletion(filterByDate(expandedItems, tomorrow), tomorrow).slice(0, 4);
+  const dayAfterItems = sortWithLocalCompletion(filterByDate(expandedItems, dayAfter), dayAfter).slice(0, 4);
+
+  const handleToggleItem = async (item: Item, occurrenceDate?: Date) => {
+    // Generate a key for this specific occurrence
+    const occurrenceKey = occurrenceDate 
+      ? `${item.id}:${occurrenceDate.toDateString()}` 
+      : item.id;
+    
+    // Check if this occurrence is marked as completed locally
+    const isLocallyCompleted = completedOccurrenceKeys.has(occurrenceKey);
+    
+    if (item.status === 'done' || isLocallyCompleted) {
+      // Uncheck - remove from local completed set
+      if (isLocallyCompleted) {
+        setCompletedOccurrenceKeys(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(occurrenceKey);
+          return newSet;
+        });
+        
+        // Restore the notification for this occurrence (if it's a repeating item)
+        if (item.repeat && item.repeat !== 'none' && occurrenceDate && item.remindAt) {
+          const baseTime = new Date(item.remindAt);
+          const notificationTime = new Date(occurrenceDate);
+          notificationTime.setHours(baseTime.getHours(), baseTime.getMinutes(), 0, 0);
+          
+          // Only restore if time is in the future
+          if (notificationTime > new Date()) {
+            await NotificationService.scheduleOccurrenceReminder(
+              item.id,
+              item.title,
+              notificationTime,
+              (item.priority as 'high' | 'med' | 'low') || 'med'
+            );
+          }
+        }
+      } else {
+        await updateItem(item.id, { status: 'active' });
+      }
     } else {
-      // Check - mark as done
-      await markAsDone(item.id);
+      // Check - add to local completed set and show celebration
+      setShowCelebration(true);
+      setCompletedOccurrenceKeys(prev => new Set(prev).add(occurrenceKey));
+      
+      // Cancel this occurrence's notification
+      await markAsDone(item.id, occurrenceDate);
     }
   };
 
@@ -121,6 +164,54 @@ export default function BriefScreen() {
     });
   };
 
+  const handleDeleteItem = (item: Item, occurrenceDate?: Date) => {
+    // If it's a repeating item, show options
+    if (item.repeat && item.repeat !== 'none' && occurrenceDate) {
+      Alert.alert(
+        'Delete Repeating Task',
+        `"${item.title}" repeats ${item.repeat}. What would you like to delete?`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'This Day Only',
+            onPress: async () => {
+              await skipOccurrence(item.id, occurrenceDate);
+              await loadItems(); // Refresh the list
+            },
+          },
+          {
+            text: 'All Occurrences',
+            style: 'destructive',
+            onPress: async () => {
+              await deleteItem(item.id);
+              await loadItems();
+            },
+          },
+        ]
+      );
+    } else {
+      // Non-repeating: just confirm deletion
+      Alert.alert(
+        'Delete Task',
+        `Are you sure you want to delete "${item.title}"?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              await deleteItem(item.id);
+              await loadItems();
+            },
+          },
+        ]
+      );
+    }
+  };
+
   // Priority color mapping
   const getPriorityColor = (priority: string): string => {
     switch (priority) {
@@ -134,16 +225,23 @@ export default function BriefScreen() {
     }
   };
 
-  const TaskRow = ({ item }: { item: Item }) => {
+  const TaskRow = ({ item, isOverdue = false, occurrenceDate }: { item: Item; isOverdue?: boolean; occurrenceDate?: Date }) => {
     const effectiveDate = getEffectiveDate(item);
     const time = effectiveDate
       ? new Date(effectiveDate).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
       : '';
-    const isDone = item.status === 'done';
+    
+    // Check if this specific occurrence is locally completed
+    const occurrenceKey = occurrenceDate 
+      ? `${item.id}:${occurrenceDate.toDateString()}` 
+      : item.id;
+    const isLocallyCompleted = completedOccurrenceKeys.has(occurrenceKey);
+    const isDone = item.status === 'done' || isLocallyCompleted;
+    
     const priorityColor = getPriorityColor(item.priority);
     
     // Check if this task has an overdue reminder (reminder time passed but not done)
-    const isOverdueReminder = !isDone && item.remindAt && new Date(item.remindAt) <= now;
+    const isOverdueReminder = isOverdue || (!isDone && item.remindAt && new Date(item.remindAt) <= now);
       
     return (
       <View style={[
@@ -152,13 +250,13 @@ export default function BriefScreen() {
         // Highlight overdue reminders with a colored border
         isOverdueReminder && {
           borderWidth: 2,
-          borderColor: colors.warning,
-          backgroundColor: `${colors.warning}10`, // Very subtle tint  
+          borderColor: isOverdue ? colors.danger : colors.warning,
+          backgroundColor: isOverdue ? hexToRgba(colors.danger, 0.1) : hexToRgba(colors.warning, 0.1), // Very subtle tint  
         }
       ]}>
-        {/* Checkbox - only toggles completion, colored by priority */}
+        {/* Checkbox */}
         <TouchableOpacity 
-          onPress={() => handleToggleItem(item)}
+          onPress={() => handleToggleItem(item, occurrenceDate)}
           activeOpacity={0.6}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
@@ -171,10 +269,11 @@ export default function BriefScreen() {
           </View>
         </TouchableOpacity>
         
-        {/* Task content - opens edit modal */}
+        {/* Task content - tap to edit, long-press to delete */}
         <TouchableOpacity 
           style={styles.taskContent}
           onPress={() => handleEditItem(item)}
+          onLongPress={() => handleDeleteItem(item, occurrenceDate)}
           activeOpacity={0.6}
         >
           <Typography 
@@ -240,6 +339,30 @@ export default function BriefScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
+            {/* Overdue Section */}
+            {overdueItems.length > 0 && (
+              <View style={styles.section}>
+                <TouchableOpacity 
+                  style={[styles.sectionHeader, { backgroundColor: hexToRgba(colors.danger, 0.15) }]}
+                  onPress={() => setOverdueExpanded(!overdueExpanded)}
+                  activeOpacity={0.7}
+                >
+                  <AlertCircle size={18} color={colors.danger} />
+                  <Typography variant="headline" style={{ textTransform: 'uppercase', letterSpacing: 1, color: colors.danger }}>
+                    Overdue ({overdueItems.length})
+                  </Typography>
+                  <ChevronUp 
+                    size={18} 
+                    color={colors.danger}
+                    style={{ transform: [{ rotate: overdueExpanded ? '0deg' : '180deg' }] }}
+                  />
+                </TouchableOpacity>
+                {overdueExpanded && overdueItems.map((item) => (
+                  <TaskRow key={item.id} item={item} isOverdue />
+                ))}
+              </View>
+            )}
+
             {/* Today Section */}
             <View style={styles.section}>
               <TouchableOpacity 
@@ -260,7 +383,7 @@ export default function BriefScreen() {
               {todayExpanded && (
                 <>
                   {todayItems.map((item) => (
-                    <TaskRow key={item.id} item={item} />
+                    <TaskRow key={`today-${item.id}`} item={item} occurrenceDate={now} />
                   ))}
                   {todayItems.length === 0 && (
                     <Typography variant="body" color={colors.textSecondary} style={{ paddingVertical: 8 }}>
@@ -271,26 +394,50 @@ export default function BriefScreen() {
               )}
             </View>
 
-            {/* Coming Up Section */}
-            {upcomingItems.length > 0 && (
+            {/* Tomorrow Section */}
+            {tomorrowItems.length > 0 && (
               <View style={styles.section}>
                 <TouchableOpacity 
                   style={[styles.sectionHeader, { backgroundColor: colors.surfaceSecondary }]}
-                  onPress={() => setSoonExpanded(!soonExpanded)}
+                  onPress={() => setTomorrowExpanded(!tomorrowExpanded)}
                   activeOpacity={0.7}
                 >
                   <Moon size={18} color={colors.textSecondary} />
                   <Typography variant="headline" style={{ textTransform: 'uppercase', letterSpacing: 1 }}>
-                    Soon ({upcomingItems.length})
+                    Tomorrow ({tomorrowItems.length})
                   </Typography>
                   <ChevronUp 
                     size={18} 
                     color={colors.textSecondary}
-                    style={{ transform: [{ rotate: soonExpanded ? '0deg' : '180deg' }] }}
+                    style={{ transform: [{ rotate: tomorrowExpanded ? '0deg' : '180deg' }] }}
                   />
                 </TouchableOpacity>
-                {soonExpanded && upcomingItems.map((item) => (
-                  <TaskRow key={item.id} item={item} />
+                {tomorrowExpanded && tomorrowItems.map((item) => (
+                  <TaskRow key={`tomorrow-${item.id}`} item={item} occurrenceDate={tomorrow} />
+                ))}
+              </View>
+            )}
+
+            {/* Day After Tomorrow Section */}
+            {dayAfterItems.length > 0 && (
+              <View style={styles.section}>
+                <TouchableOpacity 
+                  style={[styles.sectionHeader, { backgroundColor: colors.surfaceSecondary }]}
+                  onPress={() => setDayAfterExpanded(!dayAfterExpanded)}
+                  activeOpacity={0.7}
+                >
+                  <Calendar size={18} color={colors.textSecondary} />
+                  <Typography variant="headline" style={{ textTransform: 'uppercase', letterSpacing: 1 }}>
+                    {dayAfter.toLocaleDateString('en-US', { weekday: 'long' })} ({dayAfterItems.length})
+                  </Typography>
+                  <ChevronUp 
+                    size={18} 
+                    color={colors.textSecondary}
+                    style={{ transform: [{ rotate: dayAfterExpanded ? '0deg' : '180deg' }] }}
+                  />
+                </TouchableOpacity>
+                {dayAfterExpanded && dayAfterItems.map((item) => (
+                  <TaskRow key={`dayAfter-${item.id}`} item={item} occurrenceDate={dayAfter} />
                 ))}
               </View>
             )}
@@ -300,6 +447,11 @@ export default function BriefScreen() {
               That's all for now.
             </Typography>
       </ScrollView>
+
+      <TaskCelebration 
+        isVisible={showCelebration} 
+        onComplete={() => setShowCelebration(false)} 
+      />
     </View>
   );
 }

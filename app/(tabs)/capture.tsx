@@ -114,6 +114,8 @@ export default function CaptureScreen() {
               details: result.itemData.details,
               dueAt: result.itemData.dueAt,
               remindAt: result.itemData.remindAt,
+              repeat: result.itemData.repeat || 'none',
+              repeatConfig: result.itemData.repeatConfig || null,
               status: 'active',
               confidence: result.confidence,
             });

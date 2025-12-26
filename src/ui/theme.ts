@@ -1,6 +1,27 @@
 // Apple-inspired design system
 // Clean, minimal, light backgrounds with subtle glass effects
 
+/**
+ * Convert hex color to rgba with alpha
+ * @param hex - Hex color (e.g., "#EF4444" or "#FFF")
+ * @param alpha - Alpha value 0-1 (e.g., 0.1 for 10% opacity)
+ */
+export const hexToRgba = (hex: string, alpha: number): string => {
+    // Remove # if present
+    const cleanHex = hex.replace('#', '');
+
+    // Handle short hex (e.g., #FFF)
+    const fullHex = cleanHex.length === 3
+        ? cleanHex.split('').map(c => c + c).join('')
+        : cleanHex;
+
+    const r = parseInt(fullHex.substring(0, 2), 16);
+    const g = parseInt(fullHex.substring(2, 4), 16);
+    const b = parseInt(fullHex.substring(4, 6), 16);
+
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
 // Light Theme Colors
 export const lightColors = {
     // Backgrounds - Light, clean

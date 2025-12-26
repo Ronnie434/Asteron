@@ -20,7 +20,7 @@ export default function EditScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const { updateItem, deleteItem } = useItemsStore();
+  const { updateItem, deleteItem, skipOccurrence, loadItems } = useItemsStore();
   const params = useLocalSearchParams<{ 
     id: string;
     title?: string; 
@@ -152,23 +152,58 @@ export default function EditScreen() {
   };
 
   const handleDelete = () => {
-    Alert.alert(
-      'Delete Item',
-      'Are you sure you want to delete this item?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
-          style: 'destructive',
-          onPress: async () => {
-            if (itemId) {
-              await deleteItem(itemId);
-              router.back();
+    // Check if this is a repeating task
+    if (repeat && repeat !== 'none') {
+      // For repeating tasks, show options
+      Alert.alert(
+        'Delete Repeating Task',
+        `"${title}" repeats ${repeat}. What would you like to delete?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'This Day Only',
+            onPress: async () => {
+              if (itemId) {
+                // Skip today's occurrence (or the displayed date)
+                const occurrenceDate = remindAt ? new Date(remindAt) : new Date();
+                await skipOccurrence(itemId, occurrenceDate);
+                await loadItems();
+                router.back();
+              }
+            },
+          },
+          {
+            text: 'All Occurrences',
+            style: 'destructive',
+            onPress: async () => {
+              if (itemId) {
+                await deleteItem(itemId);
+                router.back();
+              }
+            },
+          },
+        ]
+      );
+    } else {
+      // Non-repeating: simple confirmation
+      Alert.alert(
+        'Delete Item',
+        'Are you sure you want to delete this item?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Delete', 
+            style: 'destructive',
+            onPress: async () => {
+              if (itemId) {
+                await deleteItem(itemId);
+                router.back();
+              }
             }
-          }
-        },
-      ]
-    );
+          },
+        ]
+      );
+    }
   };
 
   return (

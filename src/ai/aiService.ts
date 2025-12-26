@@ -34,6 +34,8 @@ export interface ChatIntentResult {
         details?: string;
         dueAt?: string | null;
         remindAt?: string | null;
+        repeat?: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
+        repeatConfig?: string | null; // JSON string for custom repeat config
     };
 
     // For update/delete intent - search query to find existing item
@@ -182,6 +184,10 @@ INTERPRETATION RULES
 - If the user says "tomorrow", "next week", "Friday", etc., resolve it using:
   - USER_TIMEZONE: ${timezone}
   - NOW: ${localIso}
+- **CRITICAL TIME HANDLING**: If the user provides a specific time (e.g., "at 6pm") without a date:
+  - If that time has **already passed** today, set the date to **TOMORROW**.
+  - If that time is still in the future today, set the date to **TODAY**.
+  - Example: If it's 7pm and user says "remind me at 6pm", set remindAt to 6pm TOMORROW.
 - If date/time is unclear, still extract the action and set needsClarification=true with a reason.
 - Never ask the user questions; only set needsClarification flags.
 - Keep title short and verb-first (e.g., "Call mom", "Pay electricity bill").
@@ -299,13 +305,35 @@ INTENT TYPES:
 
 RESPONSE RULES:
 1. Always provide a friendly, conversational responseText
-2. For "create": Extract item details (title, type, priority, dates)
+2. For "create": Extract item details (title, type, priority, dates, repeat pattern)
 3. For "update"/"delete": Provide searchQuery to find matching item
 4. For "update": Also provide the updates to apply
 5. Use existing items list to match update/delete requests
 6. If user says "change X to Y" or "move X to Y", that's an update
 7. If user says "delete X" or "remove X", that's a delete
 8. Default to "create" if user is clearly describing a task but no match found
+
+**REPEAT PATTERN DETECTION:**
+- "everyday" / "daily" / "each day" -> repeat: "daily"
+- "every week" / "weekly" / "every Monday" -> repeat: "weekly"  
+- "every month" / "monthly" / "on the 1st of every month" -> repeat: "monthly"
+- "every year" / "yearly" / "annually" -> repeat: "yearly"
+- No repeat mentioned -> repeat: "none"
+
+**CRITICAL DATE/TIME HANDLING:**
+- If user provides a time (e.g., "at 10:30 AM") without a specific date:
+  - If that time is still in the future TODAY, set remindAt to TODAY at that time
+  - If that time has ALREADY PASSED today, set remindAt to TOMORROW at that time
+- dueAt = when the actual event/task occurs
+- remindAt = when to send the notification (may be different from dueAt if user wants advance warning)
+
+**REMINDER OFFSET HANDLING:**
+- If user says "remind me X minutes/hours before", SUBTRACT that time from the event time:
+  - "remind me 15 minutes before" + event at 10:30 AM -> remindAt = 10:15 AM
+  - "remind me 1 hour before" + event at 3:00 PM -> remindAt = 2:00 PM
+- If user says "remind me at [time]" with no offset, set remindAt to that exact time
+- If no reminder preference specified, set remindAt = dueAt (or event time)
+- For repeating tasks, set BOTH dueAt (event time) AND remindAt (notification time)
 
 Return ONLY valid JSON:
 {
@@ -318,7 +346,9 @@ Return ONLY valid JSON:
     "priority": "low" | "med" | "high",
     "details": "original text",
     "dueAt": "ISO 8601 | null",
-    "remindAt": "ISO 8601 | null"
+    "remindAt": "ISO 8601 | null",
+    "repeat": "none" | "daily" | "weekly" | "monthly" | "yearly",
+    "repeatConfig": "null (reserved for custom repeat patterns)"
   },
   "searchQuery": "string - keywords to find item", // for update/delete
   "updates": { // only for update

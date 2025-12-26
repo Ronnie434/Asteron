@@ -1,7 +1,7 @@
-import { View, ScrollView, StyleSheet, Image, TouchableOpacity, Animated, AppState, AppStateStatus } from 'react-native';
+import { View, ScrollView, StyleSheet, Image, TouchableOpacity, Animated, AppState, AppStateStatus, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Swipeable } from 'react-native-gesture-handler';
-import { theme } from '../../src/ui/theme';
+import { theme, hexToRgba } from '../../src/ui/theme';
 import { Typography } from '../../src/ui/components/Typography';
 import { Card } from '../../src/ui/components/Card';
 import { useItemsStore } from '../../src/store/useItemsStore';
@@ -16,7 +16,7 @@ export default function UpcomingScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const { items, init, loadItems, deleteItem } = useItemsStore();
+  const { items, init, loadItems, deleteItem, skipOccurrence } = useItemsStore();
 
   // Force re-render when time changes (for overdue detection)
   const [refreshKey, setRefreshKey] = useState(0);
@@ -155,11 +155,52 @@ export default function UpcomingScreen() {
     });
   };
 
-  const handleDeleteItem = async (id: string) => {
-    await deleteItem(id);
+  const handleDeleteItem = (item: Item, occurrenceDate?: Date) => {
+    // If it's a repeating item, show options
+    if (item.repeat && item.repeat !== 'none' && occurrenceDate) {
+      Alert.alert(
+        'Delete Repeating Task',
+        `"${item.title}" repeats ${item.repeat}. What would you like to delete?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'This Day Only',
+            onPress: async () => {
+              await skipOccurrence(item.id, occurrenceDate);
+              await loadItems();
+            },
+          },
+          {
+            text: 'All Occurrences',
+            style: 'destructive',
+            onPress: async () => {
+              await deleteItem(item.id);
+              await loadItems();
+            },
+          },
+        ]
+      );
+    } else {
+      // Non-repeating: confirm and delete
+      Alert.alert(
+        'Delete Task',
+        `Are you sure you want to delete "${item.title}"?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              await deleteItem(item.id);
+              await loadItems();
+            },
+          },
+        ]
+      );
+    }
   };
 
-  const renderRightActions = (itemId: string, progress: Animated.AnimatedInterpolation<number>) => {
+  const renderRightActions = (item: Item, displayDate: Date | undefined, progress: Animated.AnimatedInterpolation<number>) => {
     const translateX = progress.interpolate({
       inputRange: [0, 1],
       outputRange: [80, 0],
@@ -169,7 +210,7 @@ export default function UpcomingScreen() {
       <Animated.View style={[styles.deleteAction, { transform: [{ translateX }] }]}>
         <TouchableOpacity 
           style={[styles.deleteButton, { backgroundColor: colors.danger }]}
-          onPress={() => handleDeleteItem(itemId)}
+          onPress={() => handleDeleteItem(item, displayDate)}
         >
           <Trash2 size={22} color="#FFFFFF" strokeWidth={2} />
         </TouchableOpacity>
@@ -177,16 +218,45 @@ export default function UpcomingScreen() {
     );
   };
 
-  const ItemRow = ({ item, showTime = true }: { item: Item; showTime?: boolean }) => {
+  const ItemRow = ({ item, showTime = true, displayDate }: { item: Item; showTime?: boolean; displayDate?: Date }) => {
     const swipeableRef = useRef<Swipeable>(null);
     
-    // Check if this task has an overdue reminder (reminder time passed but not done)
-    const isOverdueReminder = item.status === 'active' && item.remindAt && new Date(item.remindAt) <= now;
+    // Check if this task has an overdue reminder
+    // Logic: 
+    // 1. Must be active and have a reminder set
+    // 2. If displayDate is provided (repeating/virtual item):
+    //    - Overdue only if displayDate is today AND time has passed
+    //    - NEVER overdue if displayDate is in the future
+    // 3. If no displayDate (regular item):
+    //    - Overdue if remindAt < now
+    const checkOverdue = () => {
+      if (item.status !== 'active' || !item.remindAt) return false;
+      
+      const now = new Date();
+      if (displayDate) {
+        // If it's a future date (tomorrow+), it can't be overdue
+        if (displayDate.toDateString() !== now.toDateString() && displayDate > now) return false;
+        
+        // If it's today, check if time has passed
+        if (displayDate.toDateString() === now.toDateString()) {
+             // For repeating items, displayDate has the correct time set
+             return displayDate < now;
+        }
+        
+        // If displayDate is in the past (yesterday etc), it's overdue
+        return displayDate < now;
+      }
+      
+      // Fallback for standard items
+      return new Date(item.remindAt) <= now;
+    };
+
+    const isOverdueReminder = checkOverdue();
     
     return (
       <Swipeable
         ref={swipeableRef}
-        renderRightActions={(progress) => renderRightActions(item.id, progress)}
+        renderRightActions={(progress) => renderRightActions(item, displayDate, progress)}
         rightThreshold={40}
         overshootRight={false}
       >
@@ -198,7 +268,7 @@ export default function UpcomingScreen() {
             isOverdueReminder && {
               borderLeftWidth: 4,
               borderLeftColor: colors.warning,
-              backgroundColor: `${colors.warning}10`,
+              backgroundColor: hexToRgba(colors.warning, 0.1),
             }
           ]}
           onPress={() => handleEditItem(item)}
@@ -256,7 +326,7 @@ export default function UpcomingScreen() {
             <Card style={styles.itemsCard}>
               {dateItems.map((item, index) => (
                 <View key={item.id}>
-                  <ItemRow item={item} />
+                  <ItemRow item={item} displayDate={item.displayDate} />
                   {index < dateItems.length - 1 && (
                     <View style={[styles.separator, { backgroundColor: colors.separator }]} />
                   )}

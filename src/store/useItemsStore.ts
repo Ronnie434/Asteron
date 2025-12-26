@@ -77,7 +77,8 @@ interface ItemsState {
     ) => Promise<void>;
     updateItem: (id: string, patch: Partial<Item>) => Promise<void>;
     deleteItem: (id: string) => Promise<void>;
-    markAsDone: (id: string) => Promise<void>;
+    markAsDone: (id: string, occurrenceDate?: Date) => Promise<void>;
+    skipOccurrence: (id: string, occurrenceDate: Date) => Promise<void>;
     clearAllItems: () => Promise<void>;
 }
 
@@ -104,6 +105,13 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
             // Let's load everything for simplicity unless we filter in UI
             const items = await DB.listItems();
             set({ items });
+
+            // Refresh notifications for all repeating items to ensure they're in sync
+            for (const item of items) {
+                if (item.repeat && item.repeat !== 'none' && item.status === 'active' && item.remindAt) {
+                    await NotificationService.scheduleAllOccurrences(item, 7);
+                }
+            }
         } catch (e) {
             console.error("Failed to load items:", e);
         } finally {
@@ -136,15 +144,21 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
         try {
             await DB.createItem(newItem);
 
-            // Schedule notification if reminder is set
+            // Schedule notification(s) if reminder is set
             if (newItem.remindAt) {
-                await NotificationService.scheduleReminder(
-                    newItem.id,
-                    newItem.title,
-                    newItem.details || "",
-                    newItem.remindAt,
-                    newItem.priority
-                );
+                if (newItem.repeat && newItem.repeat !== 'none') {
+                    // For repeating items, schedule next 7 days of notifications
+                    await NotificationService.scheduleAllOccurrences(newItem, 7);
+                } else {
+                    // For one-time items, schedule single notification
+                    await NotificationService.scheduleReminder(
+                        newItem.id,
+                        newItem.title,
+                        newItem.details || "",
+                        newItem.remindAt,
+                        newItem.priority
+                    );
+                }
             }
 
             await get().loadItems();
@@ -198,7 +212,15 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
 
     deleteItem: async (id) => {
         try {
-            await NotificationService.cancelReminder(id);
+            const currentItem = get().items.find(i => i.id === id);
+
+            // Cancel notifications - use cancelAllOccurrences for repeating items
+            if (currentItem?.repeat && currentItem.repeat !== 'none') {
+                await NotificationService.cancelAllOccurrences(id, 14); // Cancel 14 days of occurrence notifications
+            } else {
+                await NotificationService.cancelReminder(id);
+            }
+
             await DB.deleteItem(id);
             await get().loadItems();
         } catch (e) {
@@ -206,43 +228,60 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
         }
     },
 
-    markAsDone: async (id) => {
+    /**
+     * Mark an item as done. For repeating items, only cancels the specific occurrence's notification.
+     * @param id - Item ID
+     * @param occurrenceDate - Optional: specific occurrence date for repeating items
+     */
+    markAsDone: async (id, occurrenceDate?: Date) => {
         const currentItem = get().items.find(i => i.id === id);
+        if (!currentItem) return;
 
-        // If it's a recurring item, reschedule instead of marking done
-        if (currentItem?.repeat && currentItem.repeat !== 'none') {
-            const now = new Date();
-            const baseDate = currentItem.remindAt ? new Date(currentItem.remindAt) : now;
-
-            // Parse repeatConfig for custom repeat
-            let repeatConfig: CustomRepeatConfig | null = null;
-            if (currentItem.repeat === 'custom' && currentItem.repeatConfig) {
-                try {
-                    repeatConfig = JSON.parse(currentItem.repeatConfig);
-                } catch (e) {
-                    console.error('Failed to parse repeatConfig:', e);
-                }
-            }
-
-            const nextDate = calculateNextOccurrence(baseDate, currentItem.repeat, repeatConfig);
-
-            const patch: Partial<Item> = {
-                remindAt: nextDate.toISOString(),
-            };
-
-            // Also update dueAt if it was set
-            if (currentItem.dueAt) {
-                const baseDueDate = new Date(currentItem.dueAt);
-                patch.dueAt = calculateNextOccurrence(baseDueDate, currentItem.repeat, repeatConfig).toISOString();
-            }
-
-            // Update the item with new dates (notification will be rescheduled in updateItem)
-            await get().updateItem(id, patch);
-            console.log(`Recurring item "${currentItem.title}" rescheduled to ${nextDate.toLocaleString()}`);
+        // If it's a recurring item with an occurrence date, just cancel that occurrence's notification
+        if (currentItem.repeat && currentItem.repeat !== 'none' && occurrenceDate) {
+            // Cancel only this occurrence's notification
+            await NotificationService.cancelOccurrenceReminder(id, occurrenceDate);
+            console.log(`Cancelled notification for "${currentItem.title}" on ${occurrenceDate.toDateString()}`);
+            // Do NOT modify remindAt - it stays as the template time
+        } else if (currentItem.repeat && currentItem.repeat !== 'none') {
+            // Recurring item without occurrence date (legacy call) - cancel today's notification
+            const today = new Date();
+            await NotificationService.cancelOccurrenceReminder(id, today);
+            console.log(`Cancelled today's notification for "${currentItem.title}"`);
         } else {
-            // Non-recurring: just mark as done
+            // Non-recurring: mark as done and cancel notification
+            await NotificationService.cancelReminder(id);
             await get().updateItem(id, { status: 'done' });
         }
+    },
+
+    /**
+     * Skip a specific occurrence of a repeating item (delete just that day)
+     * @param id - Item ID
+     * @param occurrenceDate - The date to skip
+     */
+    skipOccurrence: async (id, occurrenceDate) => {
+        const currentItem = get().items.find(i => i.id === id);
+        if (!currentItem) return;
+
+        // Parse existing skippedDates or start fresh
+        const skippedDates: string[] = currentItem.skippedDates
+            ? JSON.parse(currentItem.skippedDates)
+            : [];
+
+        // Add this date to the list (YYYY-MM-DD format)
+        const dateStr = occurrenceDate.toISOString().split('T')[0];
+        if (!skippedDates.includes(dateStr)) {
+            skippedDates.push(dateStr);
+        }
+
+        // Update the item with new skippedDates
+        await get().updateItem(id, { skippedDates: JSON.stringify(skippedDates) });
+
+        // Cancel the notification for this date
+        await NotificationService.cancelOccurrenceReminder(id, occurrenceDate);
+
+        console.log(`Skipped occurrence of "${currentItem.title}" on ${dateStr}`);
     },
 
     clearAllItems: async () => {

@@ -78,7 +78,7 @@ export default function RootLayout() {
     DMSans_700Bold,
   });
 
-  // Initialize notifications
+  // Initialize notifications and set up listener for self-extending notifications
   useEffect(() => {
     const initNotifications = async () => {
       await NotificationService.requestPermissions();
@@ -86,6 +86,29 @@ export default function RootLayout() {
     };
     
     initNotifications();
+
+    // Set up listener to extend notifications when they fire
+    // This creates a self-perpetuating chain for repeating tasks
+    const notificationSubscription = require('expo-notifications').addNotificationReceivedListener(
+      async (notification: any) => {
+        const itemId = notification.request.content.data?.itemId;
+        if (itemId) {
+          // Get the item from the store and extend its notifications
+          const { useItemsStore } = require('../src/store/useItemsStore');
+          const items = useItemsStore.getState().items;
+          const item = items.find((i: any) => i.id === itemId || notification.request.identifier.startsWith(i.id));
+          
+          if (item && item.repeat && item.repeat !== 'none') {
+            // Schedule day 8 (7 days from now)
+            await NotificationService.extendNextOccurrence(item, 7);
+          }
+        }
+      }
+    );
+
+    return () => {
+      notificationSubscription.remove();
+    };
   }, []);
 
   useEffect(() => {
