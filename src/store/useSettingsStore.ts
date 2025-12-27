@@ -8,11 +8,13 @@ interface SettingsState {
     quietHoursEnd: string;   // "07:00"
     dailyBriefEnabled: boolean;
     dailyBriefTime: string;  // "08:00"
+    deepFocusEnabled: boolean;
 
     setQuietHoursEnabled: (enabled: boolean) => void;
     setQuietHoursStart: (time: string) => void;
     setQuietHoursEnd: (time: string) => void;
     setDailyBriefEnabled: (enabled: boolean) => void;
+    setDeepFocusEnabled: (enabled: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -23,11 +25,13 @@ export const useSettingsStore = create<SettingsState>()(
             quietHoursEnd: "07:00",
             dailyBriefEnabled: true,
             dailyBriefTime: "08:00",
+            deepFocusEnabled: false,
 
             setQuietHoursEnabled: (enabled) => set({ quietHoursEnabled: enabled }),
             setQuietHoursStart: (time) => set({ quietHoursStart: time }),
             setQuietHoursEnd: (time) => set({ quietHoursEnd: time }),
             setDailyBriefEnabled: (enabled) => set({ dailyBriefEnabled: enabled }),
+            setDeepFocusEnabled: (enabled) => set({ deepFocusEnabled: enabled }),
         }),
         {
             name: 'asteron-settings',
