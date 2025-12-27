@@ -28,7 +28,11 @@ import { LiveSparkles } from '../../src/ui/components/LiveSparkles';
 import { ChevronLeft } from 'lucide-react-native';
 import type { Item } from '../../src/db/items';
 
-export default function CaptureScreen() {
+interface CaptureScreenProps {
+  onClose?: () => void;
+}
+
+export default function CaptureScreen({ onClose }: CaptureScreenProps) {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -277,7 +281,7 @@ export default function CaptureScreen() {
         {/* Header with Back Button */}
         <View style={styles.header}>
           <TouchableOpacity 
-            onPress={() => router.back()}
+            onPress={() => onClose ? onClose() : router.back()}
             activeOpacity={0.7}
             style={styles.backButtonTouchable}
           >

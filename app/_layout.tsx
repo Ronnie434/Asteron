@@ -1,17 +1,21 @@
 import 'react-native-get-random-values';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Manrope_400Regular, Manrope_600SemiBold, Manrope_700Bold } from '@expo-google-fonts/manrope';
 import { DMSans_400Regular, DMSans_500Medium, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useCallback, useRef } from 'react';
-import { View, StyleSheet, Dimensions, Pressable, Platform, AppState, AppStateStatus } from 'react-native';
+import { useEffect, useCallback, useRef, useState } from 'react';
+import { View, StyleSheet, Dimensions, Pressable, AppState } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets, SafeAreaProvider } from 'react-native-safe-area-context';
 import { Home, PlusCircle, Calendar, Settings, FileText } from 'lucide-react-native';
 import { theme } from '../src/ui/theme';
 import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
+import { CaptureProvider, useCapture } from '../src/contexts/CaptureContext';
 import { NotificationService } from '../src/services/NotificationService';
+import OnboardingScreen from './onboarding';
+import CaptureScreen from './(tabs)/capture';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -20,54 +24,77 @@ const { width } = Dimensions.get('window');
 const TAB_ROUTES = [
   { name: 'brief', path: '/(tabs)/brief', Icon: Home },
   { name: 'upcoming', path: '/(tabs)/upcoming', Icon: Calendar },
-  { name: 'capture', path: '/(tabs)/capture', Icon: PlusCircle }, // Center the capture button
+  { name: 'capture', path: 'CAPTURE_OVERLAY', Icon: PlusCircle }, // Special handler for capture
   { name: 'notes', path: '/(tabs)/notes', Icon: FileText },
   { name: 'settings', path: '/(tabs)/settings', Icon: Settings },
 ];
 
-function AppContent() {
+function MainAppContent() {
   const { isDark, colors } = useTheme();
+  const pathname = usePathname();
+  const { isCaptureOpen, closeCapture } = useCapture();
+  
+  // Determine if tab bar should be shown (hide during modals)
+  const shouldShowTabBar = !(pathname === '/edit' || pathname === '/note-detail');
   
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <View style={{ flex: 1 }}>
-        <Stack screenOptions={{
-            headerStyle: {
-              backgroundColor: colors.background,
-            },
-            headerTintColor: colors.text,
-            headerTitleStyle: {
-              color: colors.text,
-              fontFamily: 'Manrope_700Bold',
-            },
-        }}>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen 
-            name="edit" 
-            options={{ 
-              presentation: 'modal',
-              headerShown: false,
-            }} 
-          />
-          <Stack.Screen 
-            name="note-detail" 
-            options={{ 
-              presentation: 'modal',
-              headerShown: false,
-            }} 
-          />
-        </Stack>
-        
-        {/* Floating Tab Bar - rendered OUTSIDE the navigation stack */}
-        <FloatingTabBar />
-      </View>
-      <StatusBar style={isDark ? 'light' : 'dark'} />
-    </GestureHandlerRootView>
+    <>
+      {/* Capture Screen - Rendered OUTSIDE the navigation infrastructure */}
+      {isCaptureOpen && (
+        <View style={StyleSheet.absoluteFill}>
+          <SafeAreaProvider>
+            <CaptureScreen onClose={closeCapture} />
+            <StatusBar style={isDark ? 'light' : 'dark'} />
+          </SafeAreaProvider>
+        </View>
+      )}
+      
+      {/* Main App - Hidden when capture is open */}
+      {!isCaptureOpen && (
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <View style={{ flex: 1 }}>
+            <Stack screenOptions={{
+                headerStyle: {
+                  backgroundColor: colors.background,
+                },
+                headerTintColor: colors.text,
+                headerTitleStyle: {
+                  color: colors.text,
+                  fontFamily: 'Manrope_700Bold',
+                },
+            }}>
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen 
+                name="edit" 
+                options={{ 
+                  presentation: 'modal',
+                  headerShown: false,
+                }} 
+              />
+              <Stack.Screen 
+                name="note-detail" 
+                options={{ 
+                  presentation: 'modal',
+                  headerShown: false,
+                }} 
+              />
+            </Stack>
+            
+            {/* Floating Tab Bar */}
+            {shouldShowTabBar && <FloatingTabBar />}
+          </View>
+          <StatusBar style={isDark ? 'light' : 'dark'} />
+        </GestureHandlerRootView>
+      )}
+    </>
   );
 }
 
 export default function RootLayout() {
   const appState = useRef(AppState.currentState);
+  
+  // Onboarding state - null = loading, true = completed, false = needs onboarding
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
   
   const [fontsLoaded] = useFonts({
     Manrope_400Regular,
@@ -78,28 +105,30 @@ export default function RootLayout() {
     DMSans_700Bold,
   });
 
-  // Initialize notifications and set up listener for self-extending notifications
+  // Check onboarding status on mount
+  useEffect(() => {
+    AsyncStorage.getItem('hasSeenOnboarding').then(value => {
+      setHasSeenOnboarding(value === 'true');
+    });
+  }, []);
+
+  // Initialize notifications
   useEffect(() => {
     const initNotifications = async () => {
       await NotificationService.requestPermissions();
-      // Badge is managed by useItemsStore based on pending items
     };
     
     initNotifications();
 
-    // Set up listener to extend notifications when they fire
-    // This creates a self-perpetuating chain for repeating tasks
     const notificationSubscription = require('expo-notifications').addNotificationReceivedListener(
       async (notification: any) => {
         const itemId = notification.request.content.data?.itemId;
         if (itemId) {
-          // Get the item from the store and extend its notifications
           const { useItemsStore } = require('../src/store/useItemsStore');
           const items = useItemsStore.getState().items;
           const item = items.find((i: any) => i.id === itemId || notification.request.identifier.startsWith(i.id));
           
           if (item && item.repeat && item.repeat !== 'none') {
-            // Schedule day 8 (7 days from now)
             await NotificationService.extendNextOccurrence(item, 7);
           }
         }
@@ -112,18 +141,40 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (fontsLoaded) {
+    if (fontsLoaded && hasSeenOnboarding !== null) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded]);
+  }, [fontsLoaded, hasSeenOnboarding]);
 
-  if (!fontsLoaded) {
+  // Handle onboarding completion
+  const handleOnboardingComplete = useCallback(async () => {
+    await AsyncStorage.setItem('hasSeenOnboarding', 'true');
+    setHasSeenOnboarding(true);
+  }, []);
+
+  // Loading state
+  if (!fontsLoaded || hasSeenOnboarding === null) {
     return null;
   }
 
+  // CRITICAL: Render onboarding COMPLETELY OUTSIDE the navigation infrastructure
+  if (!hasSeenOnboarding) {
+    return (
+      <ThemeProvider>
+        <SafeAreaProvider>
+          <OnboardingScreen onComplete={handleOnboardingComplete} />
+          <StatusBar style="light" />
+        </SafeAreaProvider>
+      </ThemeProvider>
+    );
+  }
+
+  // Normal app with navigation - wrapped in CaptureProvider
   return (
     <ThemeProvider>
-      <AppContent />
+      <CaptureProvider>
+        <MainAppContent />
+      </CaptureProvider>
     </ThemeProvider>
   );
 }
@@ -134,30 +185,23 @@ function FloatingTabBar() {
   const bottomOffset = Math.max(insets.bottom, 20);
   const pathname = usePathname();
   const router = useRouter();
+  const { openCapture } = useCapture();
 
-  const segments = useSegments();
+  const handleTabPress = useCallback((route: typeof TAB_ROUTES[0]) => {
+    if (route.path === 'CAPTURE_OVERLAY') {
+      // Open capture as overlay instead of navigation
+      openCapture();
+    } else {
+      router.push(route.path as any);
+    }
+  }, [router, openCapture]);
 
-  // Handle tab press
-  const handleTabPress = useCallback((path: string) => {
-    router.push(path as any);
-  }, [router]);
-
-  // Determine which tab is active
   const activeTab = TAB_ROUTES.find(route =>
     pathname === `/${route.name}` ||
     pathname === route.path ||
     pathname.startsWith(`/${route.name}/`) ||
     pathname.startsWith(`${route.path}/`)
   )?.name || 'brief';
-
-  // Hide on edit, note-detail, and capture screens
-  // reliable check using segments
-  const isCapture = segments.some(s => s === 'capture');
-  const isHiddenRoute = pathname === '/edit' || pathname === '/note-detail' || isCapture;
-
-  if (isHiddenRoute) {
-    return null;
-  }
 
   return (
     <View
@@ -174,7 +218,7 @@ function FloatingTabBar() {
         {TAB_ROUTES.map((route) => (
           <Pressable
             key={route.name}
-            onPress={() => handleTabPress(route.path)}
+            onPress={() => handleTabPress(route)}
             style={({ pressed }) => [
               styles.tabItem,
               pressed && styles.tabItemPressed,
@@ -205,7 +249,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    // On iOS 18, zIndex alone isn't enough - we need proper view hierarchy
     zIndex: 99999,
     elevation: 99999,
   },
@@ -218,13 +261,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-around',
     paddingHorizontal: 8,
-    // Shadow
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 20,
     elevation: 15,
-    // Border for glassmorphism effect
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.9)',
   },
@@ -233,7 +274,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     height: '100%',
-    // Ensure touch target is large enough
     minHeight: 48,
     minWidth: 48,
   },

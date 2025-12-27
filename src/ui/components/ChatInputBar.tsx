@@ -92,8 +92,7 @@ export function ChatInputBar({
       style={[
         styles.container,
         {
-          paddingBottom: keyboardVisible ? 8 : Math.max(insets.bottom, 16),
-          marginBottom: keyboardVisible ? 0 : 60, // Only apply margin when keyboard is hidden
+          paddingBottom: keyboardVisible ? 8 : Math.max(insets.bottom + 8, 24),
           backgroundColor: colors.background,
         },
       ]}
@@ -205,7 +204,6 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 16,
     paddingTop: 12,
-    marginBottom: 60, // Push up above iOS home indicator touch zone
     zIndex: 100,
   },
   inputContainer: {
