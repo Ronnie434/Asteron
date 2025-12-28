@@ -1,35 +1,70 @@
-#!/bin/bash
+#!/bin/sh
+set -e
 
-# Xcode Cloud post-clone script for Expo/React Native projects
-# This script runs after the repository is cloned but before the build starts
+echo "🏗️ Starting ci_post_clone.sh setup..."
 
-set -e  # Exit on any error
+# Navigate to project root (parent of ios folder)
+cd ../..
 
-echo "📦 Setting up environment for Xcode Cloud build..."
+# ===========================================
+# 1. Create .env file from Xcode Cloud environment variables
+# ===========================================
+echo "📝 Creating .env file from environment variables..."
 
-# Navigate to the project root (parent of ios folder)
-cd "$CI_PRIMARY_REPOSITORY_PATH"
+# Validate required variables
+if [ -z "$EXPO_PUBLIC_SUPABASE_URL" ]; then
+    echo "❌ ERROR: EXPO_PUBLIC_SUPABASE_URL not set in Xcode Cloud environment"
+    exit 1
+fi
 
-# Install Node.js using Homebrew (Xcode Cloud has Homebrew pre-installed)
-echo "🔧 Installing Node.js..."
-brew install node 2>&1
+if [ -z "$EXPO_PUBLIC_SUPABASE_ANON_KEY" ]; then
+    echo "❌ ERROR: EXPO_PUBLIC_SUPABASE_ANON_KEY not set in Xcode Cloud environment"
+    exit 1
+fi
 
-# Verify Node.js installation
+if [ -z "$EXPO_PUBLIC_OPENROUTER_API_KEY" ]; then
+    echo "❌ ERROR: EXPO_PUBLIC_OPENROUTER_API_KEY not set in Xcode Cloud environment"
+    exit 1
+fi
+
+# Create the .env file
+cat > .env << EOF
+EXPO_PUBLIC_SUPABASE_URL=${EXPO_PUBLIC_SUPABASE_URL}
+EXPO_PUBLIC_SUPABASE_ANON_KEY=${EXPO_PUBLIC_SUPABASE_ANON_KEY}
+EXPO_PUBLIC_OPENROUTER_API_KEY=${EXPO_PUBLIC_OPENROUTER_API_KEY}
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=${EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID}
+EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=${EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID}
+EOF
+
+echo "✅ Environment file created successfully"
+
+# ===========================================
+# 2. Install Node and CocoaPods via Homebrew
+# ===========================================
+echo "🍺 Installing Node and CocoaPods via Homebrew..."
+if ! command -v brew &> /dev/null; then
+    echo "Homebrew not found. Skipping brew install."
+else
+    brew install cocoapods node
+fi
+
 echo "Node version: $(node --version)"
 echo "npm version: $(npm --version)"
 
-# Install project dependencies with progress output
-echo "📥 Installing npm dependencies..."
-# Use --progress to show download progress and prevent timeout
-npm ci --legacy-peer-deps --progress 2>&1
+# ===========================================
+# 3. Install Node Dependencies
+# ===========================================
+echo "📥 Installing Node dependencies..."
+npm ci --legacy-peer-deps
 
 echo "✅ npm dependencies installed!"
 
-# Navigate to ios folder
-cd ios
-
-# Install CocoaPods dependencies with verbose output
+# ===========================================
+# 4. Install CocoaPods
+# ===========================================
 echo "🍫 Installing CocoaPods dependencies..."
-pod install --verbose 2>&1
+cd ios
+pod install
+cd ..
 
 echo "✅ Environment setup complete!"
