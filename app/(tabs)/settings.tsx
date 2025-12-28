@@ -31,7 +31,7 @@ import { useSettingsStore } from '../../src/store/useSettingsStore';
 export default function SettingsScreen() {
   const { themeMode, setThemeMode, colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const { signOut, user } = useAuthStore();
+  const { signOut, user, isGuestMode, guestName } = useAuthStore();
   const { 
     quietHoursEnabled, setQuietHoursEnabled, 
     quietHoursStart, setQuietHoursStart,
@@ -138,12 +138,15 @@ export default function SettingsScreen() {
   );
 
   const UserProfileSection = () => {
-    // Get user display name
-    const displayName = user?.user_metadata?.full_name || 
-                       user?.user_metadata?.name || 
-                       user?.email?.split('@')[0] || 
-                       'User';
+    // Get user display name - use guest name if in guest mode
+    const displayName = isGuestMode 
+      ? guestName 
+      : (user?.user_metadata?.full_name || 
+         user?.user_metadata?.name || 
+         user?.email?.split('@')[0] || 
+         'User');
     const initials = displayName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+    const subtitle = isGuestMode ? 'Guest Account' : (user?.email || '');
     
     return (
       <Card style={styles.profileCard}>
@@ -176,7 +179,7 @@ export default function SettingsScreen() {
               color={colors.textSecondary}
               numberOfLines={1}
             >
-              {user?.email || ''}
+              {subtitle}
             </Typography>
           </View>
           <ChevronRight size={20} color={colors.textTertiary} />

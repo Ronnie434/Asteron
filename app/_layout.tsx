@@ -121,7 +121,7 @@ function AuthenticatedApp() {
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
   
   // Auth state
-  const { session, isLoading: isAuthLoading, isInitialized, initialize } = useAuthStore();
+  const { session, isLoading: isAuthLoading, isInitialized, initialize, isGuestMode } = useAuthStore();
 
   // Check onboarding status on mount
   useEffect(() => {
@@ -190,8 +190,8 @@ function AuthenticatedApp() {
     );
   }
 
-  // Show sign-in screen if not authenticated
-  if (!session) {
+  // Show sign-in screen if not authenticated AND not in guest mode
+  if (!session && !isGuestMode) {
     return (
       <SafeAreaProvider>
         <SignInScreen />

@@ -237,6 +237,24 @@ export default function SignInScreen() {
             )}
           </Pressable>
 
+          {/* Skip Sign-in */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.skipButton,
+              pressed && styles.buttonPressed,
+              isLoading && styles.buttonDisabled,
+            ]}
+            onPress={async () => {
+              const { skipSignIn } = useAuthStore.getState();
+              await skipSignIn();
+            }}
+            disabled={isLoading}
+          >
+            <Text style={[styles.skipButtonText, { color: colors.textSecondary }]}>
+              Skip for now
+            </Text>
+          </Pressable>
+
           {/* Terms & Privacy */}
           <Text style={[styles.termsText, { color: colors.textTertiary }]}>
             By continuing, you agree to our{' '}
@@ -318,6 +336,15 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     ...theme.typography.body,
+    fontFamily: 'DMSans_500Medium',
+  },
+  skipButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+  },
+  skipButtonText: {
+    ...theme.typography.subhead,
     fontFamily: 'DMSans_500Medium',
   },
   termsText: {
