@@ -3,6 +3,7 @@ set -e
 
 echo "🏗️ Starting ci_post_clone.sh setup..."
 
+# Setup environment for Xcode Cloud
 # Navigate to project root (parent of ios folder)
 cd ../..
 
