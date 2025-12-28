@@ -89,8 +89,55 @@ export default function SignInScreen() {
         if (error) {
           console.error('Supabase auth error:', error);
           Alert.alert('Sign In Failed', error.message);
-        } else {
+        } else if (data.session) {
           console.log('Successfully signed in:', data.user?.email);
+          
+          // Send welcome email for NEW users only (check both time and flag)
+          try {
+            const userCreatedAt = new Date(data.user?.created_at || '');
+            const now = new Date();
+            const secondsSinceCreation = (now.getTime() - userCreatedAt.getTime()) / 1000;
+            const isNewUser = secondsSinceCreation < 30;
+            const alreadySentWelcomeEmail = data.user?.user_metadata?.welcome_email_sent === true;
+            
+            if (isNewUser && data.user?.email && !alreadySentWelcomeEmail) {
+              const userName = data.user?.user_metadata?.name ||
+                             data.user?.user_metadata?.full_name ||
+                             'there';
+              const firstName = userName.split(' ')[0];
+              
+              console.log('[OAuth] NEW USER - Sending welcome email to:', data.user.email);
+              
+              const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+              const welcomeUrl = `${supabaseUrl}/functions/v1/send-welcome-email`;
+              const welcomeResponse = await fetch(welcomeUrl, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${data.session.access_token}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  email: data.user.email,
+                  firstName: firstName,
+                }),
+              });
+              
+              if (welcomeResponse.ok) {
+                console.log('[OAuth] Welcome email sent successfully');
+                // Mark that welcome email was sent to prevent duplicates
+                await supabase.auth.updateUser({
+                  data: { welcome_email_sent: true }
+                });
+              } else {
+                console.warn('[OAuth] Failed to send welcome email (non-blocking)');
+              }
+            } else if (data.user?.email) {
+              console.log('[OAuth] RETURNING USER - Skipping welcome email');
+            }
+          } catch (emailError) {
+            console.warn('[OAuth] Error sending welcome email (non-blocking):', emailError);
+            // Don't fail OAuth if email fails
+          }
         }
       } else {
         throw new Error('No ID token received from Google');
@@ -131,7 +178,8 @@ export default function SignInScreen() {
         if (error) {
           console.error('Supabase auth error:', error);
           Alert.alert('Sign In Failed', error.message);
-        } else if (data.user) {
+        } else if (data.user && data.session) {
+          // Update user profile with Apple name if provided
           if (credential.fullName) {
             const nameParts = [];
             if (credential.fullName.givenName) nameParts.push(credential.fullName.givenName);
@@ -146,6 +194,54 @@ export default function SignInScreen() {
                 },
               });
             }
+          }
+          
+          // Send welcome email for NEW users only (check both time and flag)
+          try {
+            const userCreatedAt = new Date(data.user?.created_at || '');
+            const now = new Date();
+            const secondsSinceCreation = (now.getTime() - userCreatedAt.getTime()) / 1000;
+            const isNewUser = secondsSinceCreation < 30;
+            const alreadySentWelcomeEmail = data.user?.user_metadata?.welcome_email_sent === true;
+            
+            if (isNewUser && data.user?.email && !alreadySentWelcomeEmail) {
+              const userName = credential.fullName?.givenName ||
+                             data.user?.user_metadata?.name ||
+                             data.user?.user_metadata?.full_name ||
+                             'there';
+              const firstName = userName.split(' ')[0];
+              
+              console.log('[OAuth] NEW USER - Sending welcome email to:', data.user.email);
+              
+              const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+              const welcomeUrl = `${supabaseUrl}/functions/v1/send-welcome-email`;
+              const welcomeResponse = await fetch(welcomeUrl, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${data.session.access_token}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  email: data.user.email,
+                  firstName: firstName,
+                }),
+              });
+              
+              if (welcomeResponse.ok) {
+                console.log('[OAuth] Welcome email sent successfully');
+                // Mark that welcome email was sent to prevent duplicates
+                await supabase.auth.updateUser({
+                  data: { welcome_email_sent: true }
+                });
+              } else {
+                console.warn('[OAuth] Failed to send welcome email (non-blocking)');
+              }
+            } else if (data.user?.email) {
+              console.log('[OAuth] RETURNING USER - Skipping welcome email');
+            }
+          } catch (emailError) {
+            console.warn('[OAuth] Error sending welcome email (non-blocking):', emailError);
+            // Don't fail OAuth if email fails
           }
         }
       } else {
