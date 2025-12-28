@@ -15,6 +15,7 @@ import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
 import { CaptureProvider, useCapture } from '../src/contexts/CaptureContext';
 import { NotificationService } from '../src/services/NotificationService';
 import { useAuthStore } from '../src/store/useAuthStore';
+import { CustomSplashScreen } from '../src/components/CustomSplashScreen';
 import OnboardingScreen from './onboarding';
 import SignInScreen from './signin';
 import CaptureScreen from './(tabs)/capture';
@@ -103,7 +104,7 @@ export default function RootLayout() {
   });
 
   if (!fontsLoaded) {
-    return null;
+    return <CustomSplashScreen />;
   }
 
   // Wrap entire app in ThemeProvider so all routes (even pre-rendered) have access
@@ -177,7 +178,7 @@ function AuthenticatedApp() {
 
   // Loading state - wait for onboarding check AND auth initialization
   if (hasSeenOnboarding === null || !isInitialized) {
-    return null;
+    return <CustomSplashScreen />;
   }
 
   // CRITICAL: Render onboarding COMPLETELY OUTSIDE the navigation infrastructure
