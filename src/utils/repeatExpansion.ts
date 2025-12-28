@@ -6,6 +6,7 @@ import type { Item, RepeatFrequency, CustomRepeatConfig } from '../db/items';
 export interface ExpandedItem extends Item {
     displayDate: Date;
     isVirtualOccurrence?: boolean; // True if this is a generated occurrence, not the base item
+    isCompleted?: boolean; // True if this occurrence is completed (for display and sorting)
 }
 
 /**
@@ -32,16 +33,19 @@ export function expandRepeatingItems(
     const expanded: ExpandedItem[] = [];
 
     items.forEach(item => {
-        // Only expand active items
-        if (item.status !== 'active') return;
+        // Include active items AND done items (so completed tasks show at bottom)
+        if (item.status !== 'active' && item.status !== 'done') return;
 
         const effectiveDate = getEffectiveDate(item);
 
         // Daily repeat: add an entry for each day
         if (item.repeat === 'daily') {
-            // Parse skipped dates
+            // Parse skipped and completed dates
             const skippedDates: string[] = item.skippedDates
                 ? JSON.parse(item.skippedDates)
+                : [];
+            const completedDates: string[] = item.completedDates
+                ? JSON.parse(item.completedDates)
                 : [];
 
             const createdAt = new Date(item.createdAt);
@@ -72,10 +76,14 @@ export function expandRepeatingItems(
                 const dateStr = displayDate.toISOString().split('T')[0]; // YYYY-MM-DD
                 if (skippedDates.includes(dateStr)) continue;
 
+                // Check if this occurrence is completed
+                const isCompleted = completedDates.includes(dateStr);
+
                 expanded.push({
                     ...item,
                     displayDate,
                     isVirtualOccurrence: dayOffset > 0,
+                    isCompleted,
                 });
             }
             return;
@@ -84,6 +92,10 @@ export function expandRepeatingItems(
         // Weekly repeat: add entries for each week within the range
         if (item.repeat === 'weekly' && effectiveDate) {
             const baseDate = new Date(effectiveDate);
+            const completedDates: string[] = item.completedDates
+                ? JSON.parse(item.completedDates)
+                : [];
+
             for (let weekOffset = 0; weekOffset <= Math.ceil(daysToExpand / 7); weekOffset++) {
                 const displayDate = new Date(baseDate);
                 displayDate.setDate(displayDate.getDate() + (weekOffset * 7));
@@ -91,11 +103,15 @@ export function expandRepeatingItems(
                 const endDate = new Date(now);
                 endDate.setDate(endDate.getDate() + daysToExpand);
 
+                const dateStr = displayDate.toISOString().split('T')[0];
+                const isCompleted = completedDates.includes(dateStr);
+
                 if (displayDate > now && displayDate <= endDate) {
                     expanded.push({
                         ...item,
                         displayDate,
                         isVirtualOccurrence: weekOffset > 0,
+                        isCompleted,
                     });
                 }
             }
@@ -105,6 +121,10 @@ export function expandRepeatingItems(
         // Monthly repeat
         if (item.repeat === 'monthly' && effectiveDate) {
             const baseDate = new Date(effectiveDate);
+            const completedDates: string[] = item.completedDates
+                ? JSON.parse(item.completedDates)
+                : [];
+
             for (let monthOffset = 0; monthOffset <= 1; monthOffset++) {
                 const displayDate = new Date(baseDate);
                 displayDate.setMonth(displayDate.getMonth() + monthOffset);
@@ -112,11 +132,15 @@ export function expandRepeatingItems(
                 const endDate = new Date(now);
                 endDate.setDate(endDate.getDate() + daysToExpand);
 
+                const dateStr = displayDate.toISOString().split('T')[0];
+                const isCompleted = completedDates.includes(dateStr);
+
                 if (displayDate > now && displayDate <= endDate) {
                     expanded.push({
                         ...item,
                         displayDate,
                         isVirtualOccurrence: monthOffset > 0,
+                        isCompleted,
                     });
                 }
             }
@@ -129,11 +153,20 @@ export function expandRepeatingItems(
             const endDate = new Date(now);
             endDate.setDate(endDate.getDate() + daysToExpand);
 
-            if (itemDate > now && itemDate <= endDate) {
+            // Include both future items AND past items (for today's completed tasks)
+            // One-time tasks with status='done' should show as completed
+            const isCompleted = item.status === 'done';
+
+            // Include today's items even if time has passed, so completed tasks show
+            const todayStart = new Date(now);
+            todayStart.setHours(0, 0, 0, 0);
+
+            if ((itemDate >= todayStart && itemDate <= endDate) || isCompleted) {
                 expanded.push({
                     ...item,
                     displayDate: itemDate,
                     isVirtualOccurrence: false,
+                    isCompleted,
                 });
             }
         }

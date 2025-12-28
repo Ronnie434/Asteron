@@ -82,13 +82,14 @@ export default function BriefScreen() {
   // Expand repeating items for the next 3 days
   const expandedItems = expandRepeatingItems(items, 3);
 
-  // Custom sort that accounts for locally completed occurrences
+  // Custom sort that accounts for locally completed occurrences and DB completion status
   const sortWithLocalCompletion = (items: ExpandedItem[], targetDate: Date) => {
     return [...items].sort((a, b) => {
       const aKey = `${a.id}:${targetDate.toDateString()}`;
       const bKey = `${b.id}:${targetDate.toDateString()}`;
-      const aCompleted = a.status === 'done' || completedOccurrenceKeys.has(aKey);
-      const bCompleted = b.status === 'done' || completedOccurrenceKeys.has(bKey);
+      // Check both local state AND DB isCompleted flag
+      const aCompleted = a.status === 'done' || a.isCompleted || completedOccurrenceKeys.has(aKey);
+      const bCompleted = b.status === 'done' || b.isCompleted || completedOccurrenceKeys.has(bKey);
       
       // Completed items go to end
       if (aCompleted && !bCompleted) return 1;
@@ -110,9 +111,10 @@ export default function BriefScreen() {
       ? `${item.id}:${occurrenceDate.toDateString()}` 
       : item.id;
     
-    // Check if this occurrence is marked as completed locally
+    // Check if this occurrence is marked as completed locally OR from DB
     const isLocallyCompleted = completedOccurrenceKeys.has(occurrenceKey);
-    const isDone = item.status === 'done' || isLocallyCompleted;
+    const isDbCompleted = (item as ExpandedItem).isCompleted;
+    const isDone = item.status === 'done' || isDbCompleted || isLocallyCompleted;
     
     if (isDone) {
       // Uncheck logic
@@ -272,7 +274,9 @@ export default function BriefScreen() {
       ? `${item.id}:${occurrenceDate.toDateString()}` 
       : item.id;
     const isLocallyCompleted = completedOccurrenceKeys.has(occurrenceKey);
-    const isDone = item.status === 'done' || isLocallyCompleted;
+    // Use isCompleted from ExpandedItem (DB state) for repeating tasks
+    const isDbCompleted = (item as ExpandedItem).isCompleted;
+    const isDone = item.status === 'done' || isDbCompleted || isLocallyCompleted;
     
     const priorityColor = getPriorityColor(item.priority);
     

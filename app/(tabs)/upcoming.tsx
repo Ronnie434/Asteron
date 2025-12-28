@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useRouter } from 'expo-router';
 import { GlassyHeader } from '../../src/ui/components/GlassyHeader';
+import { expandRepeatingItems, ExpandedItem, getEffectiveDate } from '../../src/utils/repeatExpansion';
 
 export default function UpcomingScreen() {
   const router = useRouter();
@@ -51,72 +52,17 @@ export default function UpcomingScreen() {
   sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
   sevenDaysFromNow.setHours(23, 59, 59, 999);
 
-  // Helper to get the effective date (dueAt or remindAt)
-  const getEffectiveDate = (item: Item): string | null => {
-    return item.dueAt || item.remindAt || null;
-  };
+  // Use shared expansion utility which includes completed items with isCompleted flag
+  const expandedItems = expandRepeatingItems(items, 7, false);
 
-  // Interface for display items (can have virtual dates for repeating tasks)
-  interface DisplayItem extends Item {
-    displayDate: Date;
-  }
-
-  // Expand repeating tasks into multiple occurrences for the next 7 days
-  const expandedItems: DisplayItem[] = [];
-  
-  items.forEach(item => {
-    if (item.status !== 'active') return;
-    
-    const effectiveDate = getEffectiveDate(item);
-    
-    // Daily repeat: add an entry for each of the next 7 days
-    if (item.repeat === 'daily') {
-      for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
-        const displayDate = new Date(now);
-        displayDate.setDate(displayDate.getDate() + dayOffset);
-        
-        // If item has a time, use that time, otherwise use current time
-        if (effectiveDate) {
-          const originalDate = new Date(effectiveDate);
-          displayDate.setHours(originalDate.getHours(), originalDate.getMinutes(), 0, 0);
-        }
-        
-        // Skip if this occurrence is in the past today
-        if (dayOffset === 0 && displayDate <= now) continue;
-        
-        expandedItems.push({ ...item, displayDate });
-      }
-      return;
-    }
-    
-    // Weekly repeat: add entries for each week within 7 days (so just once or twice)
-    if (item.repeat === 'weekly' && effectiveDate) {
-      const baseDate = new Date(effectiveDate);
-      for (let weekOffset = 0; weekOffset <= 1; weekOffset++) {
-        const displayDate = new Date(baseDate);
-        displayDate.setDate(displayDate.getDate() + (weekOffset * 7));
-        
-        if (displayDate > now && displayDate <= sevenDaysFromNow) {
-          expandedItems.push({ ...item, displayDate });
-        }
-      }
-      return;
-    }
-    
-    // Non-repeating or other repeat types: just add if within range
-    if (effectiveDate) {
-      const itemDate = new Date(effectiveDate);
-      if (itemDate > now && itemDate <= sevenDaysFromNow) {
-        expandedItems.push({ ...item, displayDate: itemDate });
-      }
-    } else if (item.repeat && item.repeat !== 'none') {
-      // Repeating task without date - show as today
-      expandedItems.push({ ...item, displayDate: now });
-    }
+  // Sort by display date, with completed items at the end of each group
+  const upcoming = [...expandedItems].sort((a, b) => {
+    // Completed items go to end
+    if (a.isCompleted && !b.isCompleted) return 1;
+    if (!a.isCompleted && b.isCompleted) return -1;
+    // Sort by time
+    return a.displayDate.getTime() - b.displayDate.getTime();
   });
-
-  // Sort by display date
-  const upcoming = expandedItems.sort((a, b) => a.displayDate.getTime() - b.displayDate.getTime());
 
   // Items without any date (excluding notes and repeating tasks since they show above)
   const unscheduled = items.filter(i => 
@@ -127,7 +73,7 @@ export default function UpcomingScreen() {
   );
 
   // Group by date
-  const grouped: { [key: string]: DisplayItem[] } = {};
+  const grouped: { [key: string]: ExpandedItem[] } = {};
   upcoming.forEach(item => {
     const key = item.displayDate.toLocaleDateString('en-US', { 
       weekday: 'long', 

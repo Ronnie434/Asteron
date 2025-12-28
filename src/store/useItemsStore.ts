@@ -121,7 +121,7 @@ const calculateBadgeCount = (items: Item[]): number => {
             // Let's count "1" if the item itself is "overdue" (hasn't been done for the latest period).
             // But `occurrenceDate <= now` above covers "Today".
         } else {
-            // Non-repeating
+            // Non-repeating: count if reminder is past (done items already filtered at line 80)
             const remindDate = new Date(item.remindAt);
             if (remindDate <= now) {
                 count++;
