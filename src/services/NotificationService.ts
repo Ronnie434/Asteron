@@ -204,6 +204,32 @@ export const NotificationService = {
     },
 
     /**
+     * Cancel ALL notifications for an item (comprehensive cleanup)
+     * Uses the system's notification list to ensure no orphaned notifications remain
+     * @param itemId - The item ID to cancel all notifications for
+     */
+    cancelAllNotificationsForItem: async (itemId: string): Promise<void> => {
+        try {
+            const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
+
+            // Find all notifications that belong to this item
+            // They either match the exact ID or start with itemId_ (occurrence format)
+            const matchingNotifications = allNotifications.filter(
+                (n) => n.identifier === itemId || n.identifier.startsWith(`${itemId}_`)
+            );
+
+            // Cancel all matching notifications
+            for (const notification of matchingNotifications) {
+                await Notifications.cancelScheduledNotificationAsync(notification.identifier).catch(() => { });
+            }
+
+            console.log(`Cancelled ${matchingNotifications.length} notification(s) for item ${itemId}`);
+        } catch (e) {
+            console.error("Failed to cancel notifications for item:", e);
+        }
+    },
+
+    /**
      * Generate a notification ID for a specific occurrence
      * Format: itemId_YYYY-MM-DD
      */

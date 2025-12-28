@@ -286,14 +286,8 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
 
     deleteItem: async (id) => {
         try {
-            const currentItem = get().items.find(i => i.id === id);
-
-            // Cancel notifications - use cancelAllOccurrences for repeating items
-            if (currentItem?.repeat && currentItem.repeat !== 'none') {
-                await NotificationService.cancelAllOccurrences(id, 14); // Cancel 14 days of occurrence notifications
-            } else {
-                await NotificationService.cancelReminder(id);
-            }
+            // Cancel ALL notifications for this item (comprehensive cleanup)
+            await NotificationService.cancelAllNotificationsForItem(id);
 
             await DB.deleteItem(id);
             await get().loadItems();
