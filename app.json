@@ -15,7 +15,17 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.asteron"
+      "bundleIdentifier": "app.asteron",
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.754044842286-qdjnjk0lasj1bnrm30i4b7mltk6bgp4a"
+            ]
+          }
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -36,7 +46,9 @@
       "expo-video",
       "@react-native-community/datetimepicker",
       "expo-web-browser",
-      "expo-notifications"
+      "expo-notifications",
+      "@react-native-google-signin/google-signin",
+      "expo-apple-authentication"
     ]
   }
 }

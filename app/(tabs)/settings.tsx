@@ -6,8 +6,9 @@ import { Card } from '../../src/ui/components/Card';
 
 import { 
   Sun, Moon, Smartphone, X, CheckCircle, ChevronRight, 
-  ShieldCheck, FileText, Info, Trash
+  ShieldCheck, FileText, Info, Trash, LogOut
 } from 'lucide-react-native';
+import { useAuthStore } from '../../src/store/useAuthStore';
 import { useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../src/contexts/ThemeContext';
@@ -30,6 +31,7 @@ import { useSettingsStore } from '../../src/store/useSettingsStore';
 export default function SettingsScreen() {
   const { themeMode, setThemeMode, colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const { signOut, user } = useAuthStore();
   const { 
     quietHoursEnabled, setQuietHoursEnabled, 
     quietHoursStart, setQuietHoursStart,
@@ -135,47 +137,70 @@ export default function SettingsScreen() {
     </Modal>
   );
 
-  const UserProfileSection = () => (
-    <Card style={styles.profileCard}>
-      <TouchableOpacity 
-        style={styles.profileContent}
-        activeOpacity={0.7}
-        onPress={() => {/* Navigate to profile edit */}}
-      >
-        <View style={styles.avatarContainer}>
-          <LinearGradient
-            colors={[colors.primary, colors.accent]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.avatarGradient}
-          >
-            <Typography variant="title2" color="#FFFFFF">
-              RP
-            </Typography>
-          </LinearGradient>
-          <View style={styles.statusBadge}>
-            <View style={styles.statusDot} />
+  const UserProfileSection = () => {
+    // Get user display name
+    const displayName = user?.user_metadata?.full_name || 
+                       user?.user_metadata?.name || 
+                       user?.email?.split('@')[0] || 
+                       'User';
+    const initials = displayName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+    
+    return (
+      <Card style={styles.profileCard}>
+        <TouchableOpacity 
+          style={styles.profileContent}
+          activeOpacity={0.7}
+          onPress={() => {/* Navigate to profile edit */}}
+        >
+          <View style={styles.avatarContainer}>
+            <LinearGradient
+              colors={[colors.primary, colors.accent]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.avatarGradient}
+            >
+              <Typography variant="title2" color="#FFFFFF">
+                {initials}
+              </Typography>
+            </LinearGradient>
+            <View style={styles.statusBadge}>
+              <View style={styles.statusDot} />
+            </View>
           </View>
-        </View>
-        <View style={styles.profileInfo}>
-          <Typography variant="headline" style={styles.userName}>
-            Ronak Patel
-          </Typography>
-          <View style={styles.membershipBadge}>
-            <GradientSparkles size={14} />
+          <View style={styles.profileInfo}>
+            <Typography variant="headline" style={styles.userName}>
+              {displayName}
+            </Typography>
             <Typography 
               variant="footnote" 
-              color={colors.accent}
-              style={styles.membershipText}
+              color={colors.textSecondary}
+              numberOfLines={1}
             >
-              Pro Member
+              {user?.email || ''}
             </Typography>
           </View>
-        </View>
-        <ChevronRight size={20} color={colors.textTertiary} />
-      </TouchableOpacity>
-    </Card>
-  );
+          <ChevronRight size={20} color={colors.textTertiary} />
+        </TouchableOpacity>
+      </Card>
+    );
+  };
+
+  const handleSignOut = () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Sign Out', 
+          style: 'destructive',
+          onPress: async () => {
+            await signOut();
+          }
+        },
+      ]
+    );
+  };
 
   const handleDeleteData = () => {
     Alert.alert(
@@ -378,6 +403,24 @@ export default function SettingsScreen() {
             Icon={Info}
             title="Version"
             subtitle="1.0.0"
+          />
+        </Card>
+
+        {/* Account */}
+        <Typography 
+          variant="footnote" 
+          color={theme.colors.textSecondary}
+          style={styles.sectionLabel}
+        >
+          ACCOUNT
+        </Typography>
+        <Card style={styles.card}>
+          <SettingRow
+            Icon={LogOut}
+            title="Sign Out"
+            subtitle={user?.email || ''}
+            showArrow
+            onPress={handleSignOut}
           />
         </Card>
 

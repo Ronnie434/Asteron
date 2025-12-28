@@ -14,6 +14,7 @@ export default function TabLayout() {
     >
       <Tabs.Screen name="brief" />
       <Tabs.Screen name="capture" />
+      <Tabs.Screen name="notes" />
       <Tabs.Screen name="upcoming" />
       <Tabs.Screen name="settings" />
     </Tabs>

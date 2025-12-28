@@ -14,7 +14,9 @@ import { theme } from '../src/ui/theme';
 import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
 import { CaptureProvider, useCapture } from '../src/contexts/CaptureContext';
 import { NotificationService } from '../src/services/NotificationService';
+import { useAuthStore } from '../src/store/useAuthStore';
 import OnboardingScreen from './onboarding';
+import SignInScreen from './signin';
 import CaptureScreen from './(tabs)/capture';
 
 SplashScreen.preventAutoHideAsync();
@@ -91,11 +93,6 @@ function MainAppContent() {
 }
 
 export default function RootLayout() {
-  const appState = useRef(AppState.currentState);
-  
-  // Onboarding state - null = loading, true = completed, false = needs onboarding
-  const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
-  
   const [fontsLoaded] = useFonts({
     Manrope_400Regular,
     Manrope_600SemiBold,
@@ -105,12 +102,38 @@ export default function RootLayout() {
     DMSans_700Bold,
   });
 
+  if (!fontsLoaded) {
+    return null;
+  }
+
+  // Wrap entire app in ThemeProvider so all routes (even pre-rendered) have access
+  return (
+    <ThemeProvider>
+      <AuthenticatedApp />
+    </ThemeProvider>
+  );
+}
+
+function AuthenticatedApp() {
+  const appState = useRef(AppState.currentState);
+  
+  // Onboarding state - null = loading, true = completed, false = needs onboarding
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
+  
+  // Auth state
+  const { session, isLoading: isAuthLoading, isInitialized, initialize } = useAuthStore();
+
   // Check onboarding status on mount
   useEffect(() => {
     AsyncStorage.getItem('hasSeenOnboarding').then(value => {
       setHasSeenOnboarding(value === 'true');
     });
   }, []);
+
+  // Initialize auth on mount
+  useEffect(() => {
+    initialize();
+  }, [initialize]);
 
   // Initialize notifications
   useEffect(() => {
@@ -141,10 +164,10 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (fontsLoaded && hasSeenOnboarding !== null) {
+    if (hasSeenOnboarding !== null && isInitialized) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded, hasSeenOnboarding]);
+  }, [hasSeenOnboarding, isInitialized]);
 
   // Handle onboarding completion
   const handleOnboardingComplete = useCallback(async () => {
@@ -152,30 +175,36 @@ export default function RootLayout() {
     setHasSeenOnboarding(true);
   }, []);
 
-  // Loading state
-  if (!fontsLoaded || hasSeenOnboarding === null) {
+  // Loading state - wait for onboarding check AND auth initialization
+  if (hasSeenOnboarding === null || !isInitialized) {
     return null;
   }
 
   // CRITICAL: Render onboarding COMPLETELY OUTSIDE the navigation infrastructure
   if (!hasSeenOnboarding) {
     return (
-      <ThemeProvider>
-        <SafeAreaProvider>
-          <OnboardingScreen onComplete={handleOnboardingComplete} />
-          <StatusBar style="light" />
-        </SafeAreaProvider>
-      </ThemeProvider>
+      <SafeAreaProvider>
+        <OnboardingScreen onComplete={handleOnboardingComplete} />
+        <StatusBar style="light" />
+      </SafeAreaProvider>
+    );
+  }
+
+  // Show sign-in screen if not authenticated
+  if (!session) {
+    return (
+      <SafeAreaProvider>
+        <SignInScreen />
+        <StatusBar style="light" />
+      </SafeAreaProvider>
     );
   }
 
   // Normal app with navigation - wrapped in CaptureProvider
   return (
-    <ThemeProvider>
-      <CaptureProvider>
-        <MainAppContent />
-      </CaptureProvider>
-    </ThemeProvider>
+    <CaptureProvider>
+      <MainAppContent />
+    </CaptureProvider>
   );
 }
 
