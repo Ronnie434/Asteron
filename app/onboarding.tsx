@@ -38,7 +38,8 @@ import {
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSettingsStore } from '../src/store/useSettingsStore';
-import { darkColors } from '../src/ui/theme';
+import { darkColors, theme } from '../src/ui/theme';
+import { RainbowText } from '../src/ui/components/RainbowText';
 
 const { width } = Dimensions.get('window');
 const colors = darkColors;
@@ -137,9 +138,12 @@ function HeroScreen({ isActive }: { isActive: boolean }) {
       </Animated.View>
 
       {/* Sharp Headline */}
-      <Animated.Text style={[styles.heroHeadline, headlineStyle]}>
-        Stop getting blindsided{'\n'}by deadlines.
-      </Animated.Text>
+      <Animated.View style={headlineStyle}>
+        <RainbowText 
+          text={`Stop getting blindsided\nby deadlines.`}
+          textStyle={styles.heroHeadline}
+        />
+      </Animated.View>
 
       {/* Subhead */}
       <Animated.Text style={[styles.heroSubhead, subheadStyle]}>
@@ -175,9 +179,12 @@ function CaptureScreen({ isActive }: { isActive: boolean }) {
       </Animated.View>
 
       {/* Title */}
-      <Animated.Text style={[styles.screenTitle, titleStyle]}>
-        Drop it here.{'\n'}Get it out of your head.
-      </Animated.Text>
+      <Animated.View style={titleStyle}>
+        <RainbowText 
+          text={`Drop it here.\nGet it out of your head.`}
+          textStyle={styles.screenTitle}
+        />
+      </Animated.View>
 
       {/* Description */}
       <Animated.Text style={[styles.screenDescription, descStyle]}>
@@ -224,9 +231,12 @@ function OrganizeScreen({ isActive }: { isActive: boolean }) {
   return (
     <View style={styles.slide}>
       {/* Title */}
-      <Animated.Text style={[styles.screenTitle, titleStyle]}>
-        Today vs Upcoming.{'\n'}Auto-sorted.
-      </Animated.Text>
+      <Animated.View style={titleStyle}>
+        <RainbowText 
+          text={`Today vs Upcoming.\nAuto-sorted.`}
+          textStyle={styles.screenTitle}
+        />
+      </Animated.View>
 
       {/* Description */}
       <Animated.Text style={[styles.screenDescription, descStyle]}>
@@ -317,9 +327,12 @@ function DailyBriefScreen({
       </Animated.View>
 
       {/* Title */}
-      <Animated.Text style={[styles.screenTitle, titleStyle]}>
-        Your morning brief.{'\n'}Clear priorities.
-      </Animated.Text>
+      <Animated.View style={titleStyle}>
+        <RainbowText 
+          text={`Your morning brief.\nClear priorities.`}
+          textStyle={styles.screenTitle}
+        />
+      </Animated.View>
 
       {/* Description */}
       <Animated.Text style={[styles.screenDescription, descStyle]}>
@@ -407,9 +420,12 @@ function QuietHoursScreen({
       </Animated.View>
 
       {/* Title */}
-      <Animated.Text style={[styles.screenTitle, titleStyle]}>
-        Fewer pings.{'\n'}More control.
-      </Animated.Text>
+      <Animated.View style={titleStyle}>
+        <RainbowText 
+          text={`Fewer pings.\nMore control.`}
+          textStyle={styles.screenTitle}
+        />
+      </Animated.View>
 
       {/* Description */}
       <Animated.Text style={[styles.screenDescription, descStyle]}>
@@ -644,10 +660,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   brandName: {
-    fontFamily: 'Manrope_700Bold',
-    fontSize: 28,
+    ...theme.typography.title1,
     color: '#FFFFFF',
-    letterSpacing: 1,
   },
   brandContainer: {
     alignItems: 'center',
@@ -669,24 +683,21 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   aiBadgeText: {
-    fontFamily: 'DMSans_500Medium',
-    fontSize: 11,
+    ...theme.typography.caption2,
     color: '#818CF8',
     letterSpacing: 0.5,
   },
 
   // Hero Screen
   heroHeadline: {
-    fontFamily: 'Manrope_700Bold',
-    fontSize: 32,
+    ...theme.typography.largeTitle,
     color: '#FFFFFF',
     textAlign: 'center',
-    lineHeight: 40,
+    lineHeight: 42,
     marginBottom: 16,
   },
   heroSubhead: {
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 16,
+    ...theme.typography.body,
     color: 'rgba(255,255,255,0.7)',
     textAlign: 'center',
     lineHeight: 24,
@@ -703,8 +714,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   trustText: {
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 13,
+    ...theme.typography.footnote,
     color: 'rgba(255,255,255,0.6)',
   },
 
@@ -718,16 +728,14 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   screenTitle: {
-    fontFamily: 'Manrope_700Bold',
-    fontSize: 28,
+    ...theme.typography.title1,
     color: '#FFFFFF',
     textAlign: 'center',
     lineHeight: 36,
     marginBottom: 12,
   },
   screenDescription: {
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 16,
+    ...theme.typography.body,
     color: 'rgba(255,255,255,0.6)',
     textAlign: 'center',
     lineHeight: 24,
@@ -752,13 +760,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   exampleCardLabel: {
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 13,
+    ...theme.typography.footnote,
     color: 'rgba(255,255,255,0.5)',
   },
   exampleCardInput: {
-    fontFamily: 'DMSans_500Medium',
-    fontSize: 16,
+    ...theme.typography.body,
+    fontFamily: 'DMSans_500Medium', // Keep medium weight
     color: '#FFFFFF',
     marginBottom: 12,
   },
@@ -773,7 +780,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   exampleCardResultText: {
-    fontFamily: 'DMSans_400Regular',
+    ...theme.typography.body,
     fontSize: 14,
     color: '#34D399',
   },
@@ -792,6 +799,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   pillText: {
+    ...theme.typography.subhead,
     fontFamily: 'DMSans_500Medium',
     fontSize: 13,
   },
@@ -815,7 +823,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   miniSectionTitle: {
-    fontFamily: 'DMSans_500Medium',
+    ...theme.typography.caption2,
     fontSize: 11,
     color: 'rgba(255,255,255,0.5)',
     letterSpacing: 0.5,
@@ -833,13 +841,12 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   miniTaskText: {
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 14,
+    ...theme.typography.subhead,
     color: '#FFFFFF',
     flex: 1,
   },
   miniTaskTime: {
-    fontFamily: 'DMSans_400Regular',
+    ...theme.typography.caption1,
     fontSize: 12,
     color: 'rgba(255,255,255,0.4)',
   },
@@ -856,7 +863,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.08)',
   },
   timePickerLabel: {
-    fontFamily: 'DMSans_400Regular',
+    ...theme.typography.body,
     fontSize: 14,
     color: 'rgba(255,255,255,0.6)',
     marginBottom: 16,
@@ -881,8 +888,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   timeText: {
-    fontFamily: 'Manrope_700Bold',
-    fontSize: 24,
+    ...theme.typography.title1,
     color: '#FFFFFF',
   },
 
@@ -902,7 +908,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   briefPreviewTitle: {
-    fontFamily: 'DMSans_500Medium',
+    ...theme.typography.subhead,
     fontSize: 13,
     color: '#FBBF24',
   },
@@ -915,12 +921,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   briefStatNumber: {
-    fontFamily: 'Manrope_700Bold',
+    ...theme.typography.title1,
     fontSize: 24,
     color: '#FFFFFF',
   },
   briefStatLabel: {
-    fontFamily: 'DMSans_400Regular',
+    ...theme.typography.caption1,
     fontSize: 12,
     color: 'rgba(255,255,255,0.5)',
     marginTop: 4,
@@ -942,7 +948,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.08)',
   },
   quietHoursLabel: {
-    fontFamily: 'DMSans_500Medium',
+    ...theme.typography.subhead,
     fontSize: 14,
     color: 'rgba(255,255,255,0.6)',
     marginBottom: 16,
@@ -958,7 +964,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   quietTimeLabel: {
-    fontFamily: 'DMSans_400Regular',
+    ...theme.typography.caption1,
     fontSize: 12,
     color: 'rgba(255,255,255,0.4)',
     marginBottom: 8,
@@ -968,13 +974,12 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   quietTimeValue: {
-    fontFamily: 'Manrope_700Bold',
-    fontSize: 18,
+    ...theme.typography.title2,
     color: '#FFFFFF',
     paddingVertical: 8,
   },
   quietTimeTo: {
-    fontFamily: 'DMSans_400Regular',
+    ...theme.typography.body,
     fontSize: 14,
     color: 'rgba(255,255,255,0.4)',
   },
@@ -988,7 +993,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   promiseText: {
-    fontFamily: 'DMSans_400Regular',
+    ...theme.typography.footnote,
     fontSize: 13,
     color: '#34D399',
   },
@@ -1018,8 +1023,8 @@ const styles = StyleSheet.create({
     right: 24,
   },
   skipText: {
-    fontFamily: 'DMSans_500Medium',
-    fontSize: 16,
+    ...theme.typography.callout,
+    fontWeight: '500',
     color: 'rgba(255,255,255,0.5)',
   },
   ctaButton: {
@@ -1035,8 +1040,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   ctaText: {
-    fontFamily: 'Manrope_700Bold',
-    fontSize: 17,
+    ...theme.typography.title3,
+    fontWeight: '700',
     color: '#FFFFFF',
   },
 });

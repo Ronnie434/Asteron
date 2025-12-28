@@ -60,7 +60,7 @@ function MainAppContent() {
                 headerTintColor: colors.text,
                 headerTitleStyle: {
                   color: colors.text,
-                  fontFamily: 'Manrope_700Bold',
+                  ...theme.typography.title3,
                 },
             }}>
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

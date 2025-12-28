@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontFamily: 'DMSans_400Regular',
+    ...theme.typography.body,
     fontSize: 16,
     lineHeight: 22,
     paddingVertical: Platform.OS === 'ios' ? 8 : 4,

@@ -231,9 +231,8 @@ const styles = StyleSheet.create({
     padding: theme.spacing.lg,
   },
   titleInput: {
-    fontFamily: 'DMSans_700Bold',
+    ...theme.typography.title2,
     fontSize: 24,
-    fontWeight: '700',
     marginBottom: theme.spacing.md,
   },
   divider: {
@@ -241,7 +240,7 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
   },
   detailsInput: {
-    fontFamily: 'DMSans_400Regular',
+    ...theme.typography.body,
     fontSize: 17,
     lineHeight: 26,
     minHeight: 200,

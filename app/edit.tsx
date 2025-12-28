@@ -613,9 +613,8 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.xl,
   },
   titleInput: {
-    fontFamily: 'DMSans_500Medium',
+    ...theme.typography.title3, // Manrope
     fontSize: 20,
-    fontWeight: '500',
   },
   label: {
     marginBottom: theme.spacing.sm,
