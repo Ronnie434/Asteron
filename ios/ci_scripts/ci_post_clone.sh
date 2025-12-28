@@ -12,21 +12,24 @@ cd "$CI_PRIMARY_REPOSITORY_PATH"
 
 # Install Node.js using Homebrew (Xcode Cloud has Homebrew pre-installed)
 echo "🔧 Installing Node.js..."
-brew install node
+brew install node 2>&1
 
 # Verify Node.js installation
 echo "Node version: $(node --version)"
 echo "npm version: $(npm --version)"
 
-# Install project dependencies
+# Install project dependencies with progress output
 echo "📥 Installing npm dependencies..."
-npm ci --legacy-peer-deps
+# Use --progress to show download progress and prevent timeout
+npm ci --legacy-peer-deps --progress 2>&1
+
+echo "✅ npm dependencies installed!"
 
 # Navigate to ios folder
 cd ios
 
-# Install CocoaPods dependencies
+# Install CocoaPods dependencies with verbose output
 echo "🍫 Installing CocoaPods dependencies..."
-pod install
+pod install --verbose 2>&1
 
 echo "✅ Environment setup complete!"
