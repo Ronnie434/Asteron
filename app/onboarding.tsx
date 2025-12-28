@@ -38,11 +38,11 @@ import {
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSettingsStore } from '../src/store/useSettingsStore';
-import { darkColors, theme } from '../src/ui/theme';
+import { theme, lightColors, darkColors } from '../src/ui/theme';
+import { useTheme } from '../src/contexts/ThemeContext';
 import { RainbowText } from '../src/ui/components/RainbowText';
 
 const { width } = Dimensions.get('window');
-const colors = darkColors;
 
 interface OnboardingScreenProps {
   onComplete?: () => void;
@@ -94,7 +94,7 @@ function useStaggeredAnimation(isActive: boolean, delay: number) {
 // ============================================================
 // SCREEN 1: HERO - Sharp Positioning
 // ============================================================
-function HeroScreen({ isActive }: { isActive: boolean }) {
+function HeroScreen({ isActive, colors, isDark }: { isActive: boolean; colors: typeof lightColors | typeof darkColors; isDark: boolean }) {
   const logoScale = useSharedValue(1);
   const logoOpacity = useSharedValue(0);
   
@@ -130,10 +130,10 @@ function HeroScreen({ isActive }: { isActive: boolean }) {
 
       {/* Brand Name + AI Badge */}
       <Animated.View style={[styles.brandContainer, brandStyle]}>
-        <Text style={styles.brandName}>Asteron</Text>
-        <View style={styles.aiBadge}>
-          <Sparkles size={12} color="#818CF8" />
-          <Text style={styles.aiBadgeText}>AI-Powered</Text>
+        <Text style={[styles.brandName, { color: colors.text }]}>Asteron</Text>
+        <View style={[styles.aiBadge, { backgroundColor: isDark ? 'rgba(129, 140, 248, 0.15)' : 'rgba(99, 102, 241, 0.12)' }]}>
+          <Sparkles size={12} color={colors.primary} />
+          <Text style={[styles.aiBadgeText, { color: colors.primary }]}>AI-Powered</Text>
         </View>
       </Animated.View>
 
@@ -141,19 +141,19 @@ function HeroScreen({ isActive }: { isActive: boolean }) {
       <Animated.View style={headlineStyle}>
         <RainbowText 
           text={`Stop getting blindsided\nby deadlines.`}
-          textStyle={styles.heroHeadline}
+          textStyle={[styles.heroHeadline, { color: colors.text }]}
         />
       </Animated.View>
 
       {/* Subhead */}
-      <Animated.Text style={[styles.heroSubhead, subheadStyle]}>
+      <Animated.Text style={[styles.heroSubhead, subheadStyle, { color: colors.textSecondary }]}>
         Bills, renewals, follow-ups—Asteron turns quick notes into organized reminders and a calm daily brief.
       </Animated.Text>
 
       {/* Trust Line */}
-      <Animated.View style={[styles.trustContainer, trustStyle]}>
-        <Shield size={14} color="#818CF8" />
-        <Text style={styles.trustText}>Private by default. No ads. You control notifications.</Text>
+      <Animated.View style={[styles.trustContainer, trustStyle, { backgroundColor: isDark ? 'rgba(129, 140, 248, 0.1)' : 'rgba(99, 102, 241, 0.08)' }]}>
+        <Shield size={14} color={colors.primary} />
+        <Text style={[styles.trustText, { color: colors.textSecondary }]}>Private by default. No ads. You control notifications.</Text>
       </Animated.View>
     </View>
   );
@@ -162,7 +162,7 @@ function HeroScreen({ isActive }: { isActive: boolean }) {
 // ============================================================
 // SCREEN 2: CAPTURE - Better Language + Example Card
 // ============================================================
-function CaptureScreen({ isActive }: { isActive: boolean }) {
+function CaptureScreen({ isActive, colors, isDark }: { isActive: boolean; colors: typeof lightColors | typeof darkColors; isDark: boolean }) {
   const iconStyle = useStaggeredAnimation(isActive, 50);
   const titleStyle = useStaggeredAnimation(isActive, 200);
   const descStyle = useStaggeredAnimation(isActive, 350);
@@ -182,26 +182,29 @@ function CaptureScreen({ isActive }: { isActive: boolean }) {
       <Animated.View style={titleStyle}>
         <RainbowText 
           text={`Drop it here.\nGet it out of your head.`}
-          textStyle={styles.screenTitle}
+          textStyle={[styles.screenTitle, { color: colors.text }]}
         />
       </Animated.View>
 
       {/* Description */}
-      <Animated.Text style={[styles.screenDescription, descStyle]}>
+      <Animated.Text style={[styles.screenDescription, descStyle, { color: colors.textSecondary }]}>
         Speak or type—Asteron organizes it. No sorting, no folders, no friction.
       </Animated.Text>
 
       {/* Example Card */}
-      <Animated.View style={[styles.exampleCard, cardStyle]}>
+      <Animated.View style={[styles.exampleCard, cardStyle, { 
+        backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+        borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'
+      }]}>
         <View style={styles.exampleCardHeader}>
           <Mic size={16} color="#A855F7" />
-          <Text style={styles.exampleCardLabel}>You say:</Text>
+          <Text style={[styles.exampleCardLabel, { color: colors.textSecondary }]}>You say:</Text>
         </View>
-        <Text style={styles.exampleCardInput}>"Pay PG&E bill January 5th"</Text>
-        <View style={styles.exampleCardDivider} />
+        <Text style={[styles.exampleCardInput, { color: colors.text }]}>"Pay PG&E bill January 5th"</Text>
+        <View style={[styles.exampleCardDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' }]} />
         <View style={styles.exampleCardResult}>
-          <Calendar size={14} color="#34D399" />
-          <Text style={styles.exampleCardResultText}>Added to Upcoming • Jan 5</Text>
+          <Calendar size={14} color={colors.success} />
+          <Text style={[styles.exampleCardResultText, { color: colors.success }]}>Added to Upcoming • Jan 5</Text>
         </View>
       </Animated.View>
 
@@ -211,9 +214,9 @@ function CaptureScreen({ isActive }: { isActive: boolean }) {
           <Mic size={14} color="#A855F7" />
           <Text style={[styles.pillText, { color: '#A855F7' }]}>Voice</Text>
         </View>
-        <View style={[styles.pill, { backgroundColor: 'rgba(99, 102, 241, 0.15)' }]}>
-          <PenLine size={14} color="#818CF8" />
-          <Text style={[styles.pillText, { color: '#818CF8' }]}>Typing</Text>
+        <View style={[styles.pill, { backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.12)' }]}>
+          <PenLine size={14} color={colors.primary} />
+          <Text style={[styles.pillText, { color: colors.primary }]}>Typing</Text>
         </View>
       </Animated.View>
     </View>
@@ -223,7 +226,7 @@ function CaptureScreen({ isActive }: { isActive: boolean }) {
 // ============================================================
 // SCREEN 3: ORGANIZE - Mini Today/Upcoming List
 // ============================================================
-function OrganizeScreen({ isActive }: { isActive: boolean }) {
+function OrganizeScreen({ isActive, colors, isDark }: { isActive: boolean; colors: typeof lightColors | typeof darkColors; isDark: boolean }) {
   const titleStyle = useStaggeredAnimation(isActive, 50);
   const descStyle = useStaggeredAnimation(isActive, 200);
   const listStyle = useStaggeredAnimation(isActive, 400);
@@ -234,50 +237,53 @@ function OrganizeScreen({ isActive }: { isActive: boolean }) {
       <Animated.View style={titleStyle}>
         <RainbowText 
           text={`Today vs Upcoming.\nAuto-sorted.`}
-          textStyle={styles.screenTitle}
+          textStyle={[styles.screenTitle, { color: colors.text }]}
         />
       </Animated.View>
 
       {/* Description */}
-      <Animated.Text style={[styles.screenDescription, descStyle]}>
+      <Animated.Text style={[styles.screenDescription, descStyle, { color: colors.textSecondary }]}>
         Everything lands in the right place. Focus on today, glance at what's next.
       </Animated.Text>
 
       {/* Mini List UI */}
-      <Animated.View style={[styles.miniListContainer, listStyle]}>
+      <Animated.View style={[styles.miniListContainer, listStyle, {
+        backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+        borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'
+      }]}>
         {/* Today Section */}
         <View style={styles.miniSection}>
           <View style={styles.miniSectionHeader}>
-            <Sun size={14} color="#FBBF24" />
-            <Text style={styles.miniSectionTitle}>TODAY</Text>
+            <Sun size={14} color={colors.warning} />
+            <Text style={[styles.miniSectionTitle, { color: colors.textSecondary }]}>TODAY</Text>
           </View>
           <View style={styles.miniTask}>
-            <View style={[styles.miniCheckbox, { borderColor: '#FBBF24' }]} />
-            <Text style={styles.miniTaskText}>Call dentist</Text>
-            <Text style={styles.miniTaskTime}>10:00 AM</Text>
+            <View style={[styles.miniCheckbox, { borderColor: colors.warning }]} />
+            <Text style={[styles.miniTaskText, { color: colors.text }]}>Call dentist</Text>
+            <Text style={[styles.miniTaskTime, { color: colors.textTertiary }]}>10:00 AM</Text>
           </View>
           <View style={styles.miniTask}>
-            <View style={[styles.miniCheckbox, { borderColor: '#FBBF24' }]} />
-            <Text style={styles.miniTaskText}>Review quarterly goals</Text>
-            <Text style={styles.miniTaskTime}>2:00 PM</Text>
+            <View style={[styles.miniCheckbox, { borderColor: colors.warning }]} />
+            <Text style={[styles.miniTaskText, { color: colors.text }]}>Review quarterly goals</Text>
+            <Text style={[styles.miniTaskTime, { color: colors.textTertiary }]}>2:00 PM</Text>
           </View>
         </View>
 
         {/* Upcoming Section */}
         <View style={styles.miniSection}>
           <View style={styles.miniSectionHeader}>
-            <Calendar size={14} color="#818CF8" />
-            <Text style={styles.miniSectionTitle}>UPCOMING</Text>
+            <Calendar size={14} color={colors.primary} />
+            <Text style={[styles.miniSectionTitle, { color: colors.textSecondary }]}>UPCOMING</Text>
           </View>
           <View style={styles.miniTask}>
-            <View style={[styles.miniCheckbox, { borderColor: '#818CF8' }]} />
-            <Text style={styles.miniTaskText}>Pay PG&E bill</Text>
-            <Text style={styles.miniTaskTime}>Jan 5</Text>
+            <View style={[styles.miniCheckbox, { borderColor: colors.primary }]} />
+            <Text style={[styles.miniTaskText, { color: colors.text }]}>Pay PG&E bill</Text>
+            <Text style={[styles.miniTaskTime, { color: colors.textTertiary }]}>Jan 5</Text>
           </View>
           <View style={styles.miniTask}>
-            <View style={[styles.miniCheckbox, { borderColor: '#818CF8' }]} />
-            <Text style={styles.miniTaskText}>Renew car registration</Text>
-            <Text style={styles.miniTaskTime}>Jan 12</Text>
+            <View style={[styles.miniCheckbox, { borderColor: colors.primary }]} />
+            <Text style={[styles.miniTaskText, { color: colors.text }]}>Renew car registration</Text>
+            <Text style={[styles.miniTaskTime, { color: colors.textTertiary }]}>Jan 12</Text>
           </View>
         </View>
       </Animated.View>
@@ -290,10 +296,14 @@ function OrganizeScreen({ isActive }: { isActive: boolean }) {
 // ============================================================
 function DailyBriefScreen({ 
   isActive,
+  colors,
+  isDark,
   briefTime, 
   onTimeChange 
 }: { 
   isActive: boolean;
+  colors: typeof lightColors | typeof darkColors;
+  isDark: boolean;
   briefTime: string; 
   onTimeChange: (hour: number) => void;
 }) {
@@ -330,51 +340,57 @@ function DailyBriefScreen({
       <Animated.View style={titleStyle}>
         <RainbowText 
           text={`Your morning brief.\nClear priorities.`}
-          textStyle={styles.screenTitle}
+          textStyle={[styles.screenTitle, { color: colors.text }]}
         />
       </Animated.View>
 
       {/* Description */}
-      <Animated.Text style={[styles.screenDescription, descStyle]}>
+      <Animated.Text style={[styles.screenDescription, descStyle, { color: colors.textSecondary }]}>
         Every morning, see what matters today and what can wait. Start calm.
       </Animated.Text>
 
       {/* Time Picker */}
-      <Animated.View style={[styles.timePickerCard, pickerStyle]}>
-        <Text style={styles.timePickerLabel}>When do you want your daily brief?</Text>
+      <Animated.View style={[styles.timePickerCard, pickerStyle, {
+        backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+        borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'
+      }]}>
+        <Text style={[styles.timePickerLabel, { color: colors.textSecondary }]}>When do you want your daily brief?</Text>
         <View style={styles.timePickerRow}>
-          <Pressable onPress={decrementHour} style={styles.timeButton} hitSlop={10}>
-            <ChevronDown size={24} color="#818CF8" />
+          <Pressable onPress={decrementHour} style={[styles.timeButton, { backgroundColor: isDark ? 'rgba(129, 140, 248, 0.15)' : 'rgba(99, 102, 241, 0.12)' }]} hitSlop={10}>
+            <ChevronDown size={24} color={colors.primary} />
           </Pressable>
-          <View style={styles.timeDisplay}>
-            <Text style={styles.timeText}>{formatTime(hour)}</Text>
+          <View style={[styles.timeDisplay, { backgroundColor: isDark ? 'rgba(129, 140, 248, 0.2)' : 'rgba(99, 102, 241, 0.15)' }]}>
+            <Text style={[styles.timeText, { color: colors.text }]}>{formatTime(hour)}</Text>
           </View>
-          <Pressable onPress={incrementHour} style={styles.timeButton} hitSlop={10}>
-            <ChevronUp size={24} color="#818CF8" />
+          <Pressable onPress={incrementHour} style={[styles.timeButton, { backgroundColor: isDark ? 'rgba(129, 140, 248, 0.15)' : 'rgba(99, 102, 241, 0.12)' }]} hitSlop={10}>
+            <ChevronUp size={24} color={colors.primary} />
           </Pressable>
         </View>
       </Animated.View>
 
       {/* Mini Brief Preview */}
-      <Animated.View style={[styles.briefPreview, previewStyle]}>
+      <Animated.View style={[styles.briefPreview, previewStyle, {
+        backgroundColor: isDark ? 'rgba(251, 191, 36, 0.1)' : 'rgba(245, 158, 11, 0.08)',
+        borderColor: isDark ? 'rgba(251, 191, 36, 0.2)' : 'rgba(245, 158, 11, 0.15)'
+      }]}>
         <View style={styles.briefPreviewHeader}>
-          <Sparkles size={14} color="#FBBF24" />
-          <Text style={styles.briefPreviewTitle}>Daily Brief Preview</Text>
+          <Sparkles size={14} color={colors.warning} />
+          <Text style={[styles.briefPreviewTitle, { color: colors.warning }]}>Daily Brief Preview</Text>
         </View>
         <View style={styles.briefPreviewStats}>
           <View style={styles.briefStat}>
-            <Text style={styles.briefStatNumber}>3</Text>
-            <Text style={styles.briefStatLabel}>Today</Text>
+            <Text style={[styles.briefStatNumber, { color: colors.text }]}>3</Text>
+            <Text style={[styles.briefStatLabel, { color: colors.textSecondary }]}>Today</Text>
           </View>
-          <View style={styles.briefStatDivider} />
+          <View style={[styles.briefStatDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' }]} />
           <View style={styles.briefStat}>
-            <Text style={styles.briefStatNumber}>5</Text>
-            <Text style={styles.briefStatLabel}>Upcoming</Text>
+            <Text style={[styles.briefStatNumber, { color: colors.text }]}>5</Text>
+            <Text style={[styles.briefStatLabel, { color: colors.textSecondary }]}>Upcoming</Text>
           </View>
-          <View style={styles.briefStatDivider} />
+          <View style={[styles.briefStatDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' }]} />
           <View style={styles.briefStat}>
-            <Check size={16} color="#34D399" />
-            <Text style={styles.briefStatLabel}>On track</Text>
+            <Check size={16} color={colors.success} />
+            <Text style={[styles.briefStatLabel, { color: colors.textSecondary }]}>On track</Text>
           </View>
         </View>
       </Animated.View>
@@ -387,12 +403,16 @@ function DailyBriefScreen({
 // ============================================================
 function QuietHoursScreen({
   isActive,
+  colors,
+  isDark,
   quietStart,
   quietEnd,
   onStartChange,
   onEndChange,
 }: {
   isActive: boolean;
+  colors: typeof lightColors | typeof darkColors;
+  isDark: boolean;
   quietStart: string;
   quietEnd: string;
   onStartChange: (hour: number) => void;
@@ -423,44 +443,47 @@ function QuietHoursScreen({
       <Animated.View style={titleStyle}>
         <RainbowText 
           text={`Fewer pings.\nMore control.`}
-          textStyle={styles.screenTitle}
+          textStyle={[styles.screenTitle, { color: colors.text }]}
         />
       </Animated.View>
 
       {/* Description */}
-      <Animated.Text style={[styles.screenDescription, descStyle]}>
+      <Animated.Text style={[styles.screenDescription, descStyle, { color: colors.textSecondary }]}>
         Set quiet hours so you only hear from us when it matters.
       </Animated.Text>
 
       {/* Quiet Hours Setup */}
-      <Animated.View style={[styles.quietHoursCard, cardStyle]}>
-        <Text style={styles.quietHoursLabel}>Quiet hours</Text>
+      <Animated.View style={[styles.quietHoursCard, cardStyle, {
+        backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+        borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'
+      }]}>
+        <Text style={[styles.quietHoursLabel, { color: colors.textSecondary }]}>Quiet hours</Text>
         
         <View style={styles.quietHoursRow}>
           <View style={styles.quietTimeBlock}>
-            <Text style={styles.quietTimeLabel}>From</Text>
+            <Text style={[styles.quietTimeLabel, { color: colors.textTertiary }]}>From</Text>
             <View style={styles.quietTimeControl}>
               <Pressable onPress={() => onStartChange(startHour > 20 ? 20 : startHour + 1)} hitSlop={10}>
-                <ChevronUp size={20} color="#818CF8" />
+                <ChevronUp size={20} color={colors.primary} />
               </Pressable>
-              <Text style={styles.quietTimeValue}>{formatPM(startHour)}</Text>
+              <Text style={[styles.quietTimeValue, { color: colors.text }]}>{formatPM(startHour)}</Text>
               <Pressable onPress={() => onStartChange(startHour < 20 ? 23 : startHour - 1)} hitSlop={10}>
-                <ChevronDown size={20} color="#818CF8" />
+                <ChevronDown size={20} color={colors.primary} />
               </Pressable>
             </View>
           </View>
           
-          <Text style={styles.quietTimeTo}>to</Text>
+          <Text style={[styles.quietTimeTo, { color: colors.textTertiary }]}>to</Text>
           
           <View style={styles.quietTimeBlock}>
-            <Text style={styles.quietTimeLabel}>Until</Text>
+            <Text style={[styles.quietTimeLabel, { color: colors.textTertiary }]}>Until</Text>
             <View style={styles.quietTimeControl}>
               <Pressable onPress={() => onEndChange(endHour >= 10 ? 5 : endHour + 1)} hitSlop={10}>
-                <ChevronUp size={20} color="#818CF8" />
+                <ChevronUp size={20} color={colors.primary} />
               </Pressable>
-              <Text style={styles.quietTimeValue}>{formatAM(endHour)}</Text>
+              <Text style={[styles.quietTimeValue, { color: colors.text }]}>{formatAM(endHour)}</Text>
               <Pressable onPress={() => onEndChange(endHour <= 5 ? 10 : endHour - 1)} hitSlop={10}>
-                <ChevronDown size={20} color="#818CF8" />
+                <ChevronDown size={20} color={colors.primary} />
               </Pressable>
             </View>
           </View>
@@ -468,9 +491,9 @@ function QuietHoursScreen({
       </Animated.View>
 
       {/* Promise */}
-      <Animated.View style={[styles.promiseContainer, promiseStyle]}>
-        <Bell size={16} color="#34D399" />
-        <Text style={styles.promiseText}>No notifications during quiet hours. Ever.</Text>
+      <Animated.View style={[styles.promiseContainer, promiseStyle, { backgroundColor: isDark ? 'rgba(52, 211, 153, 0.1)' : 'rgba(16, 185, 129, 0.08)' }]}>
+        <Bell size={16} color={colors.success} />
+        <Text style={[styles.promiseText, { color: colors.success }]}>No notifications during quiet hours. Ever.</Text>
       </Animated.View>
     </View>
   );
@@ -481,6 +504,7 @@ function QuietHoursScreen({
 // ============================================================
 export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const insets = useSafeAreaInsets();
+  const { colors, isDark } = useTheme();
   const flatListRef = useRef<FlatList>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   
@@ -534,15 +558,17 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     
     switch (item) {
       case 'hero':
-        return <HeroScreen isActive={isActive} />;
+        return <HeroScreen isActive={isActive} colors={colors} isDark={isDark} />;
       case 'capture':
-        return <CaptureScreen isActive={isActive} />;
+        return <CaptureScreen isActive={isActive} colors={colors} isDark={isDark} />;
       case 'organize':
-        return <OrganizeScreen isActive={isActive} />;
+        return <OrganizeScreen isActive={isActive} colors={colors} isDark={isDark} />;
       case 'brief':
         return (
           <DailyBriefScreen 
             isActive={isActive}
+            colors={colors}
+            isDark={isDark}
             briefTime={`${briefHour}:00`}
             onTimeChange={setBriefHour}
           />
@@ -551,6 +577,8 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         return (
           <QuietHoursScreen
             isActive={isActive}
+            colors={colors}
+            isDark={isDark}
             quietStart={`${quietStartHour}:00`}
             quietEnd={`${quietEndHour}:00`}
             onStartChange={setQuietStartHour}
@@ -565,9 +593,9 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const isLastSlide = currentIndex === slides.length - 1;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <LinearGradient
-        colors={['#0A0A0F', '#0F0F18', '#0A0A0F']}
+        colors={isDark ? ['#000000', '#000000', '#000000'] : [colors.background, colors.backgroundSecondary, colors.background]}
         style={StyleSheet.absoluteFill}
       />
 
@@ -595,7 +623,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
               style={[
                 styles.dot, 
                 { 
-                  backgroundColor: index === currentIndex ? '#818CF8' : 'rgba(255,255,255,0.2)',
+                  backgroundColor: index === currentIndex ? colors.primary : (isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)'),
                   width: index === currentIndex ? 24 : 8,
                 }
               ]} 
@@ -606,7 +634,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         {/* Skip */}
         {!isLastSlide && (
           <Pressable onPress={finishOnboarding} style={styles.skipButton} hitSlop={10}>
-            <Text style={styles.skipText}>Skip</Text>
+            <Text style={[styles.skipText, { color: colors.textSecondary }]}>Skip</Text>
           </Pressable>
         )}
 
