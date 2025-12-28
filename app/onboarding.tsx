@@ -8,16 +8,17 @@ import {
   FlatList,
   NativeSyntheticEvent,
   NativeScrollEvent,
+  Image,
 } from 'react-native';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
-  withRepeat, 
   withTiming, 
   withSequence,
+  withDelay,
   Easing,
-  FadeInDown,
-  FadeIn,
+  interpolate,
+  runOnJS,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -29,202 +30,470 @@ import {
   Calendar,
   Bell,
   Moon,
-  ListChecks,
-  Zap,
   Sun,
+  Check,
+  ChevronUp,
+  ChevronDown,
+  Shield,
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSettingsStore } from '../src/store/useSettingsStore';
 import { darkColors } from '../src/ui/theme';
 
-const { width, height } = Dimensions.get('window');
-const colors = darkColors; // Consistent dark theme throughout
+const { width } = Dimensions.get('window');
+const colors = darkColors;
 
 interface OnboardingScreenProps {
   onComplete?: () => void;
 }
 
-// Slide data - focused on 5 core features
-const SLIDES = [
-  {
-    id: 'welcome',
-    icon: Sparkles,
-    iconGradient: ['#6366F1', '#8B5CF6'] as const,
-    title: 'Your Calm,\nReliable Companion',
-    description: 'A minimal AI assistant that helps you stay on top of what matters — without the noise.',
-    features: null,
-  },
-  {
-    id: 'capture',
-    icon: Mic,
-    iconGradient: ['#8B5CF6', '#A855F7'] as const,
-    title: 'Capture Everything',
-    description: 'Thoughts, tasks, bills, follow-ups — just speak or type. We\'ll handle the rest.',
-    features: [
-      { icon: Mic, text: 'Voice capture', color: '#A855F7' },
-      { icon: PenLine, text: 'Quick typing', color: '#6366F1' },
-    ],
-  },
-  {
-    id: 'organize',
-    icon: ListChecks,
-    iconGradient: ['#10B981', '#34D399'] as const,
-    title: 'Auto-Organized',
-    description: 'Everything gets sorted into Today and Upcoming — no manual work needed.',
-    features: [
-      { icon: Sun, text: 'Today\'s priorities', color: '#FBBF24' },
-      { icon: Calendar, text: 'Upcoming items', color: '#6366F1' },
-    ],
-  },
-  {
-    id: 'brief',
-    icon: Sun,
-    iconGradient: ['#F59E0B', '#FBBF24'] as const,
-    title: 'Daily Brief',
-    description: 'Every morning, see what matters today and what can wait. Start clear-headed.',
-    features: [
-      { icon: Zap, text: 'Morning overview', color: '#FBBF24' },
-      { icon: ListChecks, text: 'Prioritized tasks', color: '#34D399' },
-    ],
-  },
-  {
-    id: 'reminders',
-    icon: Bell,
-    iconGradient: ['#EC4899', '#F472B6'] as const,
-    title: 'Smart Reminders',
-    description: 'Get notified at the right time. Snooze or reschedule with a tap.',
-    features: [
-      { icon: Bell, text: 'Timely alerts', color: '#F472B6' },
-      { icon: Moon, text: 'Quiet hours', color: '#818CF8' },
-    ],
-  },
-];
-
-// Animated Icon Component
-function AnimatedIcon({ Icon, gradient }: { Icon: typeof Sparkles; gradient: readonly [string, string] }) {
-  const scale = useSharedValue(1);
-  const glow = useSharedValue(0.3);
+// ============================================================
+// ANIMATION HOOK - Triggers on slide change
+// ============================================================
+function useSlideAnimation(isActive: boolean) {
+  const opacity = useSharedValue(0);
+  const translateY = useSharedValue(30);
 
   useEffect(() => {
-    scale.value = withRepeat(
-      withSequence(
-        withTiming(1.05, { duration: 2000, easing: Easing.inOut(Easing.quad) }),
-        withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.quad) })
-      ),
-      -1,
-      true
-    );
-    glow.value = withRepeat(
-      withSequence(
-        withTiming(0.6, { duration: 2000, easing: Easing.inOut(Easing.quad) }),
-        withTiming(0.3, { duration: 2000, easing: Easing.inOut(Easing.quad) })
-      ),
-      -1,
-      true
-    );
-  }, []);
+    if (isActive) {
+      // Reset then animate in
+      opacity.value = 0;
+      translateY.value = 30;
+      
+      opacity.value = withDelay(100, withTiming(1, { duration: 400, easing: Easing.out(Easing.quad) }));
+      translateY.value = withDelay(100, withTiming(0, { duration: 500, easing: Easing.out(Easing.back(1.2)) }));
+    }
+  }, [isActive]);
+
+  return { opacity, translateY };
+}
+
+function useStaggeredAnimation(isActive: boolean, delay: number) {
+  const opacity = useSharedValue(0);
+  const translateY = useSharedValue(25);
+
+  useEffect(() => {
+    if (isActive) {
+      opacity.value = 0;
+      translateY.value = 25;
+      
+      opacity.value = withDelay(delay, withTiming(1, { duration: 350 }));
+      translateY.value = withDelay(delay, withTiming(0, { duration: 400, easing: Easing.out(Easing.quad) }));
+    }
+  }, [isActive]);
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+    transform: [{ translateY: translateY.value }],
   }));
 
-  const glowStyle = useAnimatedStyle(() => ({
-    opacity: glow.value,
+  return animatedStyle;
+}
+
+// ============================================================
+// SCREEN 1: HERO - Sharp Positioning
+// ============================================================
+function HeroScreen({ isActive }: { isActive: boolean }) {
+  const logoScale = useSharedValue(1);
+  const logoOpacity = useSharedValue(0);
+  
+  useEffect(() => {
+    if (isActive) {
+      logoOpacity.value = 0;
+      logoScale.value = 0.8;
+      
+      logoOpacity.value = withDelay(50, withTiming(1, { duration: 400 }));
+      logoScale.value = withDelay(50, withTiming(1, { duration: 500, easing: Easing.out(Easing.back(1.5)) }));
+    }
+  }, [isActive]);
+
+  const animatedLogo = useAnimatedStyle(() => ({
+    opacity: logoOpacity.value,
+    transform: [{ scale: logoScale.value }],
   }));
+
+  const brandStyle = useStaggeredAnimation(isActive, 200);
+  const headlineStyle = useStaggeredAnimation(isActive, 350);
+  const subheadStyle = useStaggeredAnimation(isActive, 500);
+  const trustStyle = useStaggeredAnimation(isActive, 650);
 
   return (
-    <View style={styles.iconContainer}>
-      {/* Glow effect */}
-      <Animated.View style={[styles.iconGlow, glowStyle]}>
-        <LinearGradient
-          colors={[gradient[0], 'transparent']}
-          style={styles.iconGlowGradient}
+    <View style={styles.slide}>
+      {/* App Logo */}
+      <Animated.View style={[styles.logoContainer, animatedLogo]}>
+        <Image 
+          source={require('../assets/AI_Companion_icon.png')} 
+          style={styles.appLogo}
         />
       </Animated.View>
-      
-      {/* Main icon */}
-      <Animated.View style={animatedStyle}>
-        <LinearGradient
-          colors={gradient}
-          style={styles.iconCircle}
-        >
-          <Icon size={40} color="#FFFFFF" strokeWidth={1.5} />
-        </LinearGradient>
+
+      {/* Brand Name + AI Badge */}
+      <Animated.View style={[styles.brandContainer, brandStyle]}>
+        <Text style={styles.brandName}>Asteron</Text>
+        <View style={styles.aiBadge}>
+          <Sparkles size={12} color="#818CF8" />
+          <Text style={styles.aiBadgeText}>AI-Powered</Text>
+        </View>
+      </Animated.View>
+
+      {/* Sharp Headline */}
+      <Animated.Text style={[styles.heroHeadline, headlineStyle]}>
+        Stop getting blindsided{'\n'}by deadlines.
+      </Animated.Text>
+
+      {/* Subhead */}
+      <Animated.Text style={[styles.heroSubhead, subheadStyle]}>
+        Bills, renewals, follow-ups—Asteron turns quick notes into organized reminders and a calm daily brief.
+      </Animated.Text>
+
+      {/* Trust Line */}
+      <Animated.View style={[styles.trustContainer, trustStyle]}>
+        <Shield size={14} color="#818CF8" />
+        <Text style={styles.trustText}>Private by default. No ads. You control notifications.</Text>
       </Animated.View>
     </View>
   );
 }
 
-// Feature pill component
-function FeaturePill({ icon: Icon, text, color }: { icon: typeof Sparkles; text: string; color: string }) {
-  return (
-    <View style={[styles.featurePill, { backgroundColor: `${color}15` }]}>
-      <Icon size={16} color={color} strokeWidth={2} />
-      <Text style={[styles.featurePillText, { color }]}>{text}</Text>
-    </View>
-  );
-}
+// ============================================================
+// SCREEN 2: CAPTURE - Better Language + Example Card
+// ============================================================
+function CaptureScreen({ isActive }: { isActive: boolean }) {
+  const iconStyle = useStaggeredAnimation(isActive, 50);
+  const titleStyle = useStaggeredAnimation(isActive, 200);
+  const descStyle = useStaggeredAnimation(isActive, 350);
+  const cardStyle = useStaggeredAnimation(isActive, 500);
+  const pillsStyle = useStaggeredAnimation(isActive, 650);
 
-// Single slide component
-function Slide({ item, index }: { item: typeof SLIDES[0]; index: number }) {
   return (
     <View style={styles.slide}>
       {/* Icon */}
-      <Animated.View entering={FadeIn.delay(200).duration(600)}>
-        <AnimatedIcon Icon={item.icon} gradient={item.iconGradient} />
+      <Animated.View style={iconStyle}>
+        <LinearGradient colors={['#8B5CF6', '#A855F7']} style={styles.iconCircle}>
+          <Mic size={36} color="#FFFFFF" strokeWidth={1.5} />
+        </LinearGradient>
       </Animated.View>
 
       {/* Title */}
-      <Animated.Text 
-        entering={FadeInDown.delay(400).duration(600)}
-        style={styles.title}
-      >
-        {item.title}
+      <Animated.Text style={[styles.screenTitle, titleStyle]}>
+        Drop it here.{'\n'}Get it out of your head.
       </Animated.Text>
 
       {/* Description */}
-      <Animated.Text 
-        entering={FadeInDown.delay(500).duration(600)}
-        style={styles.description}
-      >
-        {item.description}
+      <Animated.Text style={[styles.screenDescription, descStyle]}>
+        Speak or type—Asteron organizes it. No sorting, no folders, no friction.
       </Animated.Text>
 
-      {/* Features */}
-      {item.features && (
-        <Animated.View 
-          entering={FadeInDown.delay(600).duration(600)}
-          style={styles.featuresContainer}
-        >
-          {item.features.map((feature, i) => (
-            <FeaturePill 
-              key={i} 
-              icon={feature.icon} 
-              text={feature.text} 
-              color={feature.color} 
-            />
-          ))}
-        </Animated.View>
-      )}
+      {/* Example Card */}
+      <Animated.View style={[styles.exampleCard, cardStyle]}>
+        <View style={styles.exampleCardHeader}>
+          <Mic size={16} color="#A855F7" />
+          <Text style={styles.exampleCardLabel}>You say:</Text>
+        </View>
+        <Text style={styles.exampleCardInput}>"Pay PG&E bill January 5th"</Text>
+        <View style={styles.exampleCardDivider} />
+        <View style={styles.exampleCardResult}>
+          <Calendar size={14} color="#34D399" />
+          <Text style={styles.exampleCardResultText}>Added to Upcoming • Jan 5</Text>
+        </View>
+      </Animated.View>
+
+      {/* Feature Pills */}
+      <Animated.View style={[styles.pillsRow, pillsStyle]}>
+        <View style={[styles.pill, { backgroundColor: 'rgba(168, 85, 247, 0.15)' }]}>
+          <Mic size={14} color="#A855F7" />
+          <Text style={[styles.pillText, { color: '#A855F7' }]}>Voice</Text>
+        </View>
+        <View style={[styles.pill, { backgroundColor: 'rgba(99, 102, 241, 0.15)' }]}>
+          <PenLine size={14} color="#818CF8" />
+          <Text style={[styles.pillText, { color: '#818CF8' }]}>Typing</Text>
+        </View>
+      </Animated.View>
     </View>
   );
 }
 
-// Main component
+// ============================================================
+// SCREEN 3: ORGANIZE - Mini Today/Upcoming List
+// ============================================================
+function OrganizeScreen({ isActive }: { isActive: boolean }) {
+  const titleStyle = useStaggeredAnimation(isActive, 50);
+  const descStyle = useStaggeredAnimation(isActive, 200);
+  const listStyle = useStaggeredAnimation(isActive, 400);
+
+  return (
+    <View style={styles.slide}>
+      {/* Title */}
+      <Animated.Text style={[styles.screenTitle, titleStyle]}>
+        Today vs Upcoming.{'\n'}Auto-sorted.
+      </Animated.Text>
+
+      {/* Description */}
+      <Animated.Text style={[styles.screenDescription, descStyle]}>
+        Everything lands in the right place. Focus on today, glance at what's next.
+      </Animated.Text>
+
+      {/* Mini List UI */}
+      <Animated.View style={[styles.miniListContainer, listStyle]}>
+        {/* Today Section */}
+        <View style={styles.miniSection}>
+          <View style={styles.miniSectionHeader}>
+            <Sun size={14} color="#FBBF24" />
+            <Text style={styles.miniSectionTitle}>TODAY</Text>
+          </View>
+          <View style={styles.miniTask}>
+            <View style={[styles.miniCheckbox, { borderColor: '#FBBF24' }]} />
+            <Text style={styles.miniTaskText}>Call dentist</Text>
+            <Text style={styles.miniTaskTime}>10:00 AM</Text>
+          </View>
+          <View style={styles.miniTask}>
+            <View style={[styles.miniCheckbox, { borderColor: '#FBBF24' }]} />
+            <Text style={styles.miniTaskText}>Review quarterly goals</Text>
+            <Text style={styles.miniTaskTime}>2:00 PM</Text>
+          </View>
+        </View>
+
+        {/* Upcoming Section */}
+        <View style={styles.miniSection}>
+          <View style={styles.miniSectionHeader}>
+            <Calendar size={14} color="#818CF8" />
+            <Text style={styles.miniSectionTitle}>UPCOMING</Text>
+          </View>
+          <View style={styles.miniTask}>
+            <View style={[styles.miniCheckbox, { borderColor: '#818CF8' }]} />
+            <Text style={styles.miniTaskText}>Pay PG&E bill</Text>
+            <Text style={styles.miniTaskTime}>Jan 5</Text>
+          </View>
+          <View style={styles.miniTask}>
+            <View style={[styles.miniCheckbox, { borderColor: '#818CF8' }]} />
+            <Text style={styles.miniTaskText}>Renew car registration</Text>
+            <Text style={styles.miniTaskTime}>Jan 12</Text>
+          </View>
+        </View>
+      </Animated.View>
+    </View>
+  );
+}
+
+// ============================================================
+// SCREEN 4: DAILY BRIEF - Interactive Time Picker
+// ============================================================
+function DailyBriefScreen({ 
+  isActive,
+  briefTime, 
+  onTimeChange 
+}: { 
+  isActive: boolean;
+  briefTime: string; 
+  onTimeChange: (hour: number) => void;
+}) {
+  const hour = parseInt(briefTime.split(':')[0], 10);
+  
+  const incrementHour = () => {
+    const newHour = hour >= 11 ? 5 : hour + 1;
+    onTimeChange(newHour);
+  };
+  
+  const decrementHour = () => {
+    const newHour = hour <= 5 ? 11 : hour - 1;
+    onTimeChange(newHour);
+  };
+
+  const formatTime = (h: number) => `${h}:00 AM`;
+
+  const iconStyle = useStaggeredAnimation(isActive, 50);
+  const titleStyle = useStaggeredAnimation(isActive, 200);
+  const descStyle = useStaggeredAnimation(isActive, 350);
+  const pickerStyle = useStaggeredAnimation(isActive, 500);
+  const previewStyle = useStaggeredAnimation(isActive, 650);
+
+  return (
+    <View style={styles.slide}>
+      {/* Icon */}
+      <Animated.View style={iconStyle}>
+        <LinearGradient colors={['#F59E0B', '#FBBF24']} style={styles.iconCircle}>
+          <Sun size={36} color="#FFFFFF" strokeWidth={1.5} />
+        </LinearGradient>
+      </Animated.View>
+
+      {/* Title */}
+      <Animated.Text style={[styles.screenTitle, titleStyle]}>
+        Your morning brief.{'\n'}Clear priorities.
+      </Animated.Text>
+
+      {/* Description */}
+      <Animated.Text style={[styles.screenDescription, descStyle]}>
+        Every morning, see what matters today and what can wait. Start calm.
+      </Animated.Text>
+
+      {/* Time Picker */}
+      <Animated.View style={[styles.timePickerCard, pickerStyle]}>
+        <Text style={styles.timePickerLabel}>When do you want your daily brief?</Text>
+        <View style={styles.timePickerRow}>
+          <Pressable onPress={decrementHour} style={styles.timeButton} hitSlop={10}>
+            <ChevronDown size={24} color="#818CF8" />
+          </Pressable>
+          <View style={styles.timeDisplay}>
+            <Text style={styles.timeText}>{formatTime(hour)}</Text>
+          </View>
+          <Pressable onPress={incrementHour} style={styles.timeButton} hitSlop={10}>
+            <ChevronUp size={24} color="#818CF8" />
+          </Pressable>
+        </View>
+      </Animated.View>
+
+      {/* Mini Brief Preview */}
+      <Animated.View style={[styles.briefPreview, previewStyle]}>
+        <View style={styles.briefPreviewHeader}>
+          <Sparkles size={14} color="#FBBF24" />
+          <Text style={styles.briefPreviewTitle}>Daily Brief Preview</Text>
+        </View>
+        <View style={styles.briefPreviewStats}>
+          <View style={styles.briefStat}>
+            <Text style={styles.briefStatNumber}>3</Text>
+            <Text style={styles.briefStatLabel}>Today</Text>
+          </View>
+          <View style={styles.briefStatDivider} />
+          <View style={styles.briefStat}>
+            <Text style={styles.briefStatNumber}>5</Text>
+            <Text style={styles.briefStatLabel}>Upcoming</Text>
+          </View>
+          <View style={styles.briefStatDivider} />
+          <View style={styles.briefStat}>
+            <Check size={16} color="#34D399" />
+            <Text style={styles.briefStatLabel}>On track</Text>
+          </View>
+        </View>
+      </Animated.View>
+    </View>
+  );
+}
+
+// ============================================================
+// SCREEN 5: QUIET HOURS - Setup + Promise
+// ============================================================
+function QuietHoursScreen({
+  isActive,
+  quietStart,
+  quietEnd,
+  onStartChange,
+  onEndChange,
+}: {
+  isActive: boolean;
+  quietStart: string;
+  quietEnd: string;
+  onStartChange: (hour: number) => void;
+  onEndChange: (hour: number) => void;
+}) {
+  const startHour = parseInt(quietStart.split(':')[0], 10);
+  const endHour = parseInt(quietEnd.split(':')[0], 10);
+
+  const formatPM = (h: number) => `${h > 12 ? h - 12 : h}:00 ${h >= 12 ? 'PM' : 'AM'}`;
+  const formatAM = (h: number) => `${h}:00 AM`;
+
+  const iconStyle = useStaggeredAnimation(isActive, 50);
+  const titleStyle = useStaggeredAnimation(isActive, 200);
+  const descStyle = useStaggeredAnimation(isActive, 350);
+  const cardStyle = useStaggeredAnimation(isActive, 500);
+  const promiseStyle = useStaggeredAnimation(isActive, 700);
+
+  return (
+    <View style={styles.slide}>
+      {/* Icon */}
+      <Animated.View style={iconStyle}>
+        <LinearGradient colors={['#6366F1', '#818CF8']} style={styles.iconCircle}>
+          <Moon size={36} color="#FFFFFF" strokeWidth={1.5} />
+        </LinearGradient>
+      </Animated.View>
+
+      {/* Title */}
+      <Animated.Text style={[styles.screenTitle, titleStyle]}>
+        Fewer pings.{'\n'}More control.
+      </Animated.Text>
+
+      {/* Description */}
+      <Animated.Text style={[styles.screenDescription, descStyle]}>
+        Set quiet hours so you only hear from us when it matters.
+      </Animated.Text>
+
+      {/* Quiet Hours Setup */}
+      <Animated.View style={[styles.quietHoursCard, cardStyle]}>
+        <Text style={styles.quietHoursLabel}>Quiet hours</Text>
+        
+        <View style={styles.quietHoursRow}>
+          <View style={styles.quietTimeBlock}>
+            <Text style={styles.quietTimeLabel}>From</Text>
+            <View style={styles.quietTimeControl}>
+              <Pressable onPress={() => onStartChange(startHour > 20 ? 20 : startHour + 1)} hitSlop={10}>
+                <ChevronUp size={20} color="#818CF8" />
+              </Pressable>
+              <Text style={styles.quietTimeValue}>{formatPM(startHour)}</Text>
+              <Pressable onPress={() => onStartChange(startHour < 20 ? 23 : startHour - 1)} hitSlop={10}>
+                <ChevronDown size={20} color="#818CF8" />
+              </Pressable>
+            </View>
+          </View>
+          
+          <Text style={styles.quietTimeTo}>to</Text>
+          
+          <View style={styles.quietTimeBlock}>
+            <Text style={styles.quietTimeLabel}>Until</Text>
+            <View style={styles.quietTimeControl}>
+              <Pressable onPress={() => onEndChange(endHour >= 10 ? 5 : endHour + 1)} hitSlop={10}>
+                <ChevronUp size={20} color="#818CF8" />
+              </Pressable>
+              <Text style={styles.quietTimeValue}>{formatAM(endHour)}</Text>
+              <Pressable onPress={() => onEndChange(endHour <= 5 ? 10 : endHour - 1)} hitSlop={10}>
+                <ChevronDown size={20} color="#818CF8" />
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Animated.View>
+
+      {/* Promise */}
+      <Animated.View style={[styles.promiseContainer, promiseStyle]}>
+        <Bell size={16} color="#34D399" />
+        <Text style={styles.promiseText}>No notifications during quiet hours. Ever.</Text>
+      </Animated.View>
+    </View>
+  );
+}
+
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
 export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const insets = useSafeAreaInsets();
   const flatListRef = useRef<FlatList>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  
+  // Settings
+  const {
+    setQuietHoursStart,
+    setQuietHoursEnd,
+  } = useSettingsStore();
+  
+  const [briefHour, setBriefHour] = useState(8);
+  const [quietStartHour, setQuietStartHour] = useState(22);
+  const [quietEndHour, setQuietEndHour] = useState(7);
+
+  const slides = ['hero', 'capture', 'organize', 'brief', 'quiet'];
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const slideSize = event.nativeEvent.layoutMeasurement.width;
     const index = event.nativeEvent.contentOffset.x / slideSize;
     const roundIndex = Math.round(index);
-    if (roundIndex !== currentIndex && roundIndex >= 0 && roundIndex < SLIDES.length) {
+    if (roundIndex !== currentIndex && roundIndex >= 0 && roundIndex < slides.length) {
       setCurrentIndex(roundIndex);
     }
   };
 
   const finishOnboarding = async () => {
+    // Save settings
+    setQuietHoursStart(`${quietStartHour}:00`);
+    setQuietHoursEnd(`${quietEndHour}:00`);
+    
     if (onComplete) {
       onComplete();
     } else {
@@ -237,18 +506,50 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   };
 
   const nextSlide = () => {
-    if (currentIndex < SLIDES.length - 1) {
+    if (currentIndex < slides.length - 1) {
       flatListRef.current?.scrollToIndex({ index: currentIndex + 1 });
     } else {
       finishOnboarding();
     }
   };
 
-  const isLastSlide = currentIndex === SLIDES.length - 1;
+  const renderSlide = ({ item, index }: { item: string; index: number }) => {
+    const isActive = index === currentIndex;
+    
+    switch (item) {
+      case 'hero':
+        return <HeroScreen isActive={isActive} />;
+      case 'capture':
+        return <CaptureScreen isActive={isActive} />;
+      case 'organize':
+        return <OrganizeScreen isActive={isActive} />;
+      case 'brief':
+        return (
+          <DailyBriefScreen 
+            isActive={isActive}
+            briefTime={`${briefHour}:00`}
+            onTimeChange={setBriefHour}
+          />
+        );
+      case 'quiet':
+        return (
+          <QuietHoursScreen
+            isActive={isActive}
+            quietStart={`${quietStartHour}:00`}
+            quietEnd={`${quietEndHour}:00`}
+            onStartChange={setQuietStartHour}
+            onEndChange={setQuietEndHour}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
+  const isLastSlide = currentIndex === slides.length - 1;
 
   return (
     <View style={styles.container}>
-      {/* Background gradient */}
       <LinearGradient
         colors={['#0A0A0F', '#0F0F18', '#0A0A0F']}
         style={StyleSheet.absoluteFill}
@@ -256,22 +557,23 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 
       <FlatList
         ref={flatListRef}
-        data={SLIDES}
-        renderItem={({ item, index }) => <Slide item={item} index={index} />}
-        keyExtractor={item => item.id}
+        data={slides}
+        renderItem={renderSlide}
+        keyExtractor={item => item}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         onScroll={handleScroll}
         scrollEventThrottle={16}
         bounces={false}
+        extraData={currentIndex}
       />
 
       {/* Footer */}
       <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
-        {/* Pagination Dots */}
+        {/* Pagination */}
         <View style={styles.pagination}>
-          {SLIDES.map((_, index) => (
+          {slides.map((_, index) => (
             <View 
               key={index}
               style={[
@@ -285,25 +587,15 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
           ))}
         </View>
 
-        {/* Skip button */}
+        {/* Skip */}
         {!isLastSlide && (
-          <Pressable 
-            onPress={finishOnboarding} 
-            style={styles.skipButton}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
+          <Pressable onPress={finishOnboarding} style={styles.skipButton} hitSlop={10}>
             <Text style={styles.skipText}>Skip</Text>
           </Pressable>
         )}
 
-        {/* Main CTA Button */}
-        <Pressable 
-          onPress={nextSlide}
-          style={({ pressed }) => [
-            styles.ctaButton,
-            { opacity: pressed ? 0.9 : 1 }
-          ]}
-        >
+        {/* CTA */}
+        <Pressable onPress={nextSlide} style={({ pressed }) => [styles.ctaButton, { opacity: pressed ? 0.9 : 1 }]}>
           <LinearGradient
             colors={['#6366F1', '#818CF8']}
             start={{ x: 0, y: 0 }}
@@ -321,83 +613,384 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   );
 }
 
+// ============================================================
+// STYLES
+// ============================================================
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: '#000',
   },
   slide: {
     width,
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 32,
-    paddingBottom: 200, // Space for footer
+    paddingHorizontal: 28,
+    paddingBottom: 180,
   },
 
-  // Icon styles
-  iconContainer: {
-    marginBottom: 40,
+  // Logo & Brand
+  logoContainer: {
+    marginBottom: 16,
+    borderRadius: 24,
+    overflow: 'hidden',
+  },
+  logoGradient: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconGlow: {
-    position: 'absolute',
-    width: 200,
-    height: 200,
-    borderRadius: 100,
+  brandName: {
+    fontFamily: 'Manrope_700Bold',
+    fontSize: 28,
+    color: '#FFFFFF',
+    letterSpacing: 1,
   },
-  iconGlowGradient: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 100,
+  brandContainer: {
+    alignItems: 'center',
+    marginBottom: 32,
   },
-  iconCircle: {
+  appLogo: {
     width: 100,
     height: 100,
-    borderRadius: 50,
+    borderRadius: 24,
+  },
+  aiBadge: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 4,
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: 'rgba(129, 140, 248, 0.15)',
+    borderRadius: 12,
+  },
+  aiBadgeText: {
+    fontFamily: 'DMSans_500Medium',
+    fontSize: 11,
+    color: '#818CF8',
+    letterSpacing: 0.5,
   },
 
-  // Text styles
-  title: {
+  // Hero Screen
+  heroHeadline: {
     fontFamily: 'Manrope_700Bold',
     fontSize: 32,
     color: '#FFFFFF',
     textAlign: 'center',
-    letterSpacing: -0.5,
     lineHeight: 40,
     marginBottom: 16,
   },
-  description: {
+  heroSubhead: {
     fontFamily: 'DMSans_400Regular',
-    fontSize: 17,
+    fontSize: 16,
     color: 'rgba(255,255,255,0.7)',
     textAlign: 'center',
-    lineHeight: 26,
-    paddingHorizontal: 16,
+    lineHeight: 24,
+    paddingHorizontal: 8,
     marginBottom: 32,
   },
-
-  // Features
-  featuresContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  featurePill: {
+  trustContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
+    backgroundColor: 'rgba(129, 140, 248, 0.1)',
     borderRadius: 20,
+  },
+  trustText: {
+    fontFamily: 'DMSans_400Regular',
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.6)',
+  },
+
+  // Generic Screens
+  iconCircle: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 32,
+  },
+  screenTitle: {
+    fontFamily: 'Manrope_700Bold',
+    fontSize: 28,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    lineHeight: 36,
+    marginBottom: 12,
+  },
+  screenDescription: {
+    fontFamily: 'DMSans_400Regular',
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.6)',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 28,
+    paddingHorizontal: 8,
+  },
+
+  // Example Card
+  exampleCard: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 16,
+    padding: 16,
+    width: '100%',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  exampleCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  exampleCardLabel: {
+    fontFamily: 'DMSans_400Regular',
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.5)',
+  },
+  exampleCardInput: {
+    fontFamily: 'DMSans_500Medium',
+    fontSize: 16,
+    color: '#FFFFFF',
+    marginBottom: 12,
+  },
+  exampleCardDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    marginBottom: 12,
+  },
+  exampleCardResult: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
   },
-  featurePillText: {
+  exampleCardResultText: {
+    fontFamily: 'DMSans_400Regular',
+    fontSize: 14,
+    color: '#34D399',
+  },
+
+  // Pills
+  pillsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    gap: 6,
+  },
+  pillText: {
+    fontFamily: 'DMSans_500Medium',
+    fontSize: 13,
+  },
+
+  // Mini List
+  miniListContainer: {
+    width: '100%',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  miniSection: {
+    marginBottom: 16,
+  },
+  miniSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
+  },
+  miniSectionTitle: {
+    fontFamily: 'DMSans_500Medium',
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.5)',
+    letterSpacing: 0.5,
+  },
+  miniTask: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  miniCheckbox: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    marginRight: 12,
+  },
+  miniTaskText: {
+    fontFamily: 'DMSans_400Regular',
+    fontSize: 14,
+    color: '#FFFFFF',
+    flex: 1,
+  },
+  miniTaskTime: {
+    fontFamily: 'DMSans_400Regular',
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.4)',
+  },
+
+  // Time Picker
+  timePickerCard: {
+    width: '100%',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  timePickerLabel: {
+    fontFamily: 'DMSans_400Regular',
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.6)',
+    marginBottom: 16,
+  },
+  timePickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 20,
+  },
+  timeButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(129, 140, 248, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timeDisplay: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(129, 140, 248, 0.2)',
+    borderRadius: 12,
+  },
+  timeText: {
+    fontFamily: 'Manrope_700Bold',
+    fontSize: 24,
+    color: '#FFFFFF',
+  },
+
+  // Brief Preview
+  briefPreview: {
+    width: '100%',
+    backgroundColor: 'rgba(251, 191, 36, 0.1)',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(251, 191, 36, 0.2)',
+  },
+  briefPreviewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  briefPreviewTitle: {
+    fontFamily: 'DMSans_500Medium',
+    fontSize: 13,
+    color: '#FBBF24',
+  },
+  briefPreviewStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+  briefStat: {
+    alignItems: 'center',
+  },
+  briefStatNumber: {
+    fontFamily: 'Manrope_700Bold',
+    fontSize: 24,
+    color: '#FFFFFF',
+  },
+  briefStatLabel: {
+    fontFamily: 'DMSans_400Regular',
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.5)',
+    marginTop: 4,
+  },
+  briefStatDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+
+  // Quiet Hours
+  quietHoursCard: {
+    width: '100%',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  quietHoursLabel: {
     fontFamily: 'DMSans_500Medium',
     fontSize: 14,
+    color: 'rgba(255,255,255,0.6)',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  quietHoursRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+  },
+  quietTimeBlock: {
+    alignItems: 'center',
+  },
+  quietTimeLabel: {
+    fontFamily: 'DMSans_400Regular',
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.4)',
+    marginBottom: 8,
+  },
+  quietTimeControl: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  quietTimeValue: {
+    fontFamily: 'Manrope_700Bold',
+    fontSize: 18,
+    color: '#FFFFFF',
+    paddingVertical: 8,
+  },
+  quietTimeTo: {
+    fontFamily: 'DMSans_400Regular',
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.4)',
+  },
+  promiseContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(52, 211, 153, 0.1)',
+    borderRadius: 20,
+  },
+  promiseText: {
+    fontFamily: 'DMSans_400Regular',
+    fontSize: 13,
+    color: '#34D399',
   },
 
   // Footer
