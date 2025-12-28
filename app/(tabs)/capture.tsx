@@ -25,6 +25,7 @@ import { useItemsStore } from '../../src/store/useItemsStore';
 import { aiService } from '../../src/ai/aiService';
 import { RainbowSparkles } from '../../src/ui/components/RainbowSparkles';
 import { LiveSparkles } from '../../src/ui/components/LiveSparkles';
+import { AddTaskModal } from '../../src/ui/components/AddTaskModal';
 import { ChevronLeft } from 'lucide-react-native';
 import type { Item } from '../../src/db/items';
 
@@ -55,6 +56,9 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
   // Voice state
   const [isRecording, setIsRecording] = useState(false);
   const recordingRef = useRef<Audio.Recording | null>(null);
+
+  // Add Task Modal state
+  const [showAddModal, setShowAddModal] = useState(false);
 
   // Handle app state changes to clear session when app goes to background
   useEffect(() => {
@@ -269,7 +273,7 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
 
   // Handle plus button press
   const handlePlusPress = useCallback(() => {
-    // TODO: Open action menu
+    setShowAddModal(true);
   }, []);
 
   return (
@@ -385,6 +389,12 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
           isProcessing={isProcessing}
         />
       </KeyboardAvoidingView>
+
+      {/* Add Task Modal */}
+      <AddTaskModal 
+        visible={showAddModal} 
+        onClose={() => setShowAddModal(false)} 
+      />
     </View>
   );
 }

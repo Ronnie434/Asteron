@@ -139,7 +139,7 @@ export function ChatInputBar({
         ) : (
           // DEFAULT TEXT INPUT UI
           <>
-            {/* Plus Button - Commented out for future feature
+            {/* Plus Button */}
             <TouchableOpacity
               style={styles.iconButton}
               activeOpacity={0.7}
@@ -147,7 +147,6 @@ export function ChatInputBar({
             >
               <Plus size={24} color={colors.textSecondary} />
             </TouchableOpacity>
-            */}
 
             {/* Text Input */}
             <TextInput
