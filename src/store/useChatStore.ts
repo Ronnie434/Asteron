@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import * as Crypto from 'expo-crypto';
-import type { ItemType } from '../db/items';
+import type { ItemType, ItemPriority, RepeatFrequency } from '../db/items';
 
 /**
  * Chat message structure for the AI assistant conversation.
@@ -19,18 +19,47 @@ export interface ChatMessage {
     };
     /** Indicates if this message is currently being processed */
     isLoading?: boolean;
+    /** For AI questions that need follow-up */
+    awaitingField?: string;
+}
+
+/**
+ * State for tracking a pending item being created via multi-turn conversation
+ */
+export interface PendingItemState {
+    partialData: {
+        title?: string;
+        type?: ItemType;
+        priority?: ItemPriority;
+        dueAt?: string | null;
+        remindAt?: string | null;
+        details?: string;
+        repeat?: RepeatFrequency;
+        repeatConfig?: string | null;
+    };
+    missingFields: ('priority' | 'dueAt' | 'remindAt' | 'type' | 'details')[];
+    currentQuestion: string | null;
+    awaitingField: string | null;
 }
 
 interface ChatState {
     messages: ChatMessage[];
     isProcessing: boolean;
+    pendingItem: PendingItemState | null;
 
     // Actions
     addUserMessage: (content: string) => string;
-    addAssistantMessage: (content: string, actionResult?: ChatMessage['actionResult']) => string;
+    addAssistantMessage: (content: string, actionResult?: ChatMessage['actionResult'], awaitingField?: string) => string;
     updateMessage: (id: string, updates: Partial<ChatMessage>) => void;
     setProcessing: (isProcessing: boolean) => void;
     clearSession: () => void;
+
+    // Pending item actions for interactive questioning
+    startPendingItem: (partialData: PendingItemState['partialData'], missingFields: PendingItemState['missingFields'], question: string, awaitingField: string) => void;
+    updatePendingItem: (field: string, value: any) => void;
+    completePendingItem: () => PendingItemState['partialData'] | null;
+    cancelPendingItem: () => void;
+    hasPendingItem: () => boolean;
 }
 
 /**
@@ -43,6 +72,7 @@ interface ChatState {
 export const useChatStore = create<ChatState>((set, get) => ({
     messages: [],
     isProcessing: false,
+    pendingItem: null,
 
     addUserMessage: (content: string) => {
         const id = Crypto.randomUUID();
@@ -60,7 +90,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         return id;
     },
 
-    addAssistantMessage: (content: string, actionResult?: ChatMessage['actionResult']) => {
+    addAssistantMessage: (content: string, actionResult?: ChatMessage['actionResult'], awaitingField?: string) => {
         const id = Crypto.randomUUID();
         const message: ChatMessage = {
             id,
@@ -68,6 +98,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             content,
             timestamp: new Date(),
             actionResult,
+            awaitingField,
         };
 
         set((state) => ({
@@ -91,6 +122,61 @@ export const useChatStore = create<ChatState>((set, get) => ({
     },
 
     clearSession: () => {
-        set({ messages: [], isProcessing: false });
+        set({ messages: [], isProcessing: false, pendingItem: null });
+    },
+
+    // Start a new pending item when AI asks for clarification
+    startPendingItem: (partialData, missingFields, question, awaitingField) => {
+        set({
+            pendingItem: {
+                partialData,
+                missingFields,
+                currentQuestion: question,
+                awaitingField,
+            }
+        });
+    },
+
+    // Update a field on the pending item
+    updatePendingItem: (field: string, value: any) => {
+        const { pendingItem } = get();
+        if (!pendingItem) return;
+
+        const updatedPartialData = {
+            ...pendingItem.partialData,
+            [field]: value,
+        };
+
+        const remainingFields = pendingItem.missingFields.filter(f => f !== field);
+
+        set({
+            pendingItem: {
+                ...pendingItem,
+                partialData: updatedPartialData,
+                missingFields: remainingFields as PendingItemState['missingFields'],
+                awaitingField: null,
+                currentQuestion: null,
+            }
+        });
+    },
+
+    // Complete the pending item and return the data
+    completePendingItem: () => {
+        const { pendingItem } = get();
+        if (!pendingItem) return null;
+
+        const data = pendingItem.partialData;
+        set({ pendingItem: null });
+        return data;
+    },
+
+    // Cancel the pending item
+    cancelPendingItem: () => {
+        set({ pendingItem: null });
+    },
+
+    // Check if there's a pending item
+    hasPendingItem: () => {
+        return get().pendingItem !== null;
     },
 }));

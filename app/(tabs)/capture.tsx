@@ -46,6 +46,10 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
   const addAssistantMessage = useChatStore(state => state.addAssistantMessage);
   const setProcessing = useChatStore(state => state.setProcessing);
   const clearSession = useChatStore(state => state.clearSession);
+  const pendingItem = useChatStore(state => state.pendingItem);
+  const startPendingItem = useChatStore(state => state.startPendingItem);
+  const completePendingItem = useChatStore(state => state.completePendingItem);
+  const cancelPendingItem = useChatStore(state => state.cancelPendingItem);
   
   // Items store
   const items = useItemsStore(state => state.items);
@@ -128,10 +132,67 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
     setProcessing(true);
 
     try {
-      // Prepare existing items for context
+      // Check if we're in a pending item conversation (answering a follow-up question)
+      if (pendingItem && pendingItem.awaitingField) {
+        // Process the user's answer to the pending question
+        const followUpResult = await aiService.processFollowUpAnswer?.(
+          pendingItem.partialData,
+          pendingItem.missingFields,
+          text
+        );
+
+        if (followUpResult) {
+          if (followUpResult.complete && followUpResult.updatedData) {
+            // All fields gathered, create the item
+            const data = followUpResult.updatedData;
+            if (data && data.title) {
+              await addItem(data.title, {
+                type: data.type ?? 'task',
+                priority: data.priority ?? 'med',
+                details: data.details ?? undefined,
+                dueAt: data.dueAt ?? null,
+                remindAt: data.remindAt ?? null,
+                repeat: data.repeat ?? 'none',
+                repeatConfig: data.repeatConfig ?? null,
+                status: 'active',
+                confidence: 0.9,
+              });
+
+              addAssistantMessage(`Perfect! I've added "${data.title}" to your list.`, {
+                type: 'created',
+                itemType: data.type ?? 'task',
+                itemId: '',
+                itemTitle: data.title,
+              });
+            }
+            completePendingItem();
+          } else if (followUpResult.nextQuestion && followUpResult.updatedData) {
+            // More questions to ask
+            const nextField = followUpResult.remainingFields[0] || 'details';
+            startPendingItem(
+              followUpResult.updatedData,
+              followUpResult.remainingFields as any,
+              followUpResult.nextQuestion,
+              nextField
+            );
+            addAssistantMessage(followUpResult.nextQuestion, undefined, nextField);
+          }
+        }
+        return;
+      }
+
+      // Prepare rich context for existing items
       const existingItems = items
         .filter(i => i.status === 'active')
-        .map(i => ({ id: i.id, title: i.title, type: i.type }));
+        .map(i => ({ 
+          id: i.id, 
+          title: i.title, 
+          type: i.type,
+          priority: i.priority,
+          dueAt: i.dueAt,
+          remindAt: i.remindAt,
+          status: i.status,
+        }));
 
       // Analyze intent
       const result = await aiService.analyzeIntent(text, existingItems);
@@ -139,7 +200,19 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
       // Handle based on intent
       switch (result.intent) {
         case 'create': {
-          if (result.itemData) {
+          // Check if AI is asking for clarification
+          if (result.needsClarification && result.clarificationQuestion && result.itemData) {
+            // Start pending item and ask the question
+            const firstMissingField = result.missingFields?.[0] || 'priority';
+            startPendingItem(
+              result.itemData,
+              result.missingFields || [],
+              result.clarificationQuestion,
+              firstMissingField
+            );
+            addAssistantMessage(result.clarificationQuestion, undefined, firstMissingField);
+          } else if (result.itemData) {
+            // Create immediately if no clarification needed
             await addItem(result.itemData.title, {
               type: result.itemData.type,
               priority: result.itemData.priority,
@@ -164,23 +237,58 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
           break;
         }
 
-        case 'update': {
-          if (result.searchQuery && result.updates) {
-            // Find matching item
-            const matchingItem = findMatchingItem(items, result.searchQuery);
-            
-            if (matchingItem) {
-              await updateItem(matchingItem.id, result.updates);
-              
-              addAssistantMessage(result.responseText, {
-                type: 'updated',
-                itemType: matchingItem.type,
-                itemId: matchingItem.id,
-                itemTitle: matchingItem.title,
+        case 'batch_create': {
+          if (result.items && result.items.length > 0) {
+            let successCount = 0;
+            for (const item of result.items) {
+               await addItem(item.title, {
+                type: item.type,
+                priority: item.priority,
+                details: item.details,
+                dueAt: item.dueAt,
+                remindAt: item.remindAt,
+                repeat: item.repeat || 'none',
+                repeatConfig: item.repeatConfig || null,
+                status: 'active',
+                confidence: result.confidence,
               });
-            } else {
-              addAssistantMessage("I couldn't find that item. Could you be more specific?");
+              successCount++;
             }
+            addAssistantMessage(result.responseText, {
+              type: 'created',
+              itemType: result.items[0].type,
+              itemId: '',
+              itemTitle: `${successCount} items`,
+            });
+          } else {
+             addAssistantMessage(result.responseText);
+          }
+          break;
+        }
+
+        case 'update': {
+          // Try matchedItemId first (smart matching), then fall back to searchQuery
+          let matchingItem: Item | undefined;
+          
+          if (result.matchedItemId) {
+            matchingItem = items.find(i => i.id === result.matchedItemId);
+          }
+          
+          if (!matchingItem && result.searchQuery) {
+            matchingItem = findMatchingItem(items, result.searchQuery);
+          }
+          
+          if (matchingItem && result.updates) {
+            await updateItem(matchingItem.id, result.updates);
+            
+            addAssistantMessage(result.responseText, {
+              type: 'updated',
+              itemType: matchingItem.type,
+              itemId: matchingItem.id,
+              itemTitle: matchingItem.title,
+            });
+          } else if (!matchingItem) {
+            addAssistantMessage("I couldn't find that item. Could you be more specific?");
           } else {
             addAssistantMessage(result.responseText);
           }
@@ -188,29 +296,36 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
         }
 
         case 'delete': {
-          if (result.searchQuery) {
-            const matchingItem = findMatchingItem(items, result.searchQuery);
+          // Try matchedItemId first, then searchQuery
+          let matchingItem: Item | undefined;
+          
+          if (result.matchedItemId) {
+            matchingItem = items.find(i => i.id === result.matchedItemId);
+          }
+          
+          if (!matchingItem && result.searchQuery) {
+            matchingItem = findMatchingItem(items, result.searchQuery);
+          }
+          
+          if (matchingItem) {
+            await deleteItem(matchingItem.id);
             
-            if (matchingItem) {
-              await deleteItem(matchingItem.id);
-              
-              addAssistantMessage(result.responseText, {
-                type: 'deleted',
-                itemType: matchingItem.type,
-                itemId: matchingItem.id,
-                itemTitle: matchingItem.title,
-              });
-            } else {
-              addAssistantMessage("I couldn't find that item. Could you be more specific?");
-            }
+            addAssistantMessage(result.responseText, {
+              type: 'deleted',
+              itemType: matchingItem.type,
+              itemId: matchingItem.id,
+              itemTitle: matchingItem.title,
+            });
           } else {
-            addAssistantMessage(result.responseText);
+            addAssistantMessage("I couldn't find that item. Could you be more specific?");
           }
           break;
         }
 
-        case 'query': {
-          // For now, just respond with the AI's response
+        case 'query':
+        case 'summary':
+        case 'suggest': {
+          // AI provides data-driven responses
           addAssistantMessage(result.responseText);
           break;
         }
@@ -223,11 +338,12 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
     } catch (error) {
       console.error('Failed to process message:', error);
       addAssistantMessage("Sorry, something went wrong. Please try again.");
+      cancelPendingItem(); // Clear pending item on error
     } finally {
         // Ensure processing is turned off if it wasn't already by addAssistantMessage (which updates store but we might want to be safe)
         // Store updates handle this, but good to keep in mind.
     }
-  }, [items, addUserMessage, addItem, updateItem, deleteItem, addAssistantMessage, setProcessing]);
+  }, [items, pendingItem, addUserMessage, addItem, updateItem, deleteItem, addAssistantMessage, setProcessing, startPendingItem, completePendingItem, cancelPendingItem]);
 
   // Start Recording
   const startRecording = async () => {
@@ -448,28 +564,105 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
   );
 }
 
-// Helper function to find matching item based on search query
+// Helper function to calculate Levenshtein distance for fuzzy matching
+function levenshteinDistance(str1: string, str2: string): number {
+  const m = str1.length;
+  const n = str2.length;
+  const dp: number[][] = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
+
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (str1[i - 1] === str2[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1];
+      } else {
+        dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+      }
+    }
+  }
+  return dp[m][n];
+}
+
+// Calculate similarity score between 0 and 1
+function calculateSimilarity(str1: string, str2: string): number {
+  const maxLen = Math.max(str1.length, str2.length);
+  if (maxLen === 0) return 1;
+  const distance = levenshteinDistance(str1, str2);
+  return 1 - distance / maxLen;
+}
+
+// Helper function to find matching item based on search query with fuzzy matching
 function findMatchingItem(items: Item[], searchQuery: string): Item | undefined {
-  const query = searchQuery.toLowerCase();
+  const query = searchQuery.toLowerCase().trim();
+  const activeItems = items.filter(i => i.status === 'active');
   
-  // First try exact match
-  const exactMatch = items.find(
-    i => i.status === 'active' && i.title.toLowerCase() === query
-  );
-  if (exactMatch) return exactMatch;
+  if (!query || activeItems.length === 0) return undefined;
+
+  // Score each item
+  const scored = activeItems.map(item => {
+    const title = item.title.toLowerCase();
+    let score = 0;
+    
+    // Exact match - highest priority
+    if (title === query) {
+      score = 100;
+    }
+    // Title contains query
+    else if (title.includes(query)) {
+      score = 80;
+    }
+    // Query contains title
+    else if (query.includes(title)) {
+      score = 70;
+    }
+    // Fuzzy match using Levenshtein distance
+    else {
+      const similarity = calculateSimilarity(title, query);
+      if (similarity >= 0.6) {
+        score = similarity * 60; // Scale to 0-60 range
+      }
+      
+      // Also check word-by-word matching
+      const queryWords = query.split(/\s+/).filter(w => w.length > 2);
+      const titleWords = title.split(/\s+/);
+      
+      let wordMatchScore = 0;
+      for (const qWord of queryWords) {
+        for (const tWord of titleWords) {
+          if (tWord.includes(qWord) || qWord.includes(tWord)) {
+            wordMatchScore += 15;
+          } else {
+            const wordSimilarity = calculateSimilarity(qWord, tWord);
+            if (wordSimilarity >= 0.7) {
+              wordMatchScore += 10;
+            }
+          }
+        }
+      }
+      score = Math.max(score, wordMatchScore);
+    }
+    
+    // Small boost for more recent items (within last week)
+    const createdAt = new Date(item.createdAt);
+    const daysSinceCreated = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
+    if (daysSinceCreated < 7) {
+      score += (7 - daysSinceCreated) * 0.5; // Up to 3.5 bonus points
+    }
+    
+    return { item, score };
+  });
   
-  // Then try partial match
-  const partialMatch = items.find(
-    i => i.status === 'active' && i.title.toLowerCase().includes(query)
-  );
-  if (partialMatch) return partialMatch;
+  // Sort by score descending
+  scored.sort((a, b) => b.score - a.score);
   
-  // Try matching individual words
-  const words = query.split(/\s+/);
-  return items.find(i => 
-    i.status === 'active' && 
-    words.some(word => i.title.toLowerCase().includes(word))
-  );
+  // Return best match if score is above threshold
+  if (scored.length > 0 && scored[0].score >= 15) {
+    return scored[0].item;
+  }
+  
+  return undefined;
 }
 
 // Suggestion Chip Component
