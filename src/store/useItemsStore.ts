@@ -211,9 +211,8 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
                             await NotificationService.scheduleReminder(
                                 item.id,
                                 item.title,
-                                item.details || '',
                                 item.remindAt,
-                                item.priority
+                                item.dueAt || null
                             );
                         }
                     }
@@ -276,9 +275,8 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
                     await NotificationService.scheduleReminder(
                         newItem.id,
                         newItem.title,
-                        newItem.details || '',
                         newItem.remindAt,
-                        newItem.priority
+                        newItem.dueAt || null
                     );
                 }
             }
@@ -340,9 +338,8 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
             } else if (patch.remindAt !== undefined) {
                 if (patch.remindAt) {
                     const title = patch.title ?? currentItem.title;
-                    const details = patch.details ?? currentItem.details ?? '';
-                    const priority = patch.priority ?? currentItem.priority;
-                    await NotificationService.scheduleReminder(id, title, details, patch.remindAt, priority);
+                    const dueAt = patch.dueAt ?? currentItem.dueAt;
+                    await NotificationService.scheduleReminder(id, title, patch.remindAt, dueAt || null);
                 } else {
                     await NotificationService.cancelReminder(id);
                 }
@@ -433,12 +430,20 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
                 const reminderTime = new Date(occurrenceDate);
                 reminderTime.setHours(baseDate.getHours(), baseDate.getMinutes(), 0, 0);
 
+                // Compute due time if dueAt exists
+                let dueTime: Date | null = null;
+                if (currentItem.dueAt) {
+                    const baseDue = new Date(currentItem.dueAt);
+                    dueTime = new Date(occurrenceDate);
+                    dueTime.setHours(baseDue.getHours(), baseDue.getMinutes(), 0, 0);
+                }
+
                 if (reminderTime > new Date()) {
                     await NotificationService.scheduleOccurrenceReminder(
                         id,
                         currentItem.title,
                         reminderTime,
-                        currentItem.priority
+                        dueTime
                     );
                     console.log(`[ItemsStore] Re-scheduled notification for "${currentItem.title}" on ${dateStr}`);
                 }
@@ -458,9 +463,8 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
                     await NotificationService.scheduleReminder(
                         id,
                         currentItem.title,
-                        currentItem.details || '',
                         currentItem.remindAt,
-                        currentItem.priority
+                        currentItem.dueAt || null
                     );
                     console.log(`[ItemsStore] Re-scheduled notification for "${currentItem.title}"`);
                 }

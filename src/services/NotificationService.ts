@@ -13,6 +13,56 @@ Notifications.setNotificationHandler({
     }),
 });
 
+/**
+ * Generate time-based notification title
+ * Creates precise, context-first copy based on remindAt ↔ dueAt relationship
+ */
+const getNotificationTitle = (remindAt: Date, dueAt: Date | null, title: string): string => {
+    // No due date = pure reminder
+    if (!dueAt) {
+        return `Reminder: ${title}`;
+    }
+
+    const diffMs = dueAt.getTime() - remindAt.getTime();
+    const diffMin = Math.round(diffMs / 60000);
+
+    // Overdue: reminder fires after due date
+    if (diffMs < 0) {
+        return `Overdue: ${title}`;
+    }
+
+    // Due now: within 5 minutes
+    if (diffMin <= 5) {
+        return `Due now: ${title}`;
+    }
+
+    // Due in X min: within 1 hour
+    if (diffMin <= 60) {
+        return `Due in ${diffMin} min: ${title}`;
+    }
+
+    // Check if same day
+    const isSameDay = remindAt.toDateString() === dueAt.toDateString();
+    if (isSameDay) {
+        const timeStr = dueAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        return `Due at ${timeStr}: ${title}`;
+    }
+
+    // Check if tomorrow
+    const tomorrow = new Date(remindAt);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const isTomorrow = tomorrow.toDateString() === dueAt.toDateString();
+    if (isTomorrow) {
+        const timeStr = dueAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        return `Due tomorrow at ${timeStr}: ${title}`;
+    }
+
+    // Further out - show day name
+    const dayName = dueAt.toLocaleDateString([], { weekday: 'short' });
+    const timeStr = dueAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    return `Due ${dayName} at ${timeStr}: ${title}`;
+};
+
 export const NotificationService = {
     /**
      * Request notification permissions from the user
@@ -54,20 +104,19 @@ export const NotificationService = {
     /**
      * Schedule a notification reminder for a specific item
      * @param id - Unique identifier for the notification (item ID)
-     * @param title - Notification title
-     * @param body - Notification body text  
-     * @param dateStr - ISO 8601 date string for when to trigger
-     * @param priority - Item priority level for styling
+     * @param title - Task/item title
+     * @param remindAtStr - ISO 8601 date string for when to trigger the notification
+     * @param dueAtStr - Optional ISO 8601 date string for when the item is actually due
      */
     scheduleReminder: async (
         id: string,
         title: string,
-        body: string,
-        dateStr: string,
-        priority: 'high' | 'med' | 'low' = 'med'
+        remindAtStr: string,
+        dueAtStr?: string | null
     ): Promise<void> => {
         try {
-            const date = new Date(dateStr);
+            const remindAt = new Date(remindAtStr);
+            const dueAt = dueAtStr ? new Date(dueAtStr) : null;
             const now = new Date();
 
             // Check for Quiet Hours
@@ -77,8 +126,8 @@ export const NotificationService = {
                 const [startHour, startMinute] = quietHoursStart.split(':').map(Number);
                 const [endHour, endMinute] = quietHoursEnd.split(':').map(Number);
 
-                const notifHour = date.getHours();
-                const notifMinute = date.getMinutes();
+                const notifHour = remindAt.getHours();
+                const notifMinute = remindAt.getMinutes();
                 const notifTime = notifHour * 60 + notifMinute;
 
                 const startTime = startHour * 60 + startMinute;
@@ -98,49 +147,30 @@ export const NotificationService = {
                 }
 
                 if (inQuietHours) {
-                    console.log(`Notification time ${date.toLocaleTimeString()} falls in Quiet Hours (${quietHoursStart}-${quietHoursEnd})`);
+                    console.log(`Notification time ${remindAt.toLocaleTimeString()} falls in Quiet Hours (${quietHoursStart}-${quietHoursEnd})`);
 
                     // Reschedule to end of quiet hours
-                    // If current time is before end time (early morning), set to today's end time
-                    // If current time is after start time (late night), set to tomorrow's end time
-
-                    const newDate = new Date(date);
-                    newDate.setHours(endHour, endMinute, 0, 0);
+                    const newRemindAt = new Date(remindAt);
+                    newRemindAt.setHours(endHour, endMinute, 0, 0);
 
                     // If we are in the late night portion (after start time), we need to move to tomorrow
-                    // unless start time is < end time (unlikely for overnight quiet hours but possible logic-wise)
                     if (startTime > endTime && notifTime >= startTime) {
-                        newDate.setDate(newDate.getDate() + 1);
+                        newRemindAt.setDate(newRemindAt.getDate() + 1);
                     }
 
-                    // Add a small buffer (e.g. 1 minute) to ensure it doesn't trigger immediately if we are at the edge? 
-                    // No, end time is fine. Maybe add "Quiet Hours ended:" prefix?
-                    // Let's just reschedule.
-
-                    console.log(`Rescheduling to ${newDate.toLocaleString()}`);
-                    // recursive call with new date? Or just modify `date`?
-                    // Modifying `date` is cleaner but `date` is const `new Date(dateStr)`. 
-                    // I should update `date` variable. But I declared it const. 
-                    // I will perform the check effectively by recursively calling scheduleReminder with the new date string
-                    // BUT I need to preserve the ID.
-
-                    // Actually, I can just update the `date` object if I change it to `let` or create a new variable to use in scheduleNotificationAsync.
-                    // Let's change the downstream code to use `finalDate`.
-
-                    // Or simpler:
+                    console.log(`Rescheduling to ${newRemindAt.toLocaleString()}`);
                     await NotificationService.scheduleReminder(
                         id,
                         title,
-                        body,
-                        newDate.toISOString(),
-                        priority
+                        newRemindAt.toISOString(),
+                        dueAtStr
                     );
                     return; // Exit this call
                 }
             }
 
             // Don't schedule in the past
-            if (date.getTime() <= now.getTime()) {
+            if (remindAt.getTime() <= now.getTime()) {
                 console.log(`Skipping notification for ${id} - time is in the past`);
                 return;
             }
@@ -148,43 +178,27 @@ export const NotificationService = {
             // Cancel any existing notification for this item to avoid duplicates
             await Notifications.cancelScheduledNotificationAsync(id).catch(() => { });
 
-            // Priority-based styling
-            const priorityConfig = {
-                high: { titlePrefix: '🔥 Due soon:', subtitle: '' }, // subtitle built dynamically with dueAt
-                med: { titlePrefix: '⏰ Due today:', subtitle: 'Tap to finish' },
-                low: { titlePrefix: '✍️ Reminder:', subtitle: 'When you have time' },
-            };
-
-            const config = priorityConfig[priority] || priorityConfig.med;
-            const notificationTitle = `${config.titlePrefix} ${title}`;
-
-            // For high priority, include the due time in the body
-            let notificationBody: string;
-            if (priority === 'high') {
-                const dueTime = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-                notificationBody = body && body !== title ? body : `Due at ${dueTime}`;
-            } else {
-                notificationBody = body && body !== title ? body : config.subtitle;
-            }
+            // Generate time-based notification title
+            const notificationTitle = getNotificationTitle(remindAt, dueAt, title);
 
             await Notifications.scheduleNotificationAsync({
                 identifier: id,
                 content: {
                     title: notificationTitle,
-                    body: notificationBody,
+                    body: '', // Clean notifications - just the title
                     sound: 'default',
                     badge: 1,
                     priority: Notifications.AndroidNotificationPriority.HIGH,
-                    data: { itemId: id, priority },
+                    data: { itemId: id },
                 },
                 trigger: {
                     type: Notifications.SchedulableTriggerInputTypes.DATE,
-                    date: date,
+                    date: remindAt,
                     channelId: Platform.OS === 'android' ? 'reminders' : undefined,
                 },
             });
 
-            console.log(`Scheduled notification for "${title}" at ${date.toLocaleString()}`);
+            console.log(`Scheduled notification "${notificationTitle}" at ${remindAt.toLocaleString()}`);
         } catch (e) {
             console.error("Failed to schedule notification:", e);
         }
@@ -244,12 +258,16 @@ export const NotificationService = {
 
     /**
      * Schedule a notification for a specific occurrence of a repeating item
+     * @param itemId - The item ID
+     * @param title - Task title
+     * @param reminderTime - When to fire the notification
+     * @param dueTime - Optional due time for this occurrence
      */
     scheduleOccurrenceReminder: async (
         itemId: string,
         title: string,
         reminderTime: Date,
-        priority: 'high' | 'med' | 'low' = 'med'
+        dueTime?: Date | null
     ): Promise<void> => {
         const notificationId = NotificationService.getOccurrenceNotificationId(itemId, reminderTime);
 
@@ -257,9 +275,8 @@ export const NotificationService = {
         await NotificationService.scheduleReminder(
             notificationId,
             title,
-            '',
             reminderTime.toISOString(),
-            priority
+            dueTime ? dueTime.toISOString() : null
         );
     },
 
@@ -277,16 +294,16 @@ export const NotificationService = {
      * @param daysAhead - Number of days to schedule ahead (default 7)
      */
     scheduleAllOccurrences: async (
-        item: { id: string; title: string; remindAt?: string | null; repeat?: string | null; priority?: string; skippedDates?: string | null; completedDates?: string | null },
+        item: { id: string; title: string; remindAt?: string | null; dueAt?: string | null; repeat?: string | null; skippedDates?: string | null; completedDates?: string | null },
         daysAhead: number = 7
     ): Promise<void> => {
         if (!item.remindAt || !item.repeat || item.repeat === 'none') {
             return;
         }
 
-        const baseDate = new Date(item.remindAt);
+        const baseRemindAt = new Date(item.remindAt);
+        const baseDueAt = item.dueAt ? new Date(item.dueAt) : null;
         const now = new Date();
-        const priority = (item.priority as 'high' | 'med' | 'low') || 'med';
 
         // Parse skipped and completed dates to avoid scheduling notifications for them
         const skippedDates: string[] = item.skippedDates
@@ -300,14 +317,21 @@ export const NotificationService = {
 
         if (item.repeat === 'daily') {
             for (let dayOffset = 0; dayOffset < daysAhead; dayOffset++) {
-                const occurrenceDate = new Date(now);
-                occurrenceDate.setDate(occurrenceDate.getDate() + dayOffset);
-                occurrenceDate.setHours(baseDate.getHours(), baseDate.getMinutes(), 0, 0);
+                const occurrenceRemindAt = new Date(now);
+                occurrenceRemindAt.setDate(occurrenceRemindAt.getDate() + dayOffset);
+                occurrenceRemindAt.setHours(baseRemindAt.getHours(), baseRemindAt.getMinutes(), 0, 0);
+
+                // Compute occurrence dueAt if base dueAt exists
+                let occurrenceDueAt: Date | null = null;
+                if (baseDueAt) {
+                    occurrenceDueAt = new Date(occurrenceRemindAt);
+                    occurrenceDueAt.setHours(baseDueAt.getHours(), baseDueAt.getMinutes(), 0, 0);
+                }
 
                 // Check if this date is skipped or completed (use local date to match stored format)
-                const year = occurrenceDate.getFullYear();
-                const month = String(occurrenceDate.getMonth() + 1).padStart(2, '0');
-                const day = String(occurrenceDate.getDate()).padStart(2, '0');
+                const year = occurrenceRemindAt.getFullYear();
+                const month = String(occurrenceRemindAt.getMonth() + 1).padStart(2, '0');
+                const day = String(occurrenceRemindAt.getDate()).padStart(2, '0');
                 const dateStr = `${year}-${month}-${day}`;
 
                 if (skippedDates.includes(dateStr)) {
@@ -321,41 +345,55 @@ export const NotificationService = {
                 }
 
                 // Only schedule if in the future
-                if (occurrenceDate > now) {
+                if (occurrenceRemindAt > now) {
                     await NotificationService.scheduleOccurrenceReminder(
                         item.id,
                         item.title,
-                        occurrenceDate,
-                        priority
+                        occurrenceRemindAt,
+                        occurrenceDueAt
                     );
                 }
             }
         } else if (item.repeat === 'weekly') {
             // Schedule next 2 weekly occurrences within daysAhead
             for (let weekOffset = 0; weekOffset <= Math.ceil(daysAhead / 7); weekOffset++) {
-                const occurrenceDate = new Date(baseDate);
-                occurrenceDate.setDate(occurrenceDate.getDate() + (weekOffset * 7));
+                const occurrenceRemindAt = new Date(baseRemindAt);
+                occurrenceRemindAt.setDate(occurrenceRemindAt.getDate() + (weekOffset * 7));
 
-                if (occurrenceDate > now) {
+                // Compute occurrence dueAt if base dueAt exists
+                let occurrenceDueAt: Date | null = null;
+                if (baseDueAt) {
+                    occurrenceDueAt = new Date(occurrenceRemindAt);
+                    occurrenceDueAt.setHours(baseDueAt.getHours(), baseDueAt.getMinutes(), 0, 0);
+                }
+
+                if (occurrenceRemindAt > now) {
                     await NotificationService.scheduleOccurrenceReminder(
                         item.id,
                         item.title,
-                        occurrenceDate,
-                        priority
+                        occurrenceRemindAt,
+                        occurrenceDueAt
                     );
                 }
             }
         } else if (item.repeat === 'monthly') {
             // Schedule next month's occurrence if within daysAhead
-            const nextMonth = new Date(baseDate);
-            nextMonth.setMonth(nextMonth.getMonth() + 1);
+            const nextMonthRemindAt = new Date(baseRemindAt);
+            nextMonthRemindAt.setMonth(nextMonthRemindAt.getMonth() + 1);
 
-            if (nextMonth > now) {
+            // Compute occurrence dueAt if base dueAt exists
+            let nextMonthDueAt: Date | null = null;
+            if (baseDueAt) {
+                nextMonthDueAt = new Date(nextMonthRemindAt);
+                nextMonthDueAt.setHours(baseDueAt.getHours(), baseDueAt.getMinutes(), 0, 0);
+            }
+
+            if (nextMonthRemindAt > now) {
                 await NotificationService.scheduleOccurrenceReminder(
                     item.id,
                     item.title,
-                    nextMonth,
-                    priority
+                    nextMonthRemindAt,
+                    nextMonthDueAt
                 );
             }
         }
@@ -387,40 +425,47 @@ export const NotificationService = {
      * @param daysFromNow - How many days from today to schedule (default 7)
      */
     extendNextOccurrence: async (
-        item: { id: string; title: string; remindAt?: string | null; repeat?: string | null; priority?: string },
+        item: { id: string; title: string; remindAt?: string | null; dueAt?: string | null; repeat?: string | null },
         daysFromNow: number = 7
     ): Promise<void> => {
         if (!item.remindAt || !item.repeat || item.repeat === 'none') {
             return;
         }
 
-        const baseTime = new Date(item.remindAt);
+        const baseRemindAt = new Date(item.remindAt);
+        const baseDueAt = item.dueAt ? new Date(item.dueAt) : null;
         const now = new Date();
-        const priority = (item.priority as 'high' | 'med' | 'low') || 'med';
 
-        // Calculate the target date (7 days from now)
-        const targetDate = new Date(now);
-        targetDate.setDate(targetDate.getDate() + daysFromNow);
-        targetDate.setHours(baseTime.getHours(), baseTime.getMinutes(), 0, 0);
+        // Calculate the target reminder date (7 days from now)
+        const targetRemindAt = new Date(now);
+        targetRemindAt.setDate(targetRemindAt.getDate() + daysFromNow);
+        targetRemindAt.setHours(baseRemindAt.getHours(), baseRemindAt.getMinutes(), 0, 0);
+
+        // Compute target dueAt if base dueAt exists
+        let targetDueAt: Date | null = null;
+        if (baseDueAt) {
+            targetDueAt = new Date(targetRemindAt);
+            targetDueAt.setHours(baseDueAt.getHours(), baseDueAt.getMinutes(), 0, 0);
+        }
 
         // Schedule based on repeat type
         if (item.repeat === 'daily') {
             await NotificationService.scheduleOccurrenceReminder(
                 item.id,
                 item.title,
-                targetDate,
-                priority
+                targetRemindAt,
+                targetDueAt
             );
-            console.log(`Extended notification for "${item.title}" to ${targetDate.toLocaleString()}`);
+            console.log(`Extended notification for "${item.title}" to ${targetRemindAt.toLocaleString()}`);
         } else if (item.repeat === 'weekly') {
             // For weekly, check if targetDate falls on the same day of week as the original
-            const originalDayOfWeek = baseTime.getDay();
-            if (targetDate.getDay() === originalDayOfWeek) {
+            const originalDayOfWeek = baseRemindAt.getDay();
+            if (targetRemindAt.getDay() === originalDayOfWeek) {
                 await NotificationService.scheduleOccurrenceReminder(
                     item.id,
                     item.title,
-                    targetDate,
-                    priority
+                    targetRemindAt,
+                    targetDueAt
                 );
             }
         }
