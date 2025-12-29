@@ -231,10 +231,14 @@ export const NotificationService = {
 
     /**
      * Generate a notification ID for a specific occurrence
-     * Format: itemId_YYYY-MM-DD
+     * Format: itemId_YYYY-MM-DD (using local date to avoid timezone issues)
      */
     getOccurrenceNotificationId: (itemId: string, occurrenceDate: Date): string => {
-        const dateStr = occurrenceDate.toISOString().split('T')[0]; // YYYY-MM-DD
+        // Use local date to avoid timezone issues (toISOString converts to UTC)
+        const year = occurrenceDate.getFullYear();
+        const month = String(occurrenceDate.getMonth() + 1).padStart(2, '0');
+        const day = String(occurrenceDate.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
         return `${itemId}_${dateStr}`;
     },
 
@@ -273,7 +277,7 @@ export const NotificationService = {
      * @param daysAhead - Number of days to schedule ahead (default 7)
      */
     scheduleAllOccurrences: async (
-        item: { id: string; title: string; remindAt?: string | null; repeat?: string | null; priority?: string; skippedDates?: string | null },
+        item: { id: string; title: string; remindAt?: string | null; repeat?: string | null; priority?: string; skippedDates?: string | null; completedDates?: string | null },
         daysAhead: number = 7
     ): Promise<void> => {
         if (!item.remindAt || !item.repeat || item.repeat === 'none') {
@@ -284,9 +288,12 @@ export const NotificationService = {
         const now = new Date();
         const priority = (item.priority as 'high' | 'med' | 'low') || 'med';
 
-        // Parse skipped dates to avoid scheduling notifications for them
+        // Parse skipped and completed dates to avoid scheduling notifications for them
         const skippedDates: string[] = item.skippedDates
             ? JSON.parse(item.skippedDates)
+            : [];
+        const completedDates: string[] = item.completedDates
+            ? JSON.parse(item.completedDates)
             : [];
 
         console.log(`Scheduling ${daysAhead} days of notifications for "${item.title}"`);
@@ -297,10 +304,19 @@ export const NotificationService = {
                 occurrenceDate.setDate(occurrenceDate.getDate() + dayOffset);
                 occurrenceDate.setHours(baseDate.getHours(), baseDate.getMinutes(), 0, 0);
 
-                // Check if this date is skipped
-                const dateStr = occurrenceDate.toISOString().split('T')[0]; // YYYY-MM-DD
+                // Check if this date is skipped or completed (use local date to match stored format)
+                const year = occurrenceDate.getFullYear();
+                const month = String(occurrenceDate.getMonth() + 1).padStart(2, '0');
+                const day = String(occurrenceDate.getDate()).padStart(2, '0');
+                const dateStr = `${year}-${month}-${day}`;
+
                 if (skippedDates.includes(dateStr)) {
-                    console.log(`Skipping notification for "${item.title}" on ${dateStr} (skipped date)`);
+                    console.log(`Skipping notification for "${item.title}" on ${dateStr} (skipped)`);
+                    continue;
+                }
+
+                if (completedDates.includes(dateStr)) {
+                    console.log(`Skipping notification for "${item.title}" on ${dateStr} (completed)`);
                     continue;
                 }
 

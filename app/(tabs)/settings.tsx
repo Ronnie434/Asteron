@@ -36,7 +36,7 @@ export default function SettingsScreen() {
     quietHoursEnabled, setQuietHoursEnabled, 
     quietHoursStart, setQuietHoursStart,
     quietHoursEnd, setQuietHoursEnd,
-    dailyBriefEnabled, setDailyBriefEnabled 
+    dailyBriefEnabled, setDailyBriefEnabled
   } = useSettingsStore();
   const [themeModalVisible, setThemeModalVisible] = useState(false);
 
@@ -463,7 +463,9 @@ export default function SettingsScreen() {
         {/* Footer */}
         <View style={styles.footer}>
           <Typography variant="caption1" color={isDark ? colors.textTertiary : '#8E8E93'}>
-            Your data is stored locally on this device.
+            {isGuestMode 
+              ? 'Sign in to save your data securely.' 
+              : 'Your data is stored securely in the cloud.'}
           </Typography>
         </View>
       </ScrollView>
@@ -792,5 +794,12 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.md,
     paddingHorizontal: theme.spacing.md,
     paddingLeft: 60, // Indent to align with text above
+  },
+  syncIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.md,
+    paddingBottom: theme.spacing.md,
+    paddingLeft: 60, // Align with content
   },
 });

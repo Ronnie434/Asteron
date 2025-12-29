@@ -1,76 +1,100 @@
 import { create } from 'zustand';
 import * as Crypto from 'expo-crypto';
-import * as DB from '../db/items';
-import type { Item, ItemStatus, RepeatFrequency, CustomRepeatConfig } from '../db/items';
+import { supabase } from '../services/supabase';
 import { NotificationService } from '../services/NotificationService';
+import { useAuthStore } from './useAuthStore';
 
-/**
- * Calculate the next occurrence date for a repeating item
- * For 'custom' repeat, uses the repeatConfig to find the next matching day
- */
-const calculateNextOccurrence = (
-    currentDate: Date,
-    repeat: RepeatFrequency,
-    repeatConfig?: CustomRepeatConfig | null
-): Date => {
-    const next = new Date(currentDate);
+// Types matching Supabase schema
+export type ItemType = 'task' | 'bill' | 'renewal' | 'followup' | 'reminder' | 'note';
+export type ItemPriority = 'low' | 'med' | 'high';
+export type ItemStatus = 'active' | 'done' | 'archived';
+export type RepeatFrequency = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
 
-    switch (repeat) {
-        case 'daily':
-            next.setDate(next.getDate() + 1);
-            break;
-        case 'weekly':
-            next.setDate(next.getDate() + 7);
-            break;
-        case 'monthly':
-            next.setMonth(next.getMonth() + 1);
-            break;
-        case 'yearly':
-            next.setFullYear(next.getFullYear() + 1);
-            break;
-        case 'custom':
-            if (repeatConfig && repeatConfig.days.length > 0) {
-                // Find the next matching day of week
-                const currentDay = next.getDay();
-                const sortedDays = [...repeatConfig.days].sort((a, b) => a - b);
+export interface CustomRepeatConfig {
+    days: number[];
+    intervalWeeks: number;
+}
 
-                // Find next day in current week
-                let foundNextDay = false;
-                for (const day of sortedDays) {
-                    if (day > currentDay) {
-                        // Found a day later this week
-                        next.setDate(next.getDate() + (day - currentDay));
-                        foundNextDay = true;
-                        break;
-                    }
-                }
+export interface Item {
+    id: string;
+    title: string;
+    details?: string | null;
+    type: ItemType;
+    dueAt?: string | null;
+    remindAt?: string | null;
+    repeat?: RepeatFrequency | null;
+    repeatConfig?: string | null;
+    skippedDates?: string | null;
+    completedDates?: string | null;
+    priority: ItemPriority;
+    status: ItemStatus;
+    confidence: number;
+    createdAt: string;
+    updatedAt: string;
+}
 
-                if (!foundNextDay) {
-                    // No day later this week, go to first day of next interval
-                    const daysUntilNextWeek = 7 - currentDay + sortedDays[0];
-                    const intervalDays = (repeatConfig.intervalWeeks - 1) * 7;
-                    next.setDate(next.getDate() + daysUntilNextWeek + intervalDays);
-                }
-            } else {
-                // Fallback: treat as weekly if no config
-                next.setDate(next.getDate() + 7);
-            }
-            break;
-        default:
-            break;
-    }
+// Supabase row type
+interface SupabaseItem {
+    id: string;
+    user_id: string;
+    local_id: string;
+    title: string;
+    details: string | null;
+    type: string;
+    due_at: string | null;
+    remind_at: string | null;
+    repeat: string;
+    repeat_config: object | null;
+    skipped_dates: string[] | null;
+    completed_dates: string[] | null;
+    priority: string;
+    status: string;
+    confidence: number;
+    created_at: string;
+    updated_at: string;
+}
 
-    return next;
-};
+// Convert Supabase row to local Item format
+const fromSupabase = (row: SupabaseItem): Item => ({
+    id: row.local_id,
+    title: row.title,
+    details: row.details,
+    type: row.type as ItemType,
+    dueAt: row.due_at,
+    remindAt: row.remind_at,
+    repeat: (row.repeat || 'none') as RepeatFrequency,
+    repeatConfig: row.repeat_config ? JSON.stringify(row.repeat_config) : null,
+    skippedDates: row.skipped_dates ? JSON.stringify(row.skipped_dates) : null,
+    completedDates: row.completed_dates ? JSON.stringify(row.completed_dates) : null,
+    priority: row.priority as ItemPriority,
+    status: row.status as ItemStatus,
+    confidence: row.confidence,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+});
+
+// Convert local Item to Supabase format
+const toSupabase = (item: Item, userId: string) => ({
+    user_id: userId,
+    local_id: item.id,
+    title: item.title,
+    details: item.details || null,
+    type: item.type,
+    due_at: item.dueAt || null,
+    remind_at: item.remindAt || null,
+    repeat: item.repeat || 'none',
+    repeat_config: item.repeatConfig ? JSON.parse(item.repeatConfig) : null,
+    skipped_dates: item.skippedDates ? JSON.parse(item.skippedDates) : null,
+    completed_dates: item.completedDates ? JSON.parse(item.completedDates) : null,
+    priority: item.priority,
+    status: item.status,
+    confidence: item.confidence,
+    created_at: item.createdAt,
+    updated_at: item.updatedAt,
+});
 
 /**
  * Calculate badge count based on pending items
- * Rules:
- * - Active items only
- * - Non-repeating: remindAt is in the past
- * - Repeating: Today's occurrence is effectively "due" if we are past the reminder time. 
- *   For simplicity in V1: if it has a reminder set, and that reminder is in the past (globally for non-repeating, or 'today' for repeating), count it.
- *   Actually, for repeating items, we need to check if *today's* specific reminder time has passed AND it's not completed.
  */
 const calculateBadgeCount = (items: Item[]): number => {
     const now = new Date();
@@ -80,48 +104,26 @@ const calculateBadgeCount = (items: Item[]): number => {
         if (item.status !== 'active') continue;
         if (!item.remindAt) continue;
 
-        // Check if item is snoozed or skipped? (We don't have snooze yet, just skippedDates)
-
         if (item.repeat && item.repeat !== 'none') {
-            // Repeating item
-            // Check if there is an occurrence TODAY or in the PAST that is unfinished
-            // For now, let's look at "Today" specifically as the primary driver for "Active functionality"
-            // If the user ignored yesterday's task, does it still show as a badge?
-            // "we should see the badge count for all the task which are overdue condition"
-
-            // Logic: Check if there's any valid occurrence <= Now that isn't completed.
-            // Simplified approach: Check Today's occurrence.
-
             const baseDate = new Date(item.remindAt);
             const occurrenceDate = new Date(now);
             occurrenceDate.setHours(baseDate.getHours(), baseDate.getMinutes(), 0, 0);
 
-            // If occurrence is within today (or past days if we want to be strict about overdue)
-            // Let's check TODAY first.
             if (occurrenceDate <= now) {
-                // It's due today (passed time). Is it done?
                 const completedDates = item.completedDates ? JSON.parse(item.completedDates) : [];
                 const skippedDates = item.skippedDates ? JSON.parse(item.skippedDates) : [];
 
-                // We use the "date string" of the occurrence.
-                // Note: useItemsStore logic usually uses local date string for these checks
-                const dateStr = occurrenceDate.toISOString().split('T')[0];
+                // Use local date to match stored format
+                const year = occurrenceDate.getFullYear();
+                const month = String(occurrenceDate.getMonth() + 1).padStart(2, '0');
+                const day = String(occurrenceDate.getDate()).padStart(2, '0');
+                const dateStr = `${year}-${month}-${day}`;
 
                 if (!completedDates.includes(dateStr) && !skippedDates.includes(dateStr)) {
                     count++;
                 }
             }
-
-            // Should we check yesterday?
-            // If I had a daily task yesterday and didn't do it, it should essentially be "Overdue".
-            // Ideally we iterate back a few days?
-            // For this iteration, let's stick to "Today's pending tasks" + "One-time overdue tasks".
-            // If the user wants "All overdue", we'd need to calculate "Last completed date" and count days since then? 
-            // That might be too aggressive (badge = 100 for 100 days missed).
-            // Let's count "1" if the item itself is "overdue" (hasn't been done for the latest period).
-            // But `occurrenceDate <= now` above covers "Today".
         } else {
-            // Non-repeating: count if reminder is past (done items already filtered at line 80)
             const remindDate = new Date(item.remindAt);
             if (remindDate <= now) {
                 count++;
@@ -135,10 +137,11 @@ interface ItemsState {
     items: Item[];
     isLoading: boolean;
     initialized: boolean;
+    error: string | null;
 
     // Actions
     init: () => Promise<void>;
-    loadItems: () => Promise<void>;
+    loadItems: (refreshNotifications?: boolean) => Promise<void>;
     addItem: (
         title: string,
         initialProps?: Partial<Omit<Item, 'id' | 'title' | 'createdAt' | 'updatedAt'>>
@@ -146,6 +149,7 @@ interface ItemsState {
     updateItem: (id: string, patch: Partial<Item>) => Promise<void>;
     deleteItem: (id: string) => Promise<void>;
     markAsDone: (id: string, occurrenceDate?: Date) => Promise<void>;
+    markAsUndone: (id: string, occurrenceDate?: Date) => Promise<void>;
     skipOccurrence: (id: string, occurrenceDate: Date) => Promise<void>;
     clearAllItems: () => Promise<void>;
 }
@@ -154,54 +158,89 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
     items: [],
     isLoading: false,
     initialized: false,
+    error: null,
 
     init: async () => {
         if (get().initialized) return;
-        try {
-            await DB.initDb();
-            set({ initialized: true });
-            await get().loadItems();
-        } catch (e) {
-            console.error("Failed to init DB:", e);
+        set({ initialized: true });
+
+        // On initial load, refresh all notifications
+        await get().loadItems(true);
+    },
+
+    loadItems: async (refreshNotifications: boolean = false) => {
+        const { user } = useAuthStore.getState();
+        if (!user) {
+            console.log('[ItemsStore] No user logged in, skipping load');
+            set({ items: [], isLoading: false });
+            return;
         }
-    },
 
-    updateBadgeCount: async () => {
-        const items = get().items;
-        const count = calculateBadgeCount(items);
-        await NotificationService.setBadgeCount(count);
-    },
-
-    loadItems: async () => {
-        set({ isLoading: true });
+        set({ isLoading: true, error: null });
         try {
-            // For now load all active items by default? Or just all items?
-            // Let's load everything for simplicity unless we filter in UI
-            const items = await DB.listItems();
+            const { data, error } = await supabase
+                .from('user_items')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.error('[ItemsStore] Failed to load items:', error);
+                set({ error: error.message, isLoading: false });
+                return;
+            }
+
+            const items = (data || []).map(fromSupabase);
+            console.log(`[ItemsStore] Loaded ${items.length} items from Supabase`);
             set({ items });
 
-            // Refresh notifications for all repeating items to ensure they're in sync
-            for (const item of items) {
-                if (item.repeat && item.repeat !== 'none' && item.status === 'active' && item.remindAt) {
-                    await NotificationService.scheduleAllOccurrences(item, 7);
+            // Only refresh notifications on initial app startup
+            if (refreshNotifications) {
+                console.log('[ItemsStore] Refreshing all notifications...');
+                await NotificationService.cancelAllReminders();
+
+                // Schedule notifications for active items with reminders
+                for (const item of items) {
+                    if (item.status !== 'active' || !item.remindAt) continue;
+
+                    if (item.repeat && item.repeat !== 'none') {
+                        await NotificationService.scheduleAllOccurrences(item, 7);
+                    } else {
+                        const remindDate = new Date(item.remindAt);
+                        if (remindDate > new Date()) {
+                            await NotificationService.scheduleReminder(
+                                item.id,
+                                item.title,
+                                item.details || '',
+                                item.remindAt,
+                                item.priority
+                            );
+                        }
+                    }
                 }
             }
 
-            // Update badge count
+            // Always update badge count
             const count = calculateBadgeCount(items);
             await NotificationService.setBadgeCount(count);
         } catch (e) {
-            console.error("Failed to load items:", e);
+            console.error('[ItemsStore] Load error:', e);
+            set({ error: 'Failed to load items' });
         } finally {
             set({ isLoading: false });
         }
     },
 
     addItem: async (title, initialProps = {}) => {
-        // Ensure title is never null or empty
-        const safeTitle = (title || '').trim() || 'Untitled';
+        const { user } = useAuthStore.getState();
+        if (!user) {
+            console.warn('[ItemsStore] Cannot add item: no user logged in');
+            return;
+        }
 
+        const safeTitle = (title || '').trim() || 'Untitled';
         const now = new Date().toISOString();
+
         const newItem: Item = {
             id: Crypto.randomUUID(),
             title: safeTitle,
@@ -220,19 +259,24 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
         };
 
         try {
-            await DB.createItem(newItem);
+            const { error } = await supabase
+                .from('user_items')
+                .insert(toSupabase(newItem, user.id));
 
-            // Schedule notification(s) if reminder is set
+            if (error) {
+                console.error('[ItemsStore] Failed to add item:', error);
+                throw error;
+            }
+
+            // Schedule notification if reminder is set
             if (newItem.remindAt) {
                 if (newItem.repeat && newItem.repeat !== 'none') {
-                    // For repeating items, schedule next 7 days of notifications
                     await NotificationService.scheduleAllOccurrences(newItem, 7);
                 } else {
-                    // For one-time items, schedule single notification
                     await NotificationService.scheduleReminder(
                         newItem.id,
                         newItem.title,
-                        newItem.details || "",
+                        newItem.details || '',
                         newItem.remindAt,
                         newItem.priority
                     );
@@ -241,150 +285,236 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
 
             await get().loadItems();
         } catch (e) {
-            console.error("Failed to add item:", e);
-            throw e; // Re-throw so caller can handle
+            console.error('[ItemsStore] Add error:', e);
+            throw e;
         }
     },
 
     updateItem: async (id, patch) => {
+        const { user } = useAuthStore.getState();
+        if (!user) return;
+
+        const currentItem = get().items.find(i => i.id === id);
+        if (!currentItem) return;
+
+        const updatedAt = new Date().toISOString();
+        const updatedItem = { ...currentItem, ...patch, updatedAt };
+
         try {
-            // Get current item to compare
-            const currentItem = get().items.find(i => i.id === id);
+            // Build Supabase update object
+            const updateData: Record<string, any> = { updated_at: updatedAt };
 
-            const updatedAt = new Date().toISOString();
-            await DB.updateItem(id, { ...patch, updatedAt });
+            if (patch.title !== undefined) updateData.title = patch.title;
+            if (patch.details !== undefined) updateData.details = patch.details;
+            if (patch.type !== undefined) updateData.type = patch.type;
+            if (patch.dueAt !== undefined) updateData.due_at = patch.dueAt;
+            if (patch.remindAt !== undefined) updateData.remind_at = patch.remindAt;
+            if (patch.repeat !== undefined) updateData.repeat = patch.repeat;
+            if (patch.repeatConfig !== undefined) {
+                updateData.repeat_config = patch.repeatConfig ? JSON.parse(patch.repeatConfig) : null;
+            }
+            if (patch.skippedDates !== undefined) {
+                updateData.skipped_dates = patch.skippedDates ? JSON.parse(patch.skippedDates) : null;
+            }
+            if (patch.completedDates !== undefined) {
+                updateData.completed_dates = patch.completedDates ? JSON.parse(patch.completedDates) : null;
+            }
+            if (patch.priority !== undefined) updateData.priority = patch.priority;
+            if (patch.status !== undefined) updateData.status = patch.status;
+            if (patch.confidence !== undefined) updateData.confidence = patch.confidence;
 
-            // Handle Notification logic
+            const { error } = await supabase
+                .from('user_items')
+                .update(updateData)
+                .eq('user_id', user.id)
+                .eq('local_id', id);
+
+            if (error) {
+                console.error('[ItemsStore] Failed to update item:', error);
+                return;
+            }
+
+            // Handle notifications
             if (patch.status === 'done' || patch.status === 'archived') {
-                // If completing, remove reminder
                 await NotificationService.cancelReminder(id);
-                // Badge update happens in loadItems call below
             } else if (patch.remindAt !== undefined) {
-                // If reminder time changed
                 if (patch.remindAt) {
-                    // Re-schedule
-                    // Use new title/details if provided, else fall back to current
-                    const title = patch.title ?? currentItem?.title ?? "Reminder";
-                    const details = patch.details ?? currentItem?.details ?? "";
-                    const priority = patch.priority ?? currentItem?.priority ?? 'med';
-
+                    const title = patch.title ?? currentItem.title;
+                    const details = patch.details ?? currentItem.details ?? '';
+                    const priority = patch.priority ?? currentItem.priority;
                     await NotificationService.scheduleReminder(id, title, details, patch.remindAt, priority);
                 } else {
-                    // Reminder cleared
                     await NotificationService.cancelReminder(id);
                 }
-            } else if (patch.title && currentItem?.remindAt) {
-                // If title changed but reminder exists, update notification text
-                await NotificationService.scheduleReminder(id, patch.title, currentItem.details || "", currentItem.remindAt, currentItem.priority);
             }
 
             await get().loadItems();
         } catch (e) {
-            console.error("Failed to update item:", e);
+            console.error('[ItemsStore] Update error:', e);
         }
     },
 
     deleteItem: async (id) => {
+        const { user } = useAuthStore.getState();
+        if (!user) return;
+
         try {
-            // Cancel ALL notifications for this item (comprehensive cleanup)
             await NotificationService.cancelAllNotificationsForItem(id);
 
-            await DB.deleteItem(id);
+            const { error } = await supabase
+                .from('user_items')
+                .delete()
+                .eq('user_id', user.id)
+                .eq('local_id', id);
+
+            if (error) {
+                console.error('[ItemsStore] Failed to delete item:', error);
+                return;
+            }
+
             await get().loadItems();
         } catch (e) {
-            console.error("Failed to delete item:", e);
+            console.error('[ItemsStore] Delete error:', e);
         }
     },
 
-    /**
-     * Mark an item as done. For repeating items, only cancels the specific occurrence's notification.
-     * @param id - Item ID
-     * @param occurrenceDate - Optional: specific occurrence date for repeating items
-     */
     markAsDone: async (id, occurrenceDate?: Date) => {
         const currentItem = get().items.find(i => i.id === id);
         if (!currentItem) return;
 
-        // If it's a recurring item with an occurrence date
         if (currentItem.repeat && currentItem.repeat !== 'none' && occurrenceDate) {
-            // Cancel only this occurrence's notification
             await NotificationService.cancelOccurrenceReminder(id, occurrenceDate);
-            console.log(`Cancelled notification for "${currentItem.title}" on ${occurrenceDate.toDateString()}`);
 
-            // Persist completed date
             const completedDates: string[] = currentItem.completedDates
                 ? JSON.parse(currentItem.completedDates)
                 : [];
 
-            const dateStr = occurrenceDate.toISOString().split('T')[0];
+            // Use local date to avoid timezone issues
+            const year = occurrenceDate.getFullYear();
+            const month = String(occurrenceDate.getMonth() + 1).padStart(2, '0');
+            const day = String(occurrenceDate.getDate()).padStart(2, '0');
+            const dateStr = `${year}-${month}-${day}`;
+
             if (!completedDates.includes(dateStr)) {
                 completedDates.push(dateStr);
-                // Update item with new completed dates
                 await get().updateItem(id, { completedDates: JSON.stringify(completedDates) });
-
-                // Update badge (markAsDone calls updateItem, but internal DB update doesn't trigger loadItems usually if accessed directly... wait, updateItem calls loadItems.
-                // But updateItem calls DB.updateItem then get().loadItems().
-                // So get().updateItem(...) above WILL trigger loadItems which updates badge.
-                // BUT, let's be safe and ensure badge is updated. 
-                // Actually updateItem calls loadItems, so we are good.
             }
         } else if (currentItem.repeat && currentItem.repeat !== 'none') {
-            // Recurring item without occurrence date (legacy/fallback)
-            // Just mark today as completed
             const today = new Date();
             await get().markAsDone(id, today);
         } else {
-            // Non-recurring: mark as done and cancel notification
             await NotificationService.cancelReminder(id);
             await get().updateItem(id, { status: 'done' });
         }
     },
 
-    /**
-     * Skip a specific occurrence of a repeating item (delete just that day)
-     * @param id - Item ID
-     * @param occurrenceDate - The date to skip
-     */
+    markAsUndone: async (id, occurrenceDate?: Date) => {
+        const currentItem = get().items.find(i => i.id === id);
+        if (!currentItem) return;
+
+        if (currentItem.repeat && currentItem.repeat !== 'none' && occurrenceDate) {
+            // Remove this date from completedDates
+            const completedDates: string[] = currentItem.completedDates
+                ? JSON.parse(currentItem.completedDates)
+                : [];
+
+            // Use local date format
+            const year = occurrenceDate.getFullYear();
+            const month = String(occurrenceDate.getMonth() + 1).padStart(2, '0');
+            const day = String(occurrenceDate.getDate()).padStart(2, '0');
+            const dateStr = `${year}-${month}-${day}`;
+
+            const updatedDates = completedDates.filter((d: string) => d !== dateStr);
+            await get().updateItem(id, { completedDates: JSON.stringify(updatedDates) });
+
+            // Re-schedule notification if it's in the future
+            if (currentItem.remindAt) {
+                const baseDate = new Date(currentItem.remindAt);
+                const reminderTime = new Date(occurrenceDate);
+                reminderTime.setHours(baseDate.getHours(), baseDate.getMinutes(), 0, 0);
+
+                if (reminderTime > new Date()) {
+                    await NotificationService.scheduleOccurrenceReminder(
+                        id,
+                        currentItem.title,
+                        reminderTime,
+                        currentItem.priority
+                    );
+                    console.log(`[ItemsStore] Re-scheduled notification for "${currentItem.title}" on ${dateStr}`);
+                }
+            }
+        } else if (currentItem.repeat && currentItem.repeat !== 'none') {
+            // Repeating task without specific date - use today
+            const today = new Date();
+            await get().markAsUndone(id, today);
+        } else {
+            // One-time task: set status back to active and re-schedule notification
+            await get().updateItem(id, { status: 'active' });
+
+            // Re-schedule notification if reminder is in the future
+            if (currentItem.remindAt) {
+                const remindDate = new Date(currentItem.remindAt);
+                if (remindDate > new Date()) {
+                    await NotificationService.scheduleReminder(
+                        id,
+                        currentItem.title,
+                        currentItem.details || '',
+                        currentItem.remindAt,
+                        currentItem.priority
+                    );
+                    console.log(`[ItemsStore] Re-scheduled notification for "${currentItem.title}"`);
+                }
+            }
+        }
+    },
+
     skipOccurrence: async (id, occurrenceDate) => {
         const currentItem = get().items.find(i => i.id === id);
         if (!currentItem) return;
 
-        // Parse existing skippedDates or start fresh
         const skippedDates: string[] = currentItem.skippedDates
             ? JSON.parse(currentItem.skippedDates)
             : [];
 
-        // Add this date to the list (YYYY-MM-DD format)
-        const dateStr = occurrenceDate.toISOString().split('T')[0];
+        // Use local date to avoid timezone issues (toISOString converts to UTC which shifts the date)
+        const year = occurrenceDate.getFullYear();
+        const month = String(occurrenceDate.getMonth() + 1).padStart(2, '0');
+        const day = String(occurrenceDate.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
+
+        console.log(`[ItemsStore] Skipping occurrence for "${currentItem.title}" on ${dateStr}`);
+
         if (!skippedDates.includes(dateStr)) {
             skippedDates.push(dateStr);
         }
 
-        // Update the item with new skippedDates
         await get().updateItem(id, { skippedDates: JSON.stringify(skippedDates) });
-
-        // Cancel the notification for this date
         await NotificationService.cancelOccurrenceReminder(id, occurrenceDate);
-
-        console.log(`Skipped occurrence of "${currentItem.title}" on ${dateStr}`);
     },
 
     clearAllItems: async () => {
+        const { user } = useAuthStore.getState();
+        if (!user) return;
+
         try {
-            const items = get().items;
-            for (const item of items) {
-                await NotificationService.cancelReminder(item.id);
-                await DB.deleteItem(item.id);
+            // Cancel ALL notifications comprehensively
+            await NotificationService.cancelAllReminders();
+
+            const { error } = await supabase
+                .from('user_items')
+                .delete()
+                .eq('user_id', user.id);
+
+            if (error) {
+                console.error('[ItemsStore] Failed to clear items:', error);
+                return;
             }
+
             set({ items: [] });
             await NotificationService.setBadgeCount(0);
-
-            // Also cancel all notifications in system generally? 
-            // Better to stay precise to IDs, but we could do cancelAll
-            // await Notifications.cancelAllScheduledNotificationsAsync(); 
+            console.log('[ItemsStore] All data cleared from Supabase');
         } catch (e) {
-            console.error("Failed to clear all items:", e);
+            console.error('[ItemsStore] Clear error:', e);
         }
     },
 }));
-

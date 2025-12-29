@@ -167,15 +167,20 @@ export default function UpcomingScreen() {
   const ItemRow = ({ item, showTime = true, displayDate }: { item: Item; showTime?: boolean; displayDate?: Date }) => {
     const swipeableRef = useRef<Swipeable>(null);
     
+    // Check if this occurrence is completed (from expansion utility)
+    const isCompleted = (item as ExpandedItem).isCompleted || item.status === 'done';
+    
     // Check if this task has an overdue reminder
     // Logic: 
-    // 1. Must be active and have a reminder set
+    // 1. Must be active, NOT completed, and have a reminder set
     // 2. If displayDate is provided (repeating/virtual item):
     //    - Overdue only if displayDate is today AND time has passed
     //    - NEVER overdue if displayDate is in the future
     // 3. If no displayDate (regular item):
     //    - Overdue if remindAt < now
     const checkOverdue = () => {
+      // Never mark completed items as overdue
+      if (isCompleted) return false;
       if (item.status !== 'active' || !item.remindAt) return false;
       
       const now = new Date();
@@ -210,8 +215,8 @@ export default function UpcomingScreen() {
           style={[
             styles.itemRow, 
             { backgroundColor: colors.card },
-            // Highlight overdue reminders
-            isOverdueReminder && {
+            // Highlight overdue reminders (but not completed ones)
+            isOverdueReminder && !isCompleted && {
               borderLeftWidth: 4,
               borderLeftColor: colors.warning,
               backgroundColor: hexToRgba(colors.warning, 0.1),
@@ -222,7 +227,11 @@ export default function UpcomingScreen() {
         >
           <View style={styles.timeColumn}>
             {showTime && getEffectiveDate(item) ? (
-              <Typography variant="headline" color={isOverdueReminder ? colors.warning : colors.text}>
+              <Typography 
+                variant="headline" 
+                color={isCompleted ? colors.textTertiary : (isOverdueReminder ? colors.warning : colors.text)}
+                style={isCompleted ? { textDecorationLine: 'line-through' } : undefined}
+              >
                 {new Date(getEffectiveDate(item)!).toLocaleTimeString([], { 
                   hour: 'numeric', 
                   minute: '2-digit' 
@@ -235,12 +244,17 @@ export default function UpcomingScreen() {
             )}
           </View>
           <View style={styles.itemContent}>
-            <Typography variant="body">{item.title}</Typography>
+            <Typography 
+              variant="body"
+              style={isCompleted ? { textDecorationLine: 'line-through', opacity: 0.5 } : undefined}
+            >
+              {item.title}
+            </Typography>
             <Typography 
               variant="caption1" 
-              color={isOverdueReminder ? colors.warning : colors.textSecondary}
+              color={isCompleted ? colors.textTertiary : (isOverdueReminder ? colors.warning : colors.textSecondary)}
             >
-              {isOverdueReminder ? '⏰ Reminder overdue' : item.type}
+              {isCompleted ? '✓ Completed' : (isOverdueReminder ? '⏰ Reminder overdue' : item.type)}
             </Typography>
           </View>
         </TouchableOpacity>

@@ -59,6 +59,30 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
 
   // Add Task Modal state
   const [showAddModal, setShowAddModal] = useState(false);
+  
+  // Toast state for save confirmation
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastOpacity = useRef(new Animated.Value(0)).current;
+
+  // Handle save success from AddTaskModal
+  const handleSaveSuccess = useCallback((title: string) => {
+    setToastMessage(`✓ Saved "${title}"`);
+    
+    // Animate toast in
+    Animated.sequence([
+      Animated.timing(toastOpacity, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.delay(2000),
+      Animated.timing(toastOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => setToastMessage(null));
+  }, [toastOpacity]);
 
   // Handle app state changes to clear session when app goes to background
   useEffect(() => {
@@ -131,7 +155,7 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
             addAssistantMessage(result.responseText, {
               type: 'created',
               itemType: result.itemData.type,
-              itemId: '', // We don't have access to the new ID here
+              itemId: '',
               itemTitle: result.itemData.title,
             });
           } else {
@@ -393,8 +417,33 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
       {/* Add Task Modal */}
       <AddTaskModal 
         visible={showAddModal} 
-        onClose={() => setShowAddModal(false)} 
+        onClose={() => setShowAddModal(false)}
+        onSaveSuccess={handleSaveSuccess}
       />
+
+      {/* Toast Confirmation */}
+      {toastMessage && (
+        <Animated.View 
+          style={[
+            styles.toast, 
+            { 
+              backgroundColor: isDark ? 'rgba(45, 45, 50, 0.95)' : 'rgba(255, 255, 255, 0.98)',
+              borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+              opacity: toastOpacity,
+              bottom: insets.bottom + 100,
+            }
+          ]}
+        >
+          <View style={styles.toastContent}>
+            <View style={[styles.toastIcon, { backgroundColor: colors.primary + '20' }]}>
+              <Typography variant="body" style={{ color: colors.primary }}>✓</Typography>
+            </View>
+            <Typography variant="callout" color={colors.text}>
+              {toastMessage.replace('✓ ', '')}
+            </Typography>
+          </View>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -590,5 +639,31 @@ const styles = StyleSheet.create({
   },
   headerRight: {
     width: 44,
+  },
+  toast: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  toastContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  toastIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

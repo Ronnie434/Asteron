@@ -8,6 +8,7 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,12 +26,13 @@ import { CustomRepeatConfig } from '../../db/items';
 interface AddTaskModalProps {
   visible: boolean;
   onClose: () => void;
+  onSaveSuccess?: (title: string) => void;
 }
 
-export function AddTaskModal({ visible, onClose }: AddTaskModalProps) {
+export function AddTaskModal({ visible, onClose, onSaveSuccess }: AddTaskModalProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const { addItem } = useItemsStore();
+  const { addItem, items } = useItemsStore();
   
   const [title, setTitle] = useState('');
   const [type, setType] = useState('task');
@@ -121,6 +123,44 @@ export function AddTaskModal({ visible, onClose }: AddTaskModalProps) {
 
   const handleSave = async () => {
     if (!title.trim()) return;
+    
+    // Require at least a reminder or due date
+    if (!remindAt && !dueAt) {
+      Alert.alert(
+        'Date Required',
+        'Please set a reminder or due date so your task appears in the Daily Brief.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
+    const savedTitle = title.trim();
+    
+    // Check for duplicate titles
+    const existingItem = items.find(
+      item => item.title.toLowerCase() === savedTitle.toLowerCase() && item.status === 'active'
+    );
+    
+    if (existingItem) {
+      // Show confirmation for duplicate
+      Alert.alert(
+        'Similar Task Exists',
+        `A task named "${existingItem.title}" already exists. Do you want to create another one?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Create Anyway', 
+            onPress: () => saveItem(savedTitle)
+          },
+        ]
+      );
+      return;
+    }
+    
+    await saveItem(savedTitle);
+  };
+  
+  const saveItem = async (savedTitle: string) => {
     try {
       let repeatConfigStr: string | null = null;
       if (repeat === 'custom' && selectedDays.length > 0) {
@@ -131,7 +171,7 @@ export function AddTaskModal({ visible, onClose }: AddTaskModalProps) {
         repeatConfigStr = JSON.stringify(config);
       }
       
-      await addItem(title.trim(), {
+      await addItem(savedTitle, {
         type: type as any,
         priority: priority as any,
         details: details || null,
@@ -140,6 +180,12 @@ export function AddTaskModal({ visible, onClose }: AddTaskModalProps) {
         repeat: repeat as any,
         repeatConfig: repeatConfigStr,
       });
+      
+      // Call success callback if provided
+      if (onSaveSuccess) {
+        onSaveSuccess(savedTitle);
+      }
+      
       handleClose();
     } catch (e) {
       console.error('Failed to add item:', e);

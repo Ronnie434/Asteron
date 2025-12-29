@@ -26,7 +26,7 @@ import {
 export default function BriefScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { items, init, loadItems, markAsDone, updateItem, deleteItem, skipOccurrence } = useItemsStore();
+  const { items, init, loadItems, markAsDone, markAsUndone, updateItem, deleteItem, skipOccurrence } = useItemsStore();
   
   // Collapsible section states
   const [overdueExpanded, setOverdueExpanded] = useState(true);
@@ -85,8 +85,9 @@ export default function BriefScreen() {
   // Custom sort that accounts for locally completed occurrences and DB completion status
   const sortWithLocalCompletion = (items: ExpandedItem[], targetDate: Date) => {
     return [...items].sort((a, b) => {
-      const aKey = `${a.id}:${targetDate.toDateString()}`;
-      const bKey = `${b.id}:${targetDate.toDateString()}`;
+      // Use each item's specific displayDate for the key, not the section's targetDate
+      const aKey = `${a.id}:${a.displayDate.toDateString()}`;
+      const bKey = `${b.id}:${b.displayDate.toDateString()}`;
       // Check both local state AND DB isCompleted flag
       const aCompleted = a.status === 'done' || a.isCompleted || completedOccurrenceKeys.has(aKey);
       const bCompleted = b.status === 'done' || b.isCompleted || completedOccurrenceKeys.has(bKey);
@@ -117,9 +118,7 @@ export default function BriefScreen() {
     const isDone = item.status === 'done' || isDbCompleted || isLocallyCompleted;
     
     if (isDone) {
-      // Uncheck logic
-      
-      // 1. Update local state if needed
+      // Uncheck: remove from local state and call store's markAsUndone
       if (isLocallyCompleted) {
         setCompletedOccurrenceKeys(prev => {
           const newSet = new Set(prev);
@@ -128,55 +127,10 @@ export default function BriefScreen() {
         });
       }
 
-      // 2. Always update DB to ensure persistence state is correct
-      // (because markAsDone persists immediately, we must revert it)
-      if (item.repeat && item.repeat !== 'none' && occurrenceDate) {
-        // Remove this date from completedDates
-        const dateStr = occurrenceDate.toISOString().split('T')[0];
-        const completedDates = item.completedDates ? JSON.parse(item.completedDates) : [];
-        
-        // Only update if it actually contains the date to avoid unnecessary writes
-        if (completedDates.includes(dateStr)) {
-            const newDates = completedDates.filter((d: string) => d !== dateStr);
-            await updateItem(item.id, { completedDates: JSON.stringify(newDates) });
-        }
-      } else {
-        // Regular item
-        await updateItem(item.id, { status: 'active' });
-      }
-        
-      // 3. Restore notification logic
-      if (item.remindAt) {
-        if (item.repeat && item.repeat !== 'none' && occurrenceDate) {
-          const baseTime = new Date(item.remindAt);
-          const notificationTime = new Date(occurrenceDate);
-          notificationTime.setHours(baseTime.getHours(), baseTime.getMinutes(), 0, 0);
-          
-          // Only restore if time is in the future
-          if (notificationTime > new Date()) {
-            await NotificationService.scheduleOccurrenceReminder(
-              item.id,
-              item.title,
-              notificationTime,
-              (item.priority as 'high' | 'med' | 'low') || 'med'
-            );
-          }
-        } else {
-          // Restore non-recurring if in future
-          const remindDate = new Date(item.remindAt);
-          if (remindDate > new Date()) {
-             await NotificationService.scheduleReminder(
-               item.id,
-               item.title,
-               item.details || '',
-               item.remindAt,
-               (item.priority as 'high' | 'med' | 'low') || 'med'
-             );
-          }
-        }
-      }
+      // Use centralized store function for unchecking (handles notifications)
+      await markAsUndone(item.id, occurrenceDate);
     } else {
-      // Check logic - add to local completed set and show celebration
+      // Check: add to local completed set, show celebration, and mark done
       setShowCelebration(true);
       setCompletedOccurrenceKeys(prev => new Set(prev).add(occurrenceKey));
       
@@ -319,10 +273,28 @@ export default function BriefScreen() {
           </View>
         </TouchableOpacity>
         
-        {/* Task content - tap to edit, long-press to delete */}
+        {/* Task content - tap to edit (only if not done), long-press to delete */}
         <TouchableOpacity 
           style={styles.taskContent}
-          onPress={() => handleEditItem(item)}
+          onPress={() => {
+            if (isDone) {
+              // Completed tasks cannot be edited
+              Alert.alert(
+                'Task Completed',
+                'Completed tasks cannot be edited. You can uncheck it first, or delete it.',
+                [
+                  { text: 'OK', style: 'cancel' },
+                  { 
+                    text: 'Delete', 
+                    style: 'destructive',
+                    onPress: () => handleDeleteItem(item, occurrenceDate)
+                  },
+                ]
+              );
+            } else {
+              handleEditItem(item);
+            }
+          }}
           onLongPress={() => handleDeleteItem(item, occurrenceDate)}
           activeOpacity={0.6}
         >
@@ -342,8 +314,12 @@ export default function BriefScreen() {
         
         {time ? (
           <TouchableOpacity 
-            onPress={() => handleEditItem(item)}
-            activeOpacity={0.6}
+            onPress={() => {
+              if (!isDone) {
+                handleEditItem(item);
+              }
+            }}
+            activeOpacity={isDone ? 1 : 0.6}
           >
             <Typography 
               variant="caption2" 
@@ -468,7 +444,7 @@ export default function BriefScreen() {
                   />
                 </TouchableOpacity>
                 {tomorrowExpanded && tomorrowItems.map((item) => (
-                  <TaskRow key={`tomorrow-${item.id}`} item={item} occurrenceDate={tomorrow} />
+                  <TaskRow key={`tomorrow-${item.id}`} item={item} occurrenceDate={item.displayDate} />
                 ))}
               </View>
             )}
@@ -492,7 +468,7 @@ export default function BriefScreen() {
                   />
                 </TouchableOpacity>
                 {dayAfterExpanded && dayAfterItems.map((item) => (
-                  <TaskRow key={`dayAfter-${item.id}`} item={item} occurrenceDate={dayAfter} />
+                  <TaskRow key={`dayAfter-${item.id}`} item={item} occurrenceDate={item.displayDate} />
                 ))}
               </View>
             )}

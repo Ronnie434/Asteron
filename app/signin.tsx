@@ -139,14 +139,17 @@ export default function SignInScreen() {
             // Don't fail OAuth if email fails
           }
         }
+      } else if (response.type === 'cancelled') {
+        // User cancelled - do nothing, this is expected behavior
+        console.log('Google sign-in cancelled by user');
       } else {
         throw new Error('No ID token received from Google');
       }
     } catch (error: any) {
       if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-        // User cancelled
+        // User cancelled - silent handling
       } else if (error.code === statusCodes.IN_PROGRESS) {
-        // In progress
+        // In progress - silent handling
       } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
         Alert.alert('Error', 'Google Play Services not available');
       } else {

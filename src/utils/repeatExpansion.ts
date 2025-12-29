@@ -17,6 +17,17 @@ export const getEffectiveDate = (item: Item): string | null => {
 };
 
 /**
+ * Format a date as YYYY-MM-DD using local timezone
+ * (toISOString() converts to UTC which can shift the date)
+ */
+const formatLocalDate = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+/**
  * Expand repeating items into virtual occurrences for display
  * 
  * @param items - Array of items to expand
@@ -73,7 +84,7 @@ export function expandRepeatingItems(
                 if (!includeOverdue && displayDate < todayStart) continue;
 
                 // Skip if this date is in the skippedDates list
-                const dateStr = displayDate.toISOString().split('T')[0]; // YYYY-MM-DD
+                const dateStr = formatLocalDate(displayDate);
                 if (skippedDates.includes(dateStr)) continue;
 
                 // Check if this occurrence is completed
@@ -103,7 +114,7 @@ export function expandRepeatingItems(
                 const endDate = new Date(now);
                 endDate.setDate(endDate.getDate() + daysToExpand);
 
-                const dateStr = displayDate.toISOString().split('T')[0];
+                const dateStr = formatLocalDate(displayDate);
                 const isCompleted = completedDates.includes(dateStr);
 
                 if (displayDate > now && displayDate <= endDate) {
@@ -132,7 +143,7 @@ export function expandRepeatingItems(
                 const endDate = new Date(now);
                 endDate.setDate(endDate.getDate() + daysToExpand);
 
-                const dateStr = displayDate.toISOString().split('T')[0];
+                const dateStr = formatLocalDate(displayDate);
                 const isCompleted = completedDates.includes(dateStr);
 
                 if (displayDate > now && displayDate <= endDate) {
@@ -237,7 +248,7 @@ export function getOverdueOccurrences(items: Item[]): ExpandedItem[] {
         for (let i = 1; i <= checkDays; i++) {
             const pastDate = new Date(now);
             pastDate.setDate(pastDate.getDate() - i);
-            const pastDateStr = pastDate.toISOString().split('T')[0];
+            const pastDateStr = formatLocalDate(pastDate);
 
             // Skip if date is skipped
             if (skippedDates.includes(pastDateStr)) continue;
