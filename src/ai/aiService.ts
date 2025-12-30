@@ -26,6 +26,7 @@ export type ChatIntentType =
     | 'suggest'        // AI provides proactive suggestions
     | 'batch_create'   // Create multiple items at once
     | 'batch_update'   // Update multiple items at once
+    | 'batch_delete'   // Delete multiple items at once
     | 'reschedule';    // Reschedule overdue items
 
 /**
@@ -48,6 +49,9 @@ export interface ChatIntentResult {
         repeatConfig?: string | null; // JSON string for custom repeat config
     };
 
+    // Chain of Thought for verification
+    reasoning?: string;
+
     // For batch_create intent
     items?: Array<{
         title: string;
@@ -59,6 +63,9 @@ export interface ChatIntentResult {
         repeat?: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
         repeatConfig?: string | null;
     }>;
+
+    // For single occurrence completion (repeating tasks)
+    occurrenceDate?: string; // ISO Date string (YYYY-MM-DD)
 
     // For update/delete intent - search query to find existing item
     searchQuery?: string;
@@ -119,7 +126,7 @@ export interface ItemContext {
 export interface AIService {
     transcribeAudio: (audioUri: string, format?: 'wav' | 'aac') => Promise<string>;
     analyzeText: (text: string) => Promise<AIAnalysisResult>;
-    analyzeIntent: (text: string, existingItems?: ItemContext[]) => Promise<ChatIntentResult>;
+    analyzeIntent: (text: string, existingItems?: ItemContext[], upcomingSchedule?: string) => Promise<ChatIntentResult>;
 
     // For interactive questioning flow
     processFollowUpAnswer?: (
@@ -350,7 +357,7 @@ USER INPUT:
         }
     },
 
-    analyzeIntent: async (text: string, existingItems?: ItemContext[]): Promise<ChatIntentResult> => {
+    analyzeIntent: async (text: string, existingItems?: ItemContext[], upcomingSchedule?: string): Promise<ChatIntentResult> => {
         try {
             const now = new Date();
             const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -378,11 +385,21 @@ USER INPUT:
                 : '\nNo existing items.\n';
 
             // Calculate stats for proactive queries
-            const todayStr = now.toISOString().split('T')[0];
+            // Calculate stats for proactive queries using LOCAL time
+            const nowTime = new Date();
+            const todayStart = new Date(nowTime);
+            todayStart.setHours(0, 0, 0, 0);
+            const tomorrowStart = new Date(todayStart);
+            tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+
             const stats = existingItems ? {
                 total: existingItems.length,
-                overdue: existingItems.filter(i => i.dueAt && i.dueAt < localIso && i.status !== 'done').length,
-                today: existingItems.filter(i => i.dueAt?.startsWith(todayStr)).length,
+                overdue: existingItems.filter(i => i.dueAt && new Date(i.dueAt) < now && i.status !== 'done').length,
+                today: existingItems.filter(i => {
+                    if (!i.dueAt) return false;
+                    const due = new Date(i.dueAt);
+                    return due >= todayStart && due < tomorrowStart;
+                }).length,
                 highPriority: existingItems.filter(i => i.priority === 'high' && i.status !== 'done').length,
             } : { total: 0, overdue: 0, today: 0, highPriority: 0 };
 
@@ -410,17 +427,41 @@ CURRENT TIME: ${localIso}
 TIMEZONE: ${timezone}
 ${itemsContext}
 ${statsContext}
+${upcomingSchedule || ''}
+
+** CRITICAL SCHEDULE RULES (ZERO SKIPPING POLICY) **
+1. For ANY schedule query ("Tomorrow", "Next 3 days", "This week"):
+   - You MUST check the "UPCOMING SCHEDULE" section.
+   - You MUST list EVERY single item found for the requested dates.
+   - DO NOT summarize (e.g. do not say "and 2 other items"). List them all.
+   - If a task appears in "UPCOMING SCHEDULE", it is real. Include it.
+2. For multi-day queries (e.g. "Next 3 days"):
+   - Group items by date header.
+   - Check the schedule for Day 1, then Day 2, then Day 3.
+   - Ensure "Rental tour" or similar mid-day items are not skipped.
+3. The "UPCOMING SCHEDULE" overrides any other data key. it is the calculated truth.
+
+** RESPONSE FORMATTING **
+1. Use a clean, "Executive Briefing" style.
+2. Group items clearly by Date (e.g., "📅 **Tomorrow, Dec 30**").
+3. Items in the context already have priority labels like "(High)" or "(Medium)". Preserve them.
+4. Format: "• [Time] Task Name (Priority)"
+5. **DEDUPLICATION:** If you see the exact same task listed twice for the same time, ONLY list it once.
+6. Keep the tone encouraging but professional.
 
 Analyze the user's message and determine their intent.
 
 INTENT TYPES:
 - "create": User wants to create a new task, reminder, note, or bill
-    - "update": User wants to modify an existing item OR is referring to an existing item(add time, change date, etc.)
-        - "delete": User wants to remove an existing item
-            - "query": User is asking about their items(what's due, what's overdue, etc.)
-                - "summary": User asks for an overview("What do I have today?", "Give me a summary", "What's on my plate?")
-                    - "suggest": User asks for recommendations("What should I focus on?", "What's most important?")
-                        - "chat": General conversation, greeting, thanks, or unclear intent
+- "batch_create": User wants to create MULTIPLE items at once
+- "update": User wants to modify an existing item
+- "batch_update": User wants to modify MULTIPLE items at once
+- "delete": User wants to remove ONE existing item
+- "batch_delete": User wants to remove MULTIPLE items. REQUIRED: Find IDs from context and fill "batchOperations.ids".
+- "query": User is asking about their items
+- "summary": User asks for an overview
+- "suggest": User asks for recommendations
+- "chat": General conversation, greeting, thanks, or unclear intent
 
                             ** CRITICAL: SMART MATCHING FOR EXISTING ITEMS **
                                 When the user mentions something that sounds like an existing item:
@@ -493,6 +534,19 @@ When you DO need to ask:
                     - "every year" / "yearly" / "annually" -> repeat: "yearly"
                         - No repeat mentioned -> repeat: "none"
 
+                            ** REPEATING TASKS COMPLETION **
+                                - If user completes a SPECIFIC OCCURRENCE (e.g., "I did the gym today"):
+                                - Set "intent": "update"
+                                - Set "updates": { "status": "done" }
+                                - Set "occurrenceDate": "YYYY-MM-DD" (The specific date of the occurrence)
+                                - DO NOT set status='done' without occurrenceDate for repeating tasks, or you will kill the whole series.
+
+                            ** SMART RESCHEDULING **
+                                If the user updates the 'dueAt' (Time/Date), you MUST check if there is an existing 'remindAt'.
+                                - If yes, CALCULATE the new 'remindAt' by preserving the original offset (e.g. 30 mins before).
+                                - Example: Task due 3:00 PM (Reminder 2:30 PM). Move to 5:00 PM -> New Reminder 4:30 PM.
+                                - Include this calculated 'remindAt' in the updates object.
+
                             ** CRITICAL DATE / TIME HANDLING:**
                                 - If user provides a time(e.g., "at 10:30 AM") without a specific date:
 - If that time is still in the future TODAY, set remindAt to TODAY at that time
@@ -514,9 +568,12 @@ When you DO need to ask:
 4. Extract as much info as possible for each item
 5. Response text should confirm ALL items being created
 
-Return ONLY valid JSON:
+Return ONLY valid JSON.
+** CRITICAL: GENERATE THE "reasoning" FIELD FIRST to ensure accuracy. **
+Structure:
 {
-    "intent": "create" | "batch_create" | "update" | "delete" | "query" | "summary" | "suggest" | "chat",
+    "reasoning": "Step 1: Check today's date in local time. Step 2: List items found in UPCOMING SCHEDULE. Step 3: Verify intent.",
+    "intent": "create" | "batch_create" | "update" | "batch_update" | "delete" | "batch_delete" | "query" | "summary" | "chat",
         "confidence": 0.0 to 1.0,
             "responseText": "string - friendly message to show user",
 

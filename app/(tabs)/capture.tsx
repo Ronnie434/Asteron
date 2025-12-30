@@ -28,6 +28,7 @@ import { LiveSparkles } from '../../src/ui/components/LiveSparkles';
 import { AddTaskModal } from '../../src/ui/components/AddTaskModal';
 import { ChevronLeft } from 'lucide-react-native';
 import type { Item } from '../../src/db/items';
+import { expandRepeatingItems, sortItemsByTimeAndStatus } from '../../src/utils/repeatExpansion';
 
 interface CaptureScreenProps {
   onClose?: () => void;
@@ -56,7 +57,9 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
   const addItem = useItemsStore(state => state.addItem);
   const updateItem = useItemsStore(state => state.updateItem);
   const deleteItem = useItemsStore(state => state.deleteItem);
-
+  const loadItems = useItemsStore(state => state.loadItems);
+  const markAsDone = useItemsStore(state => state.markAsDone);
+  const markAsUndone = useItemsStore(state => state.markAsUndone);
   // Voice state
   const [isRecording, setIsRecording] = useState(false);
   const recordingRef = useRef<Audio.Recording | null>(null);
@@ -194,8 +197,50 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
           status: i.status,
         }));
 
+      // Generate upcoming schedule for AI context (including repeating items)
+      const expandedItems = expandRepeatingItems(items.filter(i => i.status !== 'archived'), 30);
+      const sortedExpanded = sortItemsByTimeAndStatus(expandedItems);
+      
+      const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      
+      const getPriorityLabel = (p: string) => {
+        switch(p) {
+          case 'high': return '(High)';
+          case 'medium': return '(Medium)';
+          case 'low': return '(Low)';
+          default: return '';
+        }
+      };
+
+      const upcomingSchedule = sortedExpanded.map(item => {
+        const dateDate = new Date(item.displayDate);
+        const dateStr = dateDate.toLocaleDateString('en-US', { 
+            weekday: 'short', 
+            month: 'short', 
+            day: 'numeric',
+            timeZone: userTimezone 
+        });
+        const timeStr = item.dueAt && !item.dueAt.includes('T00:00:00') 
+            ? new Date(item.dueAt).toLocaleTimeString('en-US', { 
+                hour: 'numeric', 
+                minute: '2-digit',
+                timeZone: userTimezone
+              }) 
+            : 'All day';
+        return `- ${dateStr} [${timeStr}]: ${item.title} ${getPriorityLabel(item.priority)}`;
+      }).join('\n');
+
+      const fullScheduleContext = `UPCOMING SCHEDULE (Calculated - Next 30 Days):\n${upcomingSchedule}`;
+
+      // DEBUG: Show context if requested
+      if (text.trim() === '/debug') {
+         addAssistantMessage(`DEBUG CONTEXT (Raw: ${items.length}, Expanded: ${expandedItems.length}):\n${upcomingSchedule}`);
+         setProcessing(false);
+         return;
+      }
+
       // Analyze intent
-      const result = await aiService.analyzeIntent(text, existingItems);
+      const result = await aiService.analyzeIntent(text, existingItems, fullScheduleContext);
 
       // Handle based on intent
       switch (result.intent) {
@@ -234,6 +279,41 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
           } else {
             addAssistantMessage(result.responseText);
           }
+          break;
+        }
+
+        case 'batch_update': {
+          const operations = result.batchOperations || [];
+          let updatedCount = 0;
+          
+          for (const op of operations) {
+              const { ids, updates } = op;
+              if (ids && ids.length > 0 && updates) {
+                  for (const id of ids) {
+                      await updateItem(id, updates);
+                      updatedCount++;
+                  }
+              }
+          }
+          
+          if (updatedCount > 0) {
+              await loadItems();
+          }
+          addAssistantMessage(result.responseText);
+          break;
+        }
+
+        case 'batch_delete': {
+          const operations = result.batchOperations || [];
+          const ids = operations.flatMap(op => op.ids);
+          
+          if (ids.length > 0) {
+             for (const id of ids) {
+                 await deleteItem(id);
+             }
+             await loadItems();
+          }
+          addAssistantMessage(result.responseText);
           break;
         }
 
@@ -279,7 +359,26 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
           }
           
           if (matchingItem && result.updates) {
-            await updateItem(matchingItem.id, result.updates);
+            // Check for specific occurrence completion/uncompletion
+            if (result.occurrenceDate && (result.updates.status === 'done' || result.updates.status === 'active')) {
+               const parts = result.occurrenceDate.split('-');
+               if (parts.length === 3) {
+                   const year = parseInt(parts[0]);
+                   const month = parseInt(parts[1]) - 1;
+                   const day = parseInt(parts[2]);
+                   const localDate = new Date(year, month, day);
+                   
+                   if (result.updates.status === 'done') {
+                       await markAsDone(matchingItem.id, localDate);
+                   } else {
+                       await markAsUndone(matchingItem.id, localDate);
+                   }
+                   await loadItems(); // Force refresh to update UI
+               }
+            } else {
+               // Standard update
+               await updateItem(matchingItem.id, result.updates);
+            }
             
             addAssistantMessage(result.responseText, {
               type: 'updated',

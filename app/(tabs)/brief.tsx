@@ -278,19 +278,8 @@ export default function BriefScreen() {
           style={styles.taskContent}
           onPress={() => {
             if (isDone) {
-              // Completed tasks cannot be edited
-              Alert.alert(
-                'Task Completed',
-                'Completed tasks cannot be edited. You can uncheck it first, or delete it.',
-                [
-                  { text: 'OK', style: 'cancel' },
-                  { 
-                    text: 'Delete', 
-                    style: 'destructive',
-                    onPress: () => handleDeleteItem(item, occurrenceDate)
-                  },
-                ]
-              );
+              // Allow unchecking by tapping the body
+              handleToggleItem(item, occurrenceDate);
             } else {
               handleEditItem(item);
             }
@@ -317,6 +306,8 @@ export default function BriefScreen() {
             onPress={() => {
               if (!isDone) {
                 handleEditItem(item);
+              } else {
+                handleToggleItem(item, occurrenceDate);
               }
             }}
             activeOpacity={isDone ? 1 : 0.6}

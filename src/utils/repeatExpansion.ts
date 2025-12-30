@@ -158,6 +158,36 @@ export function expandRepeatingItems(
             return;
         }
 
+        // Yearly repeat
+        if (item.repeat === 'yearly' && effectiveDate) {
+            const baseDate = new Date(effectiveDate);
+            const completedDates: string[] = item.completedDates
+                ? JSON.parse(item.completedDates)
+                : [];
+
+            // Check current year and next year
+            for (let yearOffset = 0; yearOffset <= 1; yearOffset++) {
+                const displayDate = new Date(baseDate);
+                displayDate.setFullYear(displayDate.getFullYear() + yearOffset);
+
+                const endDate = new Date(now);
+                endDate.setDate(endDate.getDate() + daysToExpand);
+
+                const dateStr = formatLocalDate(displayDate);
+                const isCompleted = completedDates.includes(dateStr);
+
+                if (displayDate > now && displayDate <= endDate) {
+                    expanded.push({
+                        ...item,
+                        displayDate,
+                        isVirtualOccurrence: yearOffset > 0,
+                        isCompleted,
+                    });
+                }
+            }
+            return;
+        }
+
         // Non-repeating or other repeat types: just add if within range
         if (effectiveDate) {
             const itemDate = new Date(effectiveDate);
