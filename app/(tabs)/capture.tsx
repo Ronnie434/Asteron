@@ -63,6 +63,7 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
   // Voice state
   const [isRecording, setIsRecording] = useState(false);
   const recordingRef = useRef<Audio.Recording | null>(null);
+  const recordingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Add Task Modal state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -107,6 +108,9 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
     return () => {
       if (recordingRef.current) {
         recordingRef.current.stopAndUnloadAsync();
+      }
+      if (recordingTimeoutRef.current) {
+        clearTimeout(recordingTimeoutRef.current);
       }
     };
   }, []);
@@ -464,6 +468,17 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
 
       recordingRef.current = recording;
       setIsRecording(true);
+      
+      // Auto-stop after 1 minute
+      if (recordingTimeoutRef.current) clearTimeout(recordingTimeoutRef.current);
+      recordingTimeoutRef.current = setTimeout(() => {
+          if (recordingRef.current) {
+             console.log('Recording timeout reached');
+             Alert.alert('Time Limit', 'Recording stopped automatically (1 min limit).');
+             stopAndSendRecording();
+          }
+      }, 60000); // 1 minute
+      
     } catch (err) {
       console.error('Failed to start recording', err);
       Alert.alert('Error', 'Failed to start recording.');
@@ -472,6 +487,12 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
 
   // Stop and Process Recording
   const stopAndSendRecording = async () => {
+    // Clear timeout
+    if (recordingTimeoutRef.current) {
+        clearTimeout(recordingTimeoutRef.current);
+        recordingTimeoutRef.current = null;
+    }
+
     if (!recordingRef.current) return;
 
     setIsRecording(false);
@@ -498,6 +519,11 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
 
   // Cancel Recording
   const cancelRecording = async () => {
+    if (recordingTimeoutRef.current) {
+        clearTimeout(recordingTimeoutRef.current);
+        recordingTimeoutRef.current = null;
+    }
+    
     if (!recordingRef.current) return;
     
     setIsRecording(false);
