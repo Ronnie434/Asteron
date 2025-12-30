@@ -2,7 +2,7 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Keyboard, Alert, TextInput, Dimensions, Animated, Text } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
-import { ChevronLeft, Mic, ChevronRight, Info } from 'lucide-react-native';
+import { ChevronLeft, Mic, ChevronRight, Info, Trash2 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { Audio } from 'expo-av';
 import { useTheme } from '../../src/contexts/ThemeContext';
@@ -526,6 +526,27 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
     setShowAddTaskModal(true);
   }, []);
 
+  // Handle clear chat - confirm before clearing
+  const handleClearChat = useCallback(() => {
+    if (messages.length === 0) return;
+    
+    Alert.alert(
+      'Clear Chat',
+      'Are you sure you want to clear all chat history? This cannot be undone.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Clear',
+          style: 'destructive',
+          onPress: () => clearSession(),
+        },
+      ]
+    );
+  }, [messages.length, clearSession]);
+
 
 
   return (
@@ -560,6 +581,24 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
           </View>
 
           <View style={styles.headerRight}>
+             {/* Clear Chat Button - only show when there are messages */}
+             {messages.length > 0 && (
+               <TouchableOpacity 
+                 onPress={handleClearChat}
+                 activeOpacity={0.6}
+                 style={[
+                     styles.iconButton,
+                     { 
+                       backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                       marginRight: 8,
+                     }
+                 ]}
+               >
+                 <Trash2 size={18} color={colors.textSecondary} />
+               </TouchableOpacity>
+             )}
+             
+             {/* Info Button */}
              <TouchableOpacity 
                 onPress={() => setShowHelpModal(true)}
                 activeOpacity={0.6}
@@ -955,7 +994,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerRight: {
-    width: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 44,
   },
   iconButton: {
     width: 40,
