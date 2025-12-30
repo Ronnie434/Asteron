@@ -95,41 +95,107 @@ const toSupabase = (item: Item, userId: string) => ({
 
 /**
  * Calculate badge count based on pending items
+ * Only counts items that are actually due today or overdue (from past days)
  */
 const calculateBadgeCount = (items: Item[]): number => {
     const now = new Date();
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+
     let count = 0;
+    const debugLog: string[] = []; // For debugging
 
     for (const item of items) {
         if (item.status !== 'active') continue;
         if (!item.remindAt) continue;
 
+        const baseDate = new Date(item.remindAt);
+
+        // Handle repeating items
         if (item.repeat && item.repeat !== 'none') {
-            const baseDate = new Date(item.remindAt);
-            const occurrenceDate = new Date(now);
-            occurrenceDate.setHours(baseDate.getHours(), baseDate.getMinutes(), 0, 0);
+            const completedDates = item.completedDates ? JSON.parse(item.completedDates) : [];
+            const skippedDates = item.skippedDates ? JSON.parse(item.skippedDates) : [];
+            const createdAt = new Date(item.createdAt);
 
-            if (occurrenceDate <= now) {
-                const completedDates = item.completedDates ? JSON.parse(item.completedDates) : [];
-                const skippedDates = item.skippedDates ? JSON.parse(item.skippedDates) : [];
+            let shouldCount = false;
 
-                // Use local date to match stored format
-                const year = occurrenceDate.getFullYear();
-                const month = String(occurrenceDate.getMonth() + 1).padStart(2, '0');
-                const day = String(occurrenceDate.getDate()).padStart(2, '0');
-                const dateStr = `${year}-${month}-${day}`;
+            // Check today and past 3 days for uncompleted occurrences
+            for (let daysBack = 0; daysBack <= 3; daysBack++) {
+                const checkDate = new Date(now);
+                checkDate.setDate(checkDate.getDate() - daysBack);
+                const checkDateStart = new Date(checkDate);
+                checkDateStart.setHours(0, 0, 0, 0);
 
-                if (!completedDates.includes(dateStr) && !skippedDates.includes(dateStr)) {
-                    count++;
+                // Calculate the occurrence date for this check date
+                let occurrenceDate: Date | null = null;
+
+                if (item.repeat === 'daily') {
+                    occurrenceDate = new Date(checkDateStart);
+                    occurrenceDate.setHours(baseDate.getHours(), baseDate.getMinutes(), 0, 0);
+                } else if (item.repeat === 'weekly') {
+                    // Check if this date matches the weekly recurrence
+                    const daysDiff = Math.floor((checkDateStart.getTime() - new Date(baseDate).setHours(0, 0, 0, 0)) / (1000 * 60 * 60 * 24));
+                    if (daysDiff >= 0 && daysDiff % 7 === 0) {
+                        occurrenceDate = new Date(checkDateStart);
+                        occurrenceDate.setHours(baseDate.getHours(), baseDate.getMinutes(), 0, 0);
+                    }
+                } else if (item.repeat === 'monthly') {
+                    // Check if this month's occurrence date matches
+                    const monthsFromBase = (checkDate.getFullYear() - baseDate.getFullYear()) * 12
+                        + (checkDate.getMonth() - baseDate.getMonth());
+                    const thisMonthOccurrence = new Date(baseDate);
+                    thisMonthOccurrence.setMonth(baseDate.getMonth() + monthsFromBase);
+
+                    // Check if this occurrence date is the check date
+                    const occurrenceStart = new Date(thisMonthOccurrence);
+                    occurrenceStart.setHours(0, 0, 0, 0);
+                    if (occurrenceStart.getTime() === checkDateStart.getTime()) {
+                        occurrenceDate = thisMonthOccurrence;
+                    }
+                } else if (item.repeat === 'yearly') {
+                    // Check if this year's occurrence date matches
+                    const yearsFromBase = checkDate.getFullYear() - baseDate.getFullYear();
+                    const thisYearOccurrence = new Date(baseDate);
+                    thisYearOccurrence.setFullYear(baseDate.getFullYear() + yearsFromBase);
+
+                    const occurrenceStart = new Date(thisYearOccurrence);
+                    occurrenceStart.setHours(0, 0, 0, 0);
+                    if (occurrenceStart.getTime() === checkDateStart.getTime()) {
+                        occurrenceDate = thisYearOccurrence;
+                    }
+                }
+
+                // If there's an occurrence on this date
+                if (occurrenceDate && occurrenceDate >= createdAt) {
+                    const dateStr = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, '0')}-${String(checkDate.getDate()).padStart(2, '0')}`;
+
+                    // Check if remind time has passed AND not completed/skipped
+                    if (occurrenceDate <= now &&
+                        !completedDates.includes(dateStr) &&
+                        !skippedDates.includes(dateStr)) {
+                        shouldCount = true;
+                        debugLog.push(`✅ ${item.title} (${item.repeat}) - occurrence on ${dateStr}`);
+                        break; // Only count once per item
+                    }
                 }
             }
+
+            if (shouldCount) count++;
         } else {
-            const remindDate = new Date(item.remindAt);
-            if (remindDate <= now) {
+            // One-time task: count if remind time has passed
+            if (baseDate <= now) {
                 count++;
+                debugLog.push(`✅ ${item.title} (one-time) - remind at ${baseDate.toLocaleString()}`);
             }
         }
     }
+
+    // Log debug info (remove in production)
+    if (debugLog.length > 0) {
+        console.log('[Badge Count Debug] Counted items:', count);
+        debugLog.forEach(log => console.log(log));
+    }
+
     return count;
 };
 

@@ -382,10 +382,11 @@ export const NotificationService = {
             nextMonthRemindAt.setMonth(nextMonthRemindAt.getMonth() + 1);
 
             // Compute occurrence dueAt if base dueAt exists
+            // IMPORTANT: Increment the month for dueAt as well!
             let nextMonthDueAt: Date | null = null;
             if (baseDueAt) {
-                nextMonthDueAt = new Date(nextMonthRemindAt);
-                nextMonthDueAt.setHours(baseDueAt.getHours(), baseDueAt.getMinutes(), 0, 0);
+                nextMonthDueAt = new Date(baseDueAt);
+                nextMonthDueAt.setMonth(nextMonthDueAt.getMonth() + 1);
             }
 
             if (nextMonthRemindAt > now) {
