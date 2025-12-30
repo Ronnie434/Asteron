@@ -1,32 +1,21 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  View,
-  StyleSheet,
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Animated,
-  AppState,
-  AppStateStatus,
-  Alert,
-  TouchableOpacity,
-} from 'react-native';
+import { useRef, useState, useEffect, useCallback } from 'react';
+import { View, StyleSheet, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Keyboard, Alert, TextInput, Dimensions, Animated, Text } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
+import { ChevronLeft, Mic, ChevronRight, Info } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { Audio } from 'expo-av';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { Typography } from '../../src/ui/components/Typography';
-import { ChatInputBar } from '../../src/ui/components/ChatInputBar';
 import { ChatMessage } from '../../src/ui/components/ChatMessage';
+import { RainbowSparkles } from '../../src/ui/components/RainbowSparkles';
+import { LiveSparkles } from '../../src/ui/components/LiveSparkles';
 import { useChatStore } from '../../src/store/useChatStore';
 import { useItemsStore } from '../../src/store/useItemsStore';
 import { aiService } from '../../src/ai/aiService';
-import { RainbowSparkles } from '../../src/ui/components/RainbowSparkles';
-import { LiveSparkles } from '../../src/ui/components/LiveSparkles';
+import { HelpModal } from '../../src/ui/components/HelpModal';
 import { AddTaskModal } from '../../src/ui/components/AddTaskModal';
-import { ChevronLeft } from 'lucide-react-native';
+import { ChatInputBar } from '../../src/ui/components/ChatInputBar';
 import type { Item } from '../../src/db/items';
 import { expandRepeatingItems, sortItemsByTimeAndStatus } from '../../src/utils/repeatExpansion';
 
@@ -65,14 +54,17 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
   const recordingRef = useRef<Audio.Recording | null>(null);
   const recordingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Help Modal state
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  
   // Add Task Modal state
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   
   // Toast state for save confirmation
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const toastOpacity = useRef(new Animated.Value(0)).current;
 
-  // Handle save success from AddTaskModal
+  // Handle save success from AddTaskModal (now just a generic save success)
   const handleSaveSuccess = useCallback((title: string) => {
     setToastMessage(`✓ Saved "${title}"`);
     
@@ -92,16 +84,7 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
     ]).start(() => setToastMessage(null));
   }, [toastOpacity]);
 
-  // Handle app state changes to clear session when app goes to background
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
-      if (nextState === 'background' || nextState === 'inactive') {
-        clearSession();
-      }
-    });
-    
-    return () => subscription.remove();
-  }, [clearSession]);
+
 
   // Clean up recording on unmount
   useEffect(() => {
@@ -134,6 +117,8 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
 
   // Handle sending a message
   const handleSend = useCallback(async (text: string) => {
+    if (!text.trim()) return;
+
     // Add user message to chat
     addUserMessage(text);
     setProcessing(true);
@@ -536,10 +521,12 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
     }
   };
 
-  // Handle plus button press
+  // Handle plus button press - open AddTaskModal for manual task creation
   const handlePlusPress = useCallback(() => {
-    setShowAddModal(true);
+    setShowAddTaskModal(true);
   }, []);
+
+
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -571,10 +558,29 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
           <View style={styles.headerCenter}>
             <RainbowSparkles size={20} />
           </View>
-          <View style={styles.headerRight} />
+
+          <View style={styles.headerRight}>
+             <TouchableOpacity 
+                onPress={() => setShowHelpModal(true)}
+                activeOpacity={0.6}
+                style={[
+                    styles.iconButton,
+                    { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }
+                ]}
+             >
+                <Info size={20} color={colors.text} />
+             </TouchableOpacity>
+          </View>
         </View>
 
-        {/* Chat Messages Area - ScrollView fills remaining space */}
+        <HelpModal visible={showHelpModal} onClose={() => setShowHelpModal(false)} />
+        <AddTaskModal 
+          visible={showAddTaskModal} 
+          onClose={() => setShowAddTaskModal(false)}
+          onSaveSuccess={handleSaveSuccess}
+        />
+
+        {/* Chat Messages Area... */}
         <ScrollView
           ref={scrollViewRef}
           style={styles.messagesContainer}
@@ -654,13 +660,6 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
           isProcessing={isProcessing}
         />
       </KeyboardAvoidingView>
-
-      {/* Add Task Modal */}
-      <AddTaskModal 
-        visible={showAddModal} 
-        onClose={() => setShowAddModal(false)}
-        onSaveSuccess={handleSaveSuccess}
-      />
 
       {/* Toast Confirmation */}
       {toastMessage && (
@@ -957,6 +956,88 @@ const styles = StyleSheet.create({
   },
   headerRight: {
     width: 44,
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inputBarContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  inputBar: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    minHeight: 50,
+    maxHeight: 150,
+    marginBottom: 8,
+  },
+  plusButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+    marginBottom: 5,
+  },
+  plusButtonText: {
+    fontSize: 24,
+    lineHeight: 24,
+    color: 'white',
+  },
+  textInput: {
+    flex: 1,
+    borderRadius: 25,
+    paddingHorizontal: 16,
+    paddingTop: 12, // For multiline input, align text to top
+    paddingBottom: 12,
+    fontSize: 16,
+    lineHeight: 22,
+    maxHeight: 140, // Max height for multiline input
+  },
+  sendButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+    marginBottom: 5,
+  },
+  voiceButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+    marginBottom: 5,
+  },
+  recordingContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(255, 0, 0, 0.1)',
+    borderRadius: 25,
+    paddingHorizontal: 16,
+    height: 50,
+  },
+  cancelRecordingButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  sendRecordingButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 0, 0, 0.2)',
   },
   toast: {
     position: 'absolute',

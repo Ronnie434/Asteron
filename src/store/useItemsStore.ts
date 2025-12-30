@@ -376,15 +376,55 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
     },
 
     markAsDone: async (id, occurrenceDate?: Date) => {
-        const currentItem = get().items.find(i => i.id === id);
-        if (!currentItem) return;
+        const { user } = useAuthStore.getState();
+        if (!user) return;
+
+        // FETCH FRESH DATA first to avoid stale state overwrites
+        const { data: freshItem, error: fetchError } = await supabase
+            .from('user_items')
+            .select('*')
+            .eq('local_id', id)
+            .eq('user_id', user.id)
+            .single();
+
+        if (fetchError || !freshItem) {
+            console.error('[ItemsStore] Failed to fetch fresh item for markAsDone:', fetchError);
+            return;
+        }
+
+        const currentItem = freshItem;
 
         if (currentItem.repeat && currentItem.repeat !== 'none' && occurrenceDate) {
             await NotificationService.cancelOccurrenceReminder(id, occurrenceDate);
 
-            const completedDates: string[] = currentItem.completedDates
-                ? JSON.parse(currentItem.completedDates)
-                : [];
+            let completedDates: string[] = [];
+            try {
+                if (currentItem.completed_dates) {
+                    // unexpected token - means it might be a raw string like "2025-01-01"
+                    if (typeof currentItem.completed_dates === 'string' &&
+                        currentItem.completed_dates.match(/^\d{4}-\d{2}-\d{2}/)) {
+                        // Check if it's already a valid date string but NOT a JSON string
+                        if (!currentItem.completed_dates.startsWith('[')) {
+                            completedDates = [currentItem.completed_dates];
+                        } else {
+                            completedDates = JSON.parse(currentItem.completed_dates);
+                        }
+                    } else if (Array.isArray(currentItem.completed_dates)) {
+                        // Supabase might return JSONB as actual array if typed that way
+                        completedDates = currentItem.completed_dates;
+                    } else {
+                        completedDates = JSON.parse(currentItem.completed_dates);
+                    }
+                }
+            } catch (e) {
+                console.warn('[ItemsStore] Failed to parse completed_dates, recovering:', currentItem.completed_dates);
+                // Recovery: if it looks like a date, use it
+                if (typeof currentItem.completed_dates === 'string' && currentItem.completed_dates.length === 10) {
+                    completedDates = [currentItem.completed_dates];
+                } else {
+                    completedDates = [];
+                }
+            }
 
             // Use local date to avoid timezone issues
             const year = occurrenceDate.getFullYear();
@@ -394,26 +434,70 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
 
             if (!completedDates.includes(dateStr)) {
                 completedDates.push(dateStr);
-                await get().updateItem(id, { completedDates: JSON.stringify(completedDates) });
+                // Update Supabase directly
+                const { error: updateError } = await supabase
+                    .from('user_items')
+                    .update({ completed_dates: JSON.stringify(completedDates) })
+                    .eq('local_id', id)
+                    .eq('user_id', user.id);
+
+                if (!updateError) {
+                    await get().loadItems(); // Refresh local state
+                }
             }
         } else if (currentItem.repeat && currentItem.repeat !== 'none') {
             const today = new Date();
             await get().markAsDone(id, today);
         } else {
             await NotificationService.cancelReminder(id);
+            // Standard update
             await get().updateItem(id, { status: 'done' });
         }
     },
 
     markAsUndone: async (id, occurrenceDate?: Date) => {
-        const currentItem = get().items.find(i => i.id === id);
-        if (!currentItem) return;
+        const { user } = useAuthStore.getState();
+        if (!user) return;
+
+        // FETCH FRESH DATA first
+        const { data: freshItem, error: fetchError } = await supabase
+            .from('user_items')
+            .select('*')
+            .eq('local_id', id)
+            .eq('user_id', user.id)
+            .single();
+
+        if (fetchError || !freshItem) {
+            console.error('[ItemsStore] Failed to fetch fresh item for markAsUndone:', fetchError);
+            return;
+        }
+
+        const currentItem = freshItem;
 
         if (currentItem.repeat && currentItem.repeat !== 'none' && occurrenceDate) {
             // Remove this date from completedDates
-            const completedDates: string[] = currentItem.completedDates
-                ? JSON.parse(currentItem.completedDates)
-                : [];
+            let completedDates: string[] = [];
+            try {
+                if (currentItem.completed_dates) {
+                    // Check if it's already a valid date string but NOT a JSON string
+                    if (typeof currentItem.completed_dates === 'string' &&
+                        currentItem.completed_dates.match(/^\d{4}-\d{2}-\d{2}/) &&
+                        !currentItem.completed_dates.startsWith('[')) {
+                        completedDates = [currentItem.completed_dates];
+                    } else if (Array.isArray(currentItem.completed_dates)) {
+                        completedDates = currentItem.completed_dates;
+                    } else {
+                        completedDates = JSON.parse(currentItem.completed_dates);
+                    }
+                }
+            } catch (e) {
+                console.warn('[ItemsStore] Failed to parse completed_dates in markAsUndone, recovering:', currentItem.completed_dates);
+                if (typeof currentItem.completed_dates === 'string' && currentItem.completed_dates.length === 10) {
+                    completedDates = [currentItem.completed_dates];
+                } else {
+                    completedDates = [];
+                }
+            }
 
             // Use local date format
             const year = occurrenceDate.getFullYear();
@@ -422,18 +506,28 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
             const dateStr = `${year}-${month}-${day}`;
 
             const updatedDates = completedDates.filter((d: string) => d !== dateStr);
-            await get().updateItem(id, { completedDates: JSON.stringify(updatedDates) });
+
+            // Update Supabase directly
+            const { error: updateError } = await supabase
+                .from('user_items')
+                .update({ completed_dates: JSON.stringify(updatedDates) })
+                .eq('local_id', id)
+                .eq('user_id', user.id);
+
+            if (!updateError) {
+                await get().loadItems();
+            }
 
             // Re-schedule notification if it's in the future
-            if (currentItem.remindAt) {
-                const baseDate = new Date(currentItem.remindAt);
+            if (currentItem.remind_at) {
+                const baseDate = new Date(currentItem.remind_at);
                 const reminderTime = new Date(occurrenceDate);
                 reminderTime.setHours(baseDate.getHours(), baseDate.getMinutes(), 0, 0);
 
                 // Compute due time if dueAt exists
                 let dueTime: Date | null = null;
-                if (currentItem.dueAt) {
-                    const baseDue = new Date(currentItem.dueAt);
+                if (currentItem.due_at) {
+                    const baseDue = new Date(currentItem.due_at);
                     dueTime = new Date(occurrenceDate);
                     dueTime.setHours(baseDue.getHours(), baseDue.getMinutes(), 0, 0);
                 }
@@ -453,22 +547,17 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
             const today = new Date();
             await get().markAsUndone(id, today);
         } else {
-            // One-time task: set status back to active and re-schedule notification
-            await get().updateItem(id, { status: 'active' });
-
-            // Re-schedule notification if reminder is in the future
-            if (currentItem.remindAt) {
-                const remindDate = new Date(currentItem.remindAt);
-                if (remindDate > new Date()) {
-                    await NotificationService.scheduleReminder(
-                        id,
-                        currentItem.title,
-                        currentItem.remindAt,
-                        currentItem.dueAt || null
-                    );
-                    console.log(`[ItemsStore] Re-scheduled notification for "${currentItem.title}"`);
-                }
+            // Standard one-time item
+            // Reschedule if needed
+            if (currentItem.remind_at && new Date(currentItem.remind_at) > new Date()) {
+                await NotificationService.scheduleReminder(
+                    id,
+                    currentItem.title,
+                    currentItem.remind_at,
+                    currentItem.due_at
+                );
             }
+            await get().updateItem(id, { status: 'active' });
         }
     },
 
