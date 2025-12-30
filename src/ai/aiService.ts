@@ -463,7 +463,7 @@ Now produce ONLY the JSON object.`;
                     if (i.priority) parts.push(`priority: ${i.priority}`);
                     if (i.dueAt) {
                         const dueLocal = new Date(safeIsoDate(i.dueAt)).toLocaleString('en-US', {
-                            weekday: 'short', month: 'short', day: 'numeric',
+                            weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
                             hour: 'numeric', minute: '2-digit'
                         });
                         parts.push(`due: ${dueLocal}`);
@@ -528,7 +528,9 @@ Your goal is to be proactive, highly organized, and authoritative about the user
    - You MUST list EVERY single item found for the requested dates.
    - **STRICT DATE MATCHING**: If user asks for "Tomorrow" (${tomorrowStr}), ONLY list items that explicitly match that date.
    - DO NOT list items for Jan 1st if the user asked for Dec 31st.
-   - If "UPCOMING SCHEDULE" has no items for the requested date, respond "You have nothing scheduled for [Date]."
+   - If "UPCOMING SCHEDULE" has no items for the requested date:
+     - IF the date is within the next 365 days, respond "You have nothing scheduled for [Date]."
+     - IF the date is MORE than 365 days away, respond "I only have visibility into your schedule for the next year (365 days). I can't see events that far ahead yet."
    - DO NOT summarize (e.g. do not say "and 2 other items"). List them all.
    - If a task appears in "UPCOMING SCHEDULE", it is real. Include it.
 2. The "UPCOMING SCHEDULE" overrides any other data key. it is the calculated truth.

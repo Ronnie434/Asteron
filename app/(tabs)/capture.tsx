@@ -190,7 +190,8 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
         }));
 
       // Generate upcoming schedule for AI context (including repeating items)
-      const expandedItems = expandRepeatingItems(items.filter(i => i.status !== 'archived'), 30);
+      // Expand for 365 days to give AI full year foresight
+      const expandedItems = expandRepeatingItems(items.filter(i => i.status !== 'archived'), 365);
       const sortedExpanded = sortItemsByTimeAndStatus(expandedItems);
       
       const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -210,7 +211,8 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
         const dateStr = dateDate.toLocaleDateString('en-US', { 
             weekday: 'short', 
             month: 'short', 
-            day: 'numeric'
+            day: 'numeric',
+            year: 'numeric'
         });
         const timeStr = item.dueAt && !item.dueAt.includes('T00:00:00') 
             ? safeParseDate(item.dueAt).toLocaleTimeString('en-US', { 
