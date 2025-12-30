@@ -336,7 +336,7 @@ export default function SignInScreen() {
             )}
           </Pressable>
 
-          {/* Skip Sign-in */}
+          {/* Skip Sign-in - Commented out for now
           <Pressable
             style={({ pressed }) => [
               styles.skipButton,
@@ -353,6 +353,7 @@ export default function SignInScreen() {
               Skip for now
             </Text>
           </Pressable>
+          */}
 
           {/* Terms & Privacy */}
           <Text style={[styles.termsText, { color: colors.textTertiary }]}>
