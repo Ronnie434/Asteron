@@ -17,6 +17,7 @@ import { supabase } from '../src/services/supabase';
 import { useAuthStore } from '../src/store/useAuthStore';
 import { useTheme } from '../src/contexts/ThemeContext';
 import { theme } from '../src/ui/theme';
+import { LoadingScreen } from '../src/components/LoadingScreen';
 
 // Configure Google Sign-in
 GoogleSignin.configure({
@@ -266,6 +267,12 @@ export default function SignInScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {isLoading && (
+        <LoadingScreen 
+          message={isGoogleLoading ? "Signing in with Google..." : "Signing in with Apple..."} 
+          overlay 
+        />
+      )}
       <View style={[styles.content, { paddingTop: insets.top + 60 }]}>
         {/* Logo Section */}
         <View style={styles.logoSection}>
@@ -296,16 +303,10 @@ export default function SignInScreen() {
               onPress={handleAppleSignIn}
               disabled={isLoading}
             >
-              {isAppleLoading ? (
-                <ActivityIndicator color={isDark ? '#000' : '#fff'} />
-              ) : (
-                <>
-                  <AppleLogo size={20} color={isDark ? '#000' : '#fff'} />
-                  <Text style={[styles.buttonText, { color: isDark ? '#000' : '#fff' }]}>
-                    Continue with Apple
-                  </Text>
-                </>
-              )}
+              <AppleLogo size={20} color={isDark ? '#000' : '#fff'} />
+              <Text style={[styles.buttonText, { color: isDark ? '#000' : '#fff' }]}>
+                Continue with Apple
+              </Text>
             </Pressable>
           )}
 
@@ -324,16 +325,10 @@ export default function SignInScreen() {
             onPress={handleGoogleSignIn}
             disabled={isLoading}
           >
-            {isGoogleLoading ? (
-              <ActivityIndicator color={colors.text} />
-            ) : (
-              <>
-                <GoogleLogo size={20} />
-                <Text style={[styles.buttonText, { color: colors.text }]}>
-                  Continue with Google
-                </Text>
-              </>
-            )}
+            <GoogleLogo size={20} />
+            <Text style={[styles.buttonText, { color: colors.text }]}>
+              Continue with Google
+            </Text>
           </Pressable>
 
           {/* Skip Sign-in - Commented out for now
