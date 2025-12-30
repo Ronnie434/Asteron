@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useRouter } from 'expo-router';
 import { GlassyHeader } from '../../src/ui/components/GlassyHeader';
+import { CalendarModal } from '../../src/ui/components/CalendarModal';
 import { expandRepeatingItems, ExpandedItem, getEffectiveDate } from '../../src/utils/repeatExpansion';
 
 export default function UpcomingScreen() {
@@ -22,6 +23,7 @@ export default function UpcomingScreen() {
   // Force re-render when time changes (for overdue detection)
   const [refreshKey, setRefreshKey] = useState(0);
   const appState = useRef(AppState.currentState);
+  const [isCalendarModalVisible, setIsCalendarModalVisible] = useState(false);
 
   useEffect(() => {
     init();
@@ -47,13 +49,13 @@ export default function UpcomingScreen() {
 
   const now = new Date();
   
-  // Calculate 7 days from now
-  const sevenDaysFromNow = new Date(now);
-  sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-  sevenDaysFromNow.setHours(23, 59, 59, 999);
+  // Calculate 30 days from now
+  const thirtyDaysFromNow = new Date(now);
+  thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+  thirtyDaysFromNow.setHours(23, 59, 59, 999);
 
   // Use shared expansion utility which includes completed items with isCompleted flag
-  const expandedItems = expandRepeatingItems(items, 7, false);
+  const expandedItems = expandRepeatingItems(items, 30, false);
 
   // Sort by display date, with completed items at the end of each group
   const upcoming = [...expandedItems].sort((a, b) => {
@@ -264,7 +266,28 @@ export default function UpcomingScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <GlassyHeader title="Upcoming" />
+      <GlassyHeader 
+        title="Upcoming" 
+        rightAction={
+          <TouchableOpacity 
+            onPress={() => setIsCalendarModalVisible(true)}
+            style={styles.calendarButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Calendar size={22} color={colors.primary} strokeWidth={2} />
+          </TouchableOpacity>
+        }
+      />
+
+      <CalendarModal
+        isVisible={isCalendarModalVisible}
+        onClose={() => setIsCalendarModalVisible(false)}
+        items={items}
+        onItemPress={(item) => {
+          setIsCalendarModalVisible(false);
+          handleEditItem(item);
+        }}
+      />
 
       <ScrollView
         contentContainerStyle={[
@@ -389,5 +412,8 @@ const styles = StyleSheet.create({
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  calendarButton: {
+    padding: theme.spacing.xs,
   },
 });

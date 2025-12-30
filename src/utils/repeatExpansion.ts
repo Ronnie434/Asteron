@@ -1,4 +1,5 @@
 import type { Item, RepeatFrequency, CustomRepeatConfig } from '../db/items';
+import { formatLocalDate as formatLocalDateUtil } from './dateUtils';
 
 /**
  * Expanded item with a computed display date for virtual occurrences
@@ -19,13 +20,12 @@ export const getEffectiveDate = (item: Item): string | null => {
 /**
  * Format a date as YYYY-MM-DD using local timezone
  * (toISOString() converts to UTC which can shift the date)
+ * @deprecated Use formatLocalDate from dateUtils instead
  */
-const formatLocalDate = (date: Date): string => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-};
+const formatLocalDate = formatLocalDateUtil;
+
+// Re-export for backward compatibility
+export { formatLocalDate };
 
 /**
  * Expand repeating items into virtual occurrences for display
@@ -106,18 +106,36 @@ export function expandRepeatingItems(
             const completedDates: string[] = item.completedDates
                 ? JSON.parse(item.completedDates)
                 : [];
+            const skippedDates: string[] = item.skippedDates
+                ? JSON.parse(item.skippedDates)
+                : [];
 
-            for (let weekOffset = 0; weekOffset <= Math.ceil(daysToExpand / 7); weekOffset++) {
+            const endDate = new Date(now);
+            endDate.setDate(endDate.getDate() + daysToExpand);
+
+            const createdAt = new Date(item.createdAt);
+
+            // Generate all weekly occurrences from now to endDate
+            for (let weekOffset = 0; weekOffset <= Math.ceil(daysToExpand / 7) + 1; weekOffset++) {
                 const displayDate = new Date(baseDate);
                 displayDate.setDate(displayDate.getDate() + (weekOffset * 7));
 
-                const endDate = new Date(now);
-                endDate.setDate(endDate.getDate() + daysToExpand);
+                // Skip if before creation time
+                if (displayDate < createdAt) continue;
+
+                // Skip if before now (unless includeOverdue is true)
+                const todayStart = new Date(now);
+                todayStart.setHours(0, 0, 0, 0);
+                if (!includeOverdue && displayDate < todayStart) continue;
 
                 const dateStr = formatLocalDate(displayDate);
+
+                // Skip if this date is in the skippedDates list
+                if (skippedDates.includes(dateStr)) continue;
+
                 const isCompleted = completedDates.includes(dateStr);
 
-                if (displayDate > now && displayDate <= endDate) {
+                if (displayDate >= todayStart && displayDate <= endDate) {
                     expanded.push({
                         ...item,
                         displayDate,
@@ -129,24 +147,44 @@ export function expandRepeatingItems(
             return;
         }
 
-        // Monthly repeat
+        // Monthly repeat: generate all monthly occurrences within the date range
         if (item.repeat === 'monthly' && effectiveDate) {
             const baseDate = new Date(effectiveDate);
             const completedDates: string[] = item.completedDates
                 ? JSON.parse(item.completedDates)
                 : [];
+            const skippedDates: string[] = item.skippedDates
+                ? JSON.parse(item.skippedDates)
+                : [];
 
-            for (let monthOffset = 0; monthOffset <= 1; monthOffset++) {
+            const endDate = new Date(now);
+            endDate.setDate(endDate.getDate() + daysToExpand);
+
+            const createdAt = new Date(item.createdAt);
+
+            // Generate monthly occurrences - calculate how many months ahead we need
+            const monthsToGenerate = Math.ceil(daysToExpand / 30) + 1;
+
+            for (let monthOffset = 0; monthOffset <= monthsToGenerate; monthOffset++) {
                 const displayDate = new Date(baseDate);
                 displayDate.setMonth(displayDate.getMonth() + monthOffset);
 
-                const endDate = new Date(now);
-                endDate.setDate(endDate.getDate() + daysToExpand);
+                // Skip if before creation time
+                if (displayDate < createdAt) continue;
+
+                // Skip if before now (unless includeOverdue is true)
+                const todayStart = new Date(now);
+                todayStart.setHours(0, 0, 0, 0);
+                if (!includeOverdue && displayDate < todayStart) continue;
 
                 const dateStr = formatLocalDate(displayDate);
+
+                // Skip if this date is in the skippedDates list
+                if (skippedDates.includes(dateStr)) continue;
+
                 const isCompleted = completedDates.includes(dateStr);
 
-                if (displayDate > now && displayDate <= endDate) {
+                if (displayDate >= todayStart && displayDate <= endDate) {
                     expanded.push({
                         ...item,
                         displayDate,

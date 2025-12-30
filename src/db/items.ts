@@ -1,5 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import { type SQLiteDatabase } from 'expo-sqlite';
+import { formatLocalDate } from '../utils/dateUtils';
 
 export type ItemType = 'task' | 'bill' | 'renewal' | 'followup' | 'reminder' | 'note';
 export type ItemPriority = 'low' | 'med' | 'high';
@@ -170,7 +171,7 @@ export const cleanupOldCompletedDates = async (daysToKeep: number = 5): Promise<
 
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
-    const cutoffStr = cutoffDate.toISOString().split('T')[0];
+    const cutoffStr = formatLocalDate(cutoffDate);
 
     for (const item of items) {
         if (!item.completedDates) continue;
