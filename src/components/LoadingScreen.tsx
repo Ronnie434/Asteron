@@ -38,20 +38,16 @@ export const LoadingScreen = ({ message, overlay = false }: LoadingScreenProps) 
 
     useEffect(() => {
         // Breathing animation
+        // Scale: 1 -> 1.2 -> 1
         scale.value = withRepeat(
-            withSequence(
-                withTiming(1.1, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
-                withTiming(1, { duration: 1500, easing: Easing.inOut(Easing.ease) })
-            ),
+            withTiming(1.2, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
             -1,
             true
         );
 
+        // Opacity: 0.5 -> 1 -> 0.5
         opacity.value = withRepeat(
-            withSequence(
-                withTiming(1, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
-                withTiming(0.5, { duration: 1500, easing: Easing.inOut(Easing.ease) })
-            ),
+            withTiming(1, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
             -1,
             true
         );

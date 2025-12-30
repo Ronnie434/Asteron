@@ -12,6 +12,7 @@ import { AddNoteModal } from '../../src/ui/components/AddNoteModal';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useRouter } from 'expo-router';
 import { GlassyHeader } from '../../src/ui/components/GlassyHeader';
+import { safeParseDate } from '../../src/utils/dateUtils';
 
 export default function NotesScreen() {
   const router = useRouter();
@@ -36,7 +37,7 @@ export default function NotesScreen() {
         (i.details && i.details.toLowerCase().includes(query))
       );
     })
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    .sort((a, b) => safeParseDate(b.createdAt).getTime() - safeParseDate(a.createdAt).getTime());
 
   const handleOpenNote = (note: Item) => {
     router.push({
@@ -124,7 +125,7 @@ export default function NotesScreen() {
                   ) : null}
                   
                   <Typography variant="caption2" color={colors.textTertiary} style={styles.noteDate}>
-                    {new Date(note.createdAt).toLocaleDateString()}
+                    {safeParseDate(note.createdAt).toLocaleDateString()}
                   </Typography>
                 </TouchableOpacity>
               </Card>

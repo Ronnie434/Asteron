@@ -46,3 +46,27 @@ export const getEndOfToday = (): Date => {
     today.setHours(23, 59, 59, 999);
     return today;
 };
+
+/**
+ * Sanitize a date string to ensure it is valid ISO 8601
+ * Replaces Postgres space separator (' ') with 'T'
+ */
+export const safeIsoDate = (dateStr: string): string => {
+    if (!dateStr) return dateStr;
+    // Replace space with T
+    let iso = dateStr.replace(' ', 'T');
+
+    // Normalize Postgres +00 offset to +00:00 (or Z) if purely +00
+    // Regex looks for +00 at end of string that doesn't have :00
+    if (iso.endsWith('+00')) {
+        iso = iso.replace(/\+00$/, '+00:00');
+    }
+    return iso;
+};
+
+/**
+ * Parse a date string safely, handling Postgres formatting
+ */
+export const safeParseDate = (dateStr: string): Date => {
+    return new Date(safeIsoDate(dateStr));
+};

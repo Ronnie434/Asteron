@@ -1,5 +1,5 @@
 import type { Item, RepeatFrequency, CustomRepeatConfig } from '../db/items';
-import { formatLocalDate as formatLocalDateUtil } from './dateUtils';
+import { formatLocalDate as formatLocalDateUtil, safeIsoDate } from './dateUtils';
 
 /**
  * Expanded item with a computed display date for virtual occurrences
@@ -17,11 +17,6 @@ export const getEffectiveDate = (item: Item): string | null => {
     return item.dueAt || item.remindAt || null;
 };
 
-/**
- * Format a date as YYYY-MM-DD using local timezone
- * (toISOString() converts to UTC which can shift the date)
- * @deprecated Use formatLocalDate from dateUtils instead
- */
 const formatLocalDate = formatLocalDateUtil;
 
 // Re-export for backward compatibility
@@ -48,6 +43,7 @@ export function expandRepeatingItems(
         if (item.status !== 'active' && item.status !== 'done') return;
 
         const effectiveDate = getEffectiveDate(item);
+        const safeEffectiveDate = effectiveDate ? safeIsoDate(effectiveDate) : null;
 
         // Daily repeat: add an entry for each day
         if (item.repeat === 'daily') {
@@ -66,8 +62,8 @@ export function expandRepeatingItems(
                 displayDate.setDate(displayDate.getDate() + dayOffset);
 
                 // If item has a time, use that time
-                if (effectiveDate) {
-                    const originalDate = new Date(effectiveDate);
+                if (safeEffectiveDate) {
+                    const originalDate = new Date(safeEffectiveDate);
                     displayDate.setHours(originalDate.getHours(), originalDate.getMinutes(), 0, 0);
                 }
 
@@ -101,8 +97,8 @@ export function expandRepeatingItems(
         }
 
         // Weekly repeat: add entries for each week within the range
-        if (item.repeat === 'weekly' && effectiveDate) {
-            const baseDate = new Date(effectiveDate);
+        if (item.repeat === 'weekly' && safeEffectiveDate) {
+            const baseDate = new Date(safeEffectiveDate);
             const completedDates: string[] = item.completedDates
                 ? JSON.parse(item.completedDates)
                 : [];
@@ -148,8 +144,8 @@ export function expandRepeatingItems(
         }
 
         // Monthly repeat: generate all monthly occurrences within the date range
-        if (item.repeat === 'monthly' && effectiveDate) {
-            const baseDate = new Date(effectiveDate);
+        if (item.repeat === 'monthly' && safeEffectiveDate) {
+            const baseDate = new Date(safeEffectiveDate);
             const completedDates: string[] = item.completedDates
                 ? JSON.parse(item.completedDates)
                 : [];
@@ -197,8 +193,8 @@ export function expandRepeatingItems(
         }
 
         // Yearly repeat
-        if (item.repeat === 'yearly' && effectiveDate) {
-            const baseDate = new Date(effectiveDate);
+        if (item.repeat === 'yearly' && safeEffectiveDate) {
+            const baseDate = new Date(safeEffectiveDate);
             const completedDates: string[] = item.completedDates
                 ? JSON.parse(item.completedDates)
                 : [];
@@ -227,8 +223,8 @@ export function expandRepeatingItems(
         }
 
         // Non-repeating or other repeat types: just add if within range
-        if (effectiveDate) {
-            const itemDate = new Date(effectiveDate);
+        if (safeEffectiveDate) {
+            const itemDate = new Date(safeEffectiveDate);
             const endDate = new Date(now);
             endDate.setDate(endDate.getDate() + daysToExpand);
 

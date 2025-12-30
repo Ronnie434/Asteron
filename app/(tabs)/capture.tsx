@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
+import { safeParseDate } from '../../src/utils/dateUtils';
 import { View, StyleSheet, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Keyboard, Alert, TextInput, Dimensions, Animated, Text } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
@@ -52,7 +53,7 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
   // Voice state
   const [isRecording, setIsRecording] = useState(false);
   const recordingRef = useRef<Audio.Recording | null>(null);
-  const recordingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const recordingTimeoutRef = useRef<any>(null);
 
   // Help Modal state
   const [showHelpModal, setShowHelpModal] = useState(false);
@@ -202,24 +203,39 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
       };
 
       const upcomingSchedule = sortedExpanded.map(item => {
-        const dateDate = new Date(item.displayDate);
+        const dateDate = safeParseDate(item.displayDate instanceof Date ? item.displayDate.toISOString() : item.displayDate);
+        
         const dateStr = dateDate.toLocaleDateString('en-US', { 
             weekday: 'short', 
             month: 'short', 
-            day: 'numeric',
-            timeZone: userTimezone 
+            day: 'numeric'
         });
         const timeStr = item.dueAt && !item.dueAt.includes('T00:00:00') 
-            ? new Date(item.dueAt).toLocaleTimeString('en-US', { 
+            ? safeParseDate(item.dueAt).toLocaleTimeString('en-US', { 
                 hour: 'numeric', 
-                minute: '2-digit',
-                timeZone: userTimezone
+                minute: '2-digit'
               }) 
             : 'All day';
         return `- ${dateStr} [${timeStr}]: ${item.title} ${getPriorityLabel(item.priority)}`;
       }).join('\n');
 
-      const fullScheduleContext = `UPCOMING SCHEDULE (Calculated - Next 30 Days):\n${upcomingSchedule}`;
+      // Group items for context
+      const overdueItems = items.filter(i => {
+         if (i.status === 'done' || !i.dueAt) return false;
+         return new Date(i.dueAt) < new Date();
+      });
+
+      const recurringBills = items.filter(i => i.type === 'bill' && i.repeat && i.repeat !== 'none' && i.status === 'active');
+
+      const overdueContext = overdueItems.length > 0 
+          ? `OVERDUE ITEMS (Needs Attention):\n${overdueItems.map(i => `- ${i.title} (Due: ${new Date(i.dueAt!).toLocaleDateString()})`).join('\n')}\n`
+          : '';
+
+      const billsContext = recurringBills.length > 0
+          ? `ACTIVE RECURRING BILLS:\n${recurringBills.map(i => `- ${i.title} (${i.repeat})`).join('\n')}\n`
+          : '';
+
+      const fullScheduleContext = `${overdueContext}\n${billsContext}\nUPCOMING SCHEDULE (Calculated - Next 30 Days):\n${upcomingSchedule}`;
 
       // DEBUG: Show context if requested
       if (text.trim() === '/debug') {

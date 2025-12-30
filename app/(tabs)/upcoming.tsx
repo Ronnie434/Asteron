@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { GlassyHeader } from '../../src/ui/components/GlassyHeader';
 import { CalendarModal } from '../../src/ui/components/CalendarModal';
 import { expandRepeatingItems, ExpandedItem, getEffectiveDate } from '../../src/utils/repeatExpansion';
+import { safeParseDate } from '../../src/utils/dateUtils';
 
 export default function UpcomingScreen() {
   const router = useRouter();
@@ -201,7 +202,7 @@ export default function UpcomingScreen() {
       }
       
       // Fallback for standard items
-      return new Date(item.remindAt) <= now;
+      return safeParseDate(item.remindAt) <= now;
     };
 
     const isOverdueReminder = checkOverdue();
@@ -234,7 +235,7 @@ export default function UpcomingScreen() {
                 color={isCompleted ? colors.textTertiary : (isOverdueReminder ? colors.warning : colors.text)}
                 style={isCompleted ? { textDecorationLine: 'line-through' } : undefined}
               >
-                {new Date(getEffectiveDate(item)!).toLocaleTimeString([], { 
+                {safeParseDate(getEffectiveDate(item)!).toLocaleTimeString([], { 
                   hour: 'numeric', 
                   minute: '2-digit' 
                 })}

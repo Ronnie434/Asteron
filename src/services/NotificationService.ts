@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform, AppState } from 'react-native';
 import { useSettingsStore } from '../store/useSettingsStore';
+import { safeParseDate } from '../utils/dateUtils';
 
 // Configure how notifications behave when the app is in foreground
 Notifications.setNotificationHandler({
@@ -115,8 +116,8 @@ export const NotificationService = {
         dueAtStr?: string | null
     ): Promise<void> => {
         try {
-            const remindAt = new Date(remindAtStr);
-            const dueAt = dueAtStr ? new Date(dueAtStr) : null;
+            const remindAt = safeParseDate(remindAtStr);
+            const dueAt = dueAtStr ? safeParseDate(dueAtStr) : null;
             const now = new Date();
 
             // Check for Quiet Hours
@@ -301,8 +302,8 @@ export const NotificationService = {
             return;
         }
 
-        const baseRemindAt = new Date(item.remindAt);
-        const baseDueAt = item.dueAt ? new Date(item.dueAt) : null;
+        const baseRemindAt = safeParseDate(item.remindAt);
+        const baseDueAt = item.dueAt ? safeParseDate(item.dueAt) : null;
         const now = new Date();
 
         // Parse skipped and completed dates to avoid scheduling notifications for them
@@ -433,8 +434,8 @@ export const NotificationService = {
             return;
         }
 
-        const baseRemindAt = new Date(item.remindAt);
-        const baseDueAt = item.dueAt ? new Date(item.dueAt) : null;
+        const baseRemindAt = safeParseDate(item.remindAt);
+        const baseDueAt = item.dueAt ? safeParseDate(item.dueAt) : null;
         const now = new Date();
 
         // Calculate the target reminder date (7 days from now)

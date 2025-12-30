@@ -387,15 +387,21 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
             if (patch.status !== undefined) updateData.status = patch.status;
             if (patch.confidence !== undefined) updateData.confidence = patch.confidence;
 
-            const { error } = await supabase
+            const { error, count } = await supabase
                 .from('user_items')
-                .update(updateData)
+                .update(updateData, { count: 'exact' })
                 .eq('user_id', user.id)
                 .eq('local_id', id);
 
             if (error) {
-                console.error('[ItemsStore] Failed to update item:', error);
+                console.error('[ItemsStore] Failed to update item. Error object:', error);
+                console.error('[ItemsStore] Error details:', JSON.stringify(error, null, 2));
                 return;
+            }
+
+            if (count === 0) {
+                console.warn('[ItemsStore] Update succeeded but 0 rows were affected. ID mismatch?', id);
+                // Optionally try to find the item by other means or log more info
             }
 
             // Handle notifications

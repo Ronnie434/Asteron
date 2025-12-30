@@ -1,5 +1,6 @@
 import { ItemType, ItemPriority } from '../db/items';
 import * as FileSystem from 'expo-file-system/legacy';
+import { safeIsoDate } from '../utils/dateUtils';
 
 export interface AIAnalysisResult {
     title: string;
@@ -238,9 +239,22 @@ export const aiService: AIService = {
         }
     },
 
+
     analyzeText: async (text: string): Promise<AIAnalysisResult> => {
         try {
-            // Get current timezone and time for date resolution
+            // GUARDIAL: Skip parsing for empty/noise input
+            if (!text || text.trim().length < 2 || /^(um+|uh+|hmm+|…|\.+|,|\[silence\]|\[unclear\])+$/i.test(text.trim())) {
+                console.log('[AI Service] Skipping empty/noise input:', text);
+                return {
+                    title: 'Empty Input',
+                    type: 'note',
+                    priority: 'low',
+                    confidence: 0,
+                    details: text || '',
+                    needsClarification: false
+                };
+            }
+
             // Get current LOCAL timezone and time for date resolution
             const now = new Date();
             const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -257,57 +271,111 @@ export const aiService: AIService = {
                 String(now.getSeconds()).padStart(2, '0') +
                 offsetSign + offsetHours + ':' + offsetMins;
 
-            const prompt = `You extract a single actionable item from the user's voice input for a task/reminder/bill/follow-up app.
+            const prompt = `SYSTEM:
+You are an information extraction engine for a personal task/reminder/bill/follow-up app.
+Your job is NOT to chat. Your job is to output EXACTLY ONE JSON object that follows the schema.
+Return ONLY valid minified JSON (no markdown, no commentary, no trailing commas).
 
-Return ONLY valid JSON. No extra text. No markdown.
-
-INTERPRETATION RULES
-- The user is creating an item, not chatting.
-- Extract ONE best item. If multiple items are mentioned, pick the most urgent/time-bound one.
-- "dueAt" is the deadline date/time (when it must be done/paid).
-- "remindAt" is when to notify the user.
-- If the user gives a date without a time, choose a sensible default time:
-  - default remind time: 09:00 local time
-  - default due time: 17:00 local time (or 23:59 for bills if phrased "by end of day")
-- If the user says "tomorrow", "next week", "Friday", etc., resolve it using:
+HARD CONSTRAINTS (must follow)
+- Output MUST be valid JSON using double quotes.
+- Output MUST contain ONLY the exact keys in the schema. No additional keys.
+- Never invent facts (dates, times, people, amounts). If missing, set null and needsClarification=true.
+- If the input is empty/whitespace/noise, output a "note" with very low confidence and no dates.
+- Prefer correctness over guessing. If unsure, leave dueAt/remindAt null and flag clarification.
+- Use the user's local time context:
   - USER_TIMEZONE: ${timezone}
-  - NOW: ${localIso}
-- **CRITICAL TIME HANDLING**: If the user provides a specific time (e.g., "at 6pm") without a date:
-  - If that time has **already passed** today, set the date to **TOMORROW**.
-  - If that time is still in the future today, set the date to **TODAY**.
-  - Example: If it's 7pm and user says "remind me at 6pm", set remindAt to 6pm TOMORROW.
-- If date/time is unclear, still extract the action and set needsClarification=true with a reason.
-- Never ask the user questions; only set needsClarification flags.
-- Keep title short and verb-first (e.g., "Call mom", "Pay electricity bill").
+  - NOW (local ISO): ${localIso}
+- All returned timestamps MUST be ISO 8601 with timezone offset (e.g., 2026-01-05T17:00:00-08:00). If you cannot determine the exact timestamp reliably, return null.
 
-TYPE SELECTION RULES
-- task: Clear actionable to-dos with a verb ("Buy milk", "Clean garage", "Fix the bug")
-- bill: Payment related ("Pay internet", "Netflix subscription")
-- reminder: Explicit "remind me" or time-bound alerts
-- followup: "Call X", "Email Y", "Reply to Z"
-- note: DEFAULT TYPE. Use for: random thoughts, information to remember, unclear/gibberish text, questions, ideas, anything without a clear actionable verb or deadline. When in doubt, use "note".
+TASK: Extract a SINGLE best actionable item from the user's input.
+- If multiple items exist, choose the most urgent/time-bound.
+- If the user is clearly just talking, thinking aloud, or asking a question with no action, use type="note".
 
-PRIORITY RULES
-- high: bills, deadlines, legal/medical, "urgent", "ASAP", "today/tomorrow"
-- med: normal tasks and follow-ups
-- low: notes, ideas, someday/maybe
+NORMALIZATION
+- Clean up transcription noise but keep meaning in "details".
+- Title: short, verb-first, max 60 chars. For bills use "Pay <bill name>" when possible.
 
-OUTPUT SCHEMA (exact keys)
+TYPE SELECTION (choose one)
+- "bill": any payment/subscription/fee/rent/credit card/insurance/taxes
+- "followup": call/email/text/reply/ask/check-in with a person/company
+- "reminder": explicit "remind me" / "make sure I..." / alert-focused phrasing
+- "task": actionable to-do (non-payment) with a verb
+- "note": default when unclear, non-actionable, idea, question, gibberish, or missing an actionable verb
+
+PRIORITY
+- high: bills, hard deadlines, legal/medical, "urgent/asap", due today/tomorrow, overdue language
+- med: normal tasks/followups with some time relevance
+- low: notes, ideas, someday/maybe, optional items
+
+DATE & TIME EXTRACTION
+Definitions:
+- dueAt = when it must be done/paid.
+- remindAt = when to notify.
+
+Rules:
+1) If the user gives an explicit due date/time → set dueAt.
+2) If the user gives only a date (no time):
+   - default remind time = 09:00 local
+   - default due time:
+     - bills: 23:59 local IF phrased like "by end of day" / "by EOD" / "before midnight"
+     - otherwise: 17:00 local
+3) If the user gives only a time (no date):
+   - If that time is already past today relative to NOW → use TOMORROW at that time
+   - Else → use TODAY at that time
+4) Relative phrases mapping (unless user specifies exact time):
+   - "morning" → 09:00
+   - "noon/lunch" → 12:00
+   - "afternoon" → 15:00
+   - "evening/tonight" → 19:00
+   - "end of day/EOD" → 23:59 (especially for bills)
+5) If user says "remind me" time but no due time:
+   - Put that time in remindAt.
+   - If due is not stated, keep dueAt null unless a deadline is clearly implied.
+6) If a dueAt exists and remindAt is missing:
+   - Set remindAt to the earlier of:
+     - dueAt minus 8 hours (for bills) OR minus 2 hours (for tasks/followups), but not earlier than NOW
+     - otherwise default 09:00 on the due date if due date is in the future and time was defaulted
+   - If that calculation would land in the past, set remindAt to NOW + 5 minutes.
+7) Never set remindAt after dueAt. If conflict, move remindAt earlier (NOW + 5 minutes if needed).
+
+REPEATING / RECURRENCE
+- If the user indicates recurrence (e.g., "every month on the 28th", "weekly", "every Friday", "annually"):
+  - Compute dueAt/remindAt as the NEXT valid future occurrence after NOW.
+  - Put the recurrence phrase into "details" verbatim.
+  - If recurrence rule is unclear (e.g., "every month" but no day) → needsClarification=true and clarificationReason="missing_date".
+
+CLARIFICATION FLAGS (do NOT ask questions)
+Set needsClarification=true when:
+- missing_date: user implies a deadline/reminder but provides no usable date/time
+- missing_person: followup implied but no person/company identified
+- missing_amount: bill implied and user explicitly asks to pay a specific amount but amount is missing/unclear
+- ambiguous_action: unclear what the action is
+- other: anything else that blocks reliable scheduling
+
+CONFIDENCE (0.0–1.0)
+Use these guidelines:
+- 0.90–1.00: clear action + clear date/time (+ type obvious)
+- 0.65–0.89: clear action but partial time info or mild ambiguity
+- 0.35–0.64: action somewhat clear but scheduling unclear or type uncertain
+- 0.00–0.34: mostly noise / non-actionable / heavy ambiguity (likely "note")
+
+OUTPUT SCHEMA (exact keys, exact types)
 {
   "title": "string (max 60 chars)",
   "type": "task" | "bill" | "reminder" | "followup" | "note",
   "priority": "low" | "med" | "high",
-  "confidence": number (0.0 to 1.0),
-  "details": "string (the original text or cleaned transcript)",
-  "dueAt": "string (ISO 8601 with timezone offset) | null",
-  "remindAt": "string (ISO 8601 with timezone offset) | null",
+  "confidence": number,
+  "details": "string",
+  "dueAt": "string (ISO 8601 w/ timezone offset) | null",
+  "remindAt": "string (ISO 8601 w/ timezone offset) | null",
   "needsClarification": boolean,
   "clarificationReason": "missing_date" | "missing_person" | "missing_amount" | "ambiguous_action" | "other" | null
 }
 
-USER INPUT:
+USER INPUT (may be empty, noisy, or partial):
 "${text}"
-`;
+
+Now produce ONLY the JSON object.`;
 
             const body = {
                 model: CHAT_MODEL,
@@ -359,6 +427,16 @@ USER INPUT:
 
     analyzeIntent: async (text: string, existingItems?: ItemContext[], upcomingSchedule?: string): Promise<ChatIntentResult> => {
         try {
+            // GUARDIAL: Skip parsing for empty/noise input
+            if (!text || text.trim().length < 2 || /^(um+|uh+|hmm+|…|\.+|,|\[silence\]|\[unclear\])+$/i.test(text.trim())) {
+                console.log('[AI Service] Skipping empty/noise intent:', text);
+                return {
+                    intent: 'chat',
+                    confidence: 0,
+                    responseText: "I didn't catch that. Could you say it again?",
+                };
+            }
+
             const now = new Date();
             const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
             const tzOffset = -now.getTimezoneOffset();
@@ -373,12 +451,23 @@ USER INPUT:
                 String(now.getSeconds()).padStart(2, '0') +
                 offsetSign + offsetHours + ':' + offsetMins;
 
+            const todayStr = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+            const tomorrow = new Date(now);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const tomorrowStr = tomorrow.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
             // Build rich context about existing items for update/delete/query operations
             const itemsContext = existingItems && existingItems.length > 0
                 ? `\nEXISTING ITEMS THE USER HAS:\n${existingItems.map(i => {
                     const parts = [`"${i.title}" (${i.type})`];
                     if (i.priority) parts.push(`priority: ${i.priority}`);
-                    if (i.dueAt) parts.push(`due: ${i.dueAt}`);
+                    if (i.dueAt) {
+                        const dueLocal = new Date(safeIsoDate(i.dueAt)).toLocaleString('en-US', {
+                            weekday: 'short', month: 'short', day: 'numeric',
+                            hour: 'numeric', minute: '2-digit'
+                        });
+                        parts.push(`due: ${dueLocal}`);
+                    }
                     if (i.status) parts.push(`status: ${i.status}`);
                     return `- ID: ${i.id} | ${parts.join(', ')}`;
                 }).join('\n')}\n`
@@ -392,12 +481,13 @@ USER INPUT:
             const tomorrowStart = new Date(todayStart);
             tomorrowStart.setDate(tomorrowStart.getDate() + 1);
 
+            // Stats calculation for proactive context
             const stats = existingItems ? {
                 total: existingItems.length,
-                overdue: existingItems.filter(i => i.dueAt && new Date(i.dueAt) < now && i.status !== 'done').length,
+                overdue: existingItems.filter(i => i.dueAt && new Date(safeIsoDate(i.dueAt)) < now && i.status !== 'done').length,
                 today: existingItems.filter(i => {
                     if (!i.dueAt) return false;
-                    const due = new Date(i.dueAt);
+                    const due = new Date(safeIsoDate(i.dueAt));
                     return due >= todayStart && due < tomorrowStart;
                 }).length,
                 highPriority: existingItems.filter(i => i.priority === 'high' && i.status !== 'done').length,
@@ -405,41 +495,43 @@ USER INPUT:
 
             const statsContext = `\nITEM STATISTICS:\n- Total active items: ${stats.total}\n- Overdue items: ${stats.overdue}\n- Due today: ${stats.today}\n- High priority pending: ${stats.highPriority}\n`;
 
-            const prompt = `You are a dedicated Executive Assistant and Personal Secretary called Asteron.
-Your goal is to be helpful, strictly organized, and aware of the user's entire schedule.
+            const prompt = `You are the user's Chief of Staff and Private Executive Assistant (Asteron).
+Your goal is to be proactive, highly organized, and authoritative about the user's schedule.
 
-**STRICT CONTENT BOUNDARIES:**
-- You are NOT a general purpose AI assistant.
-- DO NOT answer questions about coding, history, science, creative writing, math, or general trivia.
-- DO NOT generate poems, stories, or code.
-- If the user asks about anything unrelated to managing their tasks/items, politely REFUSE.
-- Example refusal: "I'm focused on managing your schedule and tasks. I can't help with general questions."
-- EXCEPTION: You may answer questions specifically about the user's own data (e.g. "How many tasks do I have?").
+** CORE PERSONA: **
+- You are NOT just a passive tool. You are a "Chief of Staff".
+- You know the user's recurring commitments (bills, subscriptions) and overdue items.
+- **Connect the dots**: If user says "pay bills", look at OVERDUE and RECURRING BILLS and list them.
+- **De-duplicate**: If user adds "Netflix", check if "Netflix" already exists in RECURRING BILLS. If so, ask if they want to update it or log a payment.
+- **Tone**: Professional, concise, efficient, "I've got this".
+- **FULL DATABASE ACCESS**: You have permission to CREATE, UPDATE, and DELETE entries.
+  - If user says "delete all done tasks", FIND them in the context and execute a "batch_delete".
+  - If user says "change all high priority tasks to medium", execute a "batch_update".
+  - Do NOT hesitate to perform bulk actions if the user's intent is clear.
 
-**PERSONA & TONE:**
-- You are professional, concise, and capable.
-- You "know everything" about the user's list. Demonstrate this awareness appropriately.
-- When creating items, occasionally (but briefly) reference the user's workload if relevant.
-  - Example: "Added. You now have 5 tasks for today."
-  - Example: "Scheduled. Note that you have another meeting at the same time."
+** CONTEXT SECTIONS EXPLAINED: **
+1. **OVERDUE ITEMS**: Tasks/Bills that are past due. PRIORITIZE THESE.
+2. **ACTIVE RECURRING BILLS**: The user's fixed financial commitments. USE THIS TO PREVENT DUPLICATES.
+3. **UPCOMING SCHEDULE**: The calculated truth of what is happening next.
 
-CURRENT TIME: ${localIso}
-TIMEZONE: ${timezone}
-${itemsContext}
-${statsContext}
-${upcomingSchedule || ''}
+6. CURRENT TIME: ${localIso}
+7. TODAY IS: ${todayStr}
+8. TOMORROW IS: ${tomorrowStr}
+9. TIMEZONE: ${timezone}
+10. ${itemsContext}
+11. ${statsContext}
+12. ${upcomingSchedule || ''}
 
 ** CRITICAL SCHEDULE RULES (ZERO SKIPPING POLICY) **
 1. For ANY schedule query ("Tomorrow", "Next 3 days", "This week"):
    - You MUST check the "UPCOMING SCHEDULE" section.
    - You MUST list EVERY single item found for the requested dates.
+   - **STRICT DATE MATCHING**: If user asks for "Tomorrow" (${tomorrowStr}), ONLY list items that explicitly match that date.
+   - DO NOT list items for Jan 1st if the user asked for Dec 31st.
+   - If "UPCOMING SCHEDULE" has no items for the requested date, respond "You have nothing scheduled for [Date]."
    - DO NOT summarize (e.g. do not say "and 2 other items"). List them all.
    - If a task appears in "UPCOMING SCHEDULE", it is real. Include it.
-2. For multi-day queries (e.g. "Next 3 days"):
-   - Group items by date header.
-   - Check the schedule for Day 1, then Day 2, then Day 3.
-   - Ensure "Rental tour" or similar mid-day items are not skipped.
-3. The "UPCOMING SCHEDULE" overrides any other data key. it is the calculated truth.
+2. The "UPCOMING SCHEDULE" overrides any other data key. it is the calculated truth.
 
 ** RESPONSE FORMATTING **
 1. Use a clean, "Executive Briefing" style.
@@ -447,7 +539,6 @@ ${upcomingSchedule || ''}
 3. Items in the context already have priority labels like "(High)" or "(Medium)". Preserve them.
 4. Format: "• [Time] Task Name (Priority)"
 5. **DEDUPLICATION:** If you see the exact same task listed twice for the same time, ONLY list it once.
-6. Keep the tone encouraging but professional.
 
 Analyze the user's message and determine their intent.
 
@@ -559,6 +650,9 @@ When you DO need to ask:
         - If user says "remind me at [time]" with no offset, set remindAt to that exact time
             - If no reminder preference specified, set remindAt = dueAt(or event time)
                 - For repeating tasks, set BOTH dueAt(event time) AND remindAt(notification time)
+                    - CRITICAL: You MUST calculate the specific valid ISO 8601 date for the next occurrence.
+                    - Example: If "every month on the 28th" and today is the 30th, set dueAt to the 28th of NEXT MONTH.
+                    - Do NOT return null for dueAt/remindAt just because it repeats. We need the first occurrence date.
 
                     ** MULTIPLE ITEMS IN ONE MESSAGE:**
                         When user mentions multiple items(e.g., "add buy groceries and call mom"):

@@ -13,6 +13,7 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { RainbowSparkles } from '../../src/ui/components/RainbowSparkles';
 import { GlassyHeader } from '../../src/ui/components/GlassyHeader';
 import { TaskCelebration } from '../../src/ui/components/TaskCelebration';
+import { LoadingScreen } from '../../src/components/LoadingScreen';
 import {
   expandRepeatingItems,
   getOverdueItems,
@@ -22,11 +23,12 @@ import {
   getEffectiveDate,
   ExpandedItem,
 } from '../../src/utils/repeatExpansion';
+import { safeParseDate } from '../../src/utils/dateUtils';
 
 export default function BriefScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { items, init, loadItems, markAsDone, markAsUndone, updateItem, deleteItem, skipOccurrence } = useItemsStore();
+  const { items, isLoading, init, loadItems, markAsDone, markAsUndone, updateItem, deleteItem, skipOccurrence } = useItemsStore();
   
   // Collapsible section states
   const [overdueExpanded, setOverdueExpanded] = useState(true);
@@ -64,6 +66,10 @@ export default function BriefScreen() {
       subscription.remove();
     };
   }, [loadItems]);
+
+  if (isLoading && items.length === 0) {
+    return <LoadingScreen message="Preparing your daily brief..." />;
+  }
 
   const now = new Date();
 
@@ -220,7 +226,7 @@ export default function BriefScreen() {
   const TaskRow = ({ item, isOverdue = false, occurrenceDate }: { item: Item; isOverdue?: boolean; occurrenceDate?: Date }) => {
     const effectiveDate = getEffectiveDate(item);
     const time = effectiveDate
-      ? new Date(effectiveDate).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+      ? safeParseDate(effectiveDate).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
       : '';
     
     // Check if this specific occurrence is locally completed
@@ -236,7 +242,7 @@ export default function BriefScreen() {
     
     // Calculate the actual reminder/due time for this specific occurrence
     // For repeating items, use occurrenceDate; for regular items, use remindAt
-    const occurrenceTime = occurrenceDate || (item.remindAt ? new Date(item.remindAt) : null);
+    const occurrenceTime = occurrenceDate || (item.remindAt ? safeParseDate(item.remindAt) : null);
     
     // Get start of today for comparison
     const todayStart = new Date(now);
