@@ -16,9 +16,9 @@ OUTPUT_DIR = "assets"
 SPLASH_WIDTH = 1284  # 3x resolution for @3x devices
 SPLASH_HEIGHT = 2778
 
-# Logo configuration - larger size for visibility
-LOGO_SIZE = 600  # 200 * 3 for @3x
-LOGO_RADIUS = 150  # 50 * 3 for @3x
+# Logo configuration - 2x Renvo size for better visibility (160pt at @3x = 480px)
+LOGO_SIZE = 480  # 160 * 3 for @3x (2x Renvo size, still well within screen bounds)
+LOGO_RADIUS = 120  # 40 * 3 for @3x
 
 # Colors - matching theme
 DARK_BG = "#000000"

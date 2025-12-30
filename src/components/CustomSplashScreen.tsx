@@ -33,13 +33,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logoContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 30,
+    width: 400,
+    height: 400,
+    borderRadius: 100,
     overflow: 'hidden',
   },
   logo: {
-    width: 120,
-    height: 120,
+    width: 400,
+    height: 400,
   },
 });
