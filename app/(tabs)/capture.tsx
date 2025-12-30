@@ -66,10 +66,8 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
   const toastOpacity = useRef(new Animated.Value(0)).current;
 
   // Handle save success from AddTaskModal (now just a generic save success)
-  const handleSaveSuccess = useCallback((title: string) => {
-    setToastMessage(`✓ Saved "${title}"`);
-    
-    // Animate toast in
+  const showToast = useCallback((message: string) => {
+    setToastMessage(message);
     Animated.sequence([
       Animated.timing(toastOpacity, {
         toValue: 1,
@@ -84,6 +82,10 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
       }),
     ]).start(() => setToastMessage(null));
   }, [toastOpacity]);
+
+  const handleSaveSuccess = useCallback((title: string) => {
+    showToast(`✓ Saved "${title}"`);
+  }, [showToast]);
 
 
 
@@ -146,7 +148,7 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
                 dueAt: data.dueAt ?? null,
                 remindAt: data.remindAt ?? null,
                 repeat: data.repeat ?? 'none',
-                repeatConfig: data.repeatConfig ?? null,
+                repeatConfig: data.repeatConfig ? (typeof data.repeatConfig === 'string' ? data.repeatConfig : JSON.stringify(data.repeatConfig)) : null,
                 status: 'active',
                 confidence: 0.9,
               });
@@ -685,7 +687,10 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
           ) : (
             // Messages List
             messages.map((message) => (
-              <ChatMessage key={message.id} message={message} />
+              <ChatMessage 
+                key={message.id} 
+                message={message} 
+              />
             ))
           )}
           

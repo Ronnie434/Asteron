@@ -7,6 +7,7 @@ import type { ChatMessage as ChatMessageType } from '../../store/useChatStore';
 
 interface ChatMessageProps {
   message: ChatMessageType;
+  onCopy?: () => void;
 }
 
 /**
@@ -29,6 +30,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
       >
         <Typography
           variant="body"
+          selectable={true}
           style={[
             styles.text,
             { color: isUser ? (isDark ? colors.text : '#FFFFFF') : colors.text },
