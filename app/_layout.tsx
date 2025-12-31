@@ -37,8 +37,8 @@ function MainAppContent() {
   const pathname = usePathname();
   const { isCaptureOpen, closeCapture } = useCapture();
   
-  // Determine if tab bar should be shown (hide during modals)
-  const shouldShowTabBar = !(pathname === '/edit' || pathname === '/note-detail');
+  // Determine if tab bar should be shown (hide during modals and on capture screen)
+  const shouldShowTabBar = !(pathname === '/edit' || pathname === '/note-detail' || pathname.includes('capture'));
   
   return (
     <>

@@ -550,10 +550,10 @@ Now produce ONLY the JSON object.`;
                 String(now.getSeconds()).padStart(2, '0') +
                 offsetSign + offsetHours + ':' + offsetMins;
 
-            const todayStr = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+            const todayStr = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
             const tomorrow = new Date(now);
             tomorrow.setDate(tomorrow.getDate() + 1);
-            const tomorrowStr = tomorrow.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+            const tomorrowStr = tomorrow.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
             // Build rich context about existing items for update/delete/query operations
             const itemsContext = existingItems && existingItems.length > 0
@@ -714,11 +714,10 @@ When user says a DAY NAME (Monday, Tuesday, Wednesday, Thursday, Friday, Saturda
 - ALWAYS interpret as the NEXT UPCOMING occurrence of that day
 - NEVER show past dates
 - "Friday" = the next Friday FROM TODAY (${todayStr})
-- If today IS Friday, "Friday" means TODAY
-- NEVER list PAST Fridays like "last Friday" unless user explicitly says "last Friday"
-Example: If today is Tuesday Dec 31:
-- "Friday" = Friday January 3 (UPCOMING)
-- Do NOT show Friday December 27 (PAST)
+- If today IS that day name, it means TODAY
+- NEVER list PAST dates unless user explicitly says "last Friday" or similar
+- IMPORTANT: Calculate the correct date by counting forward from TODAY
+- Do NOT rely on memorized dates - calculate from the current date provided above
 
 ** RESPONSE FORMATTING **
 1. Use a clean, "Executive Briefing" style.
