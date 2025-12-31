@@ -95,7 +95,9 @@ const toSupabase = (item: Item, userId: string) => ({
 
 /**
  * Calculate badge count based on pending items
- * Only counts items that are actually due today or overdue (from past days)
+ * Counts items where:
+ * 1. Reminder time has passed and occurrence not completed
+ * 2. Items with separate remindAt/dueAt - checks if reminder triggered but due occurrence not completed
  */
 const calculateBadgeCount = (items: Item[]): number => {
     const now = new Date();
@@ -109,7 +111,8 @@ const calculateBadgeCount = (items: Item[]): number => {
         if (item.status !== 'active') continue;
         if (!item.remindAt) continue;
 
-        const baseDate = new Date(item.remindAt);
+        const baseRemindAt = new Date(item.remindAt);
+        const baseDueAt = item.dueAt ? new Date(item.dueAt) : null;
 
         // Handle repeating items
         if (item.repeat && item.repeat !== 'none') {
@@ -126,55 +129,66 @@ const calculateBadgeCount = (items: Item[]): number => {
                 const checkDateStart = new Date(checkDate);
                 checkDateStart.setHours(0, 0, 0, 0);
 
-                // Calculate the occurrence date for this check date
-                let occurrenceDate: Date | null = null;
+                // Calculate the reminder occurrence date for this check date
+                let reminderOccurrenceDate: Date | null = null;
 
                 if (item.repeat === 'daily') {
-                    occurrenceDate = new Date(checkDateStart);
-                    occurrenceDate.setHours(baseDate.getHours(), baseDate.getMinutes(), 0, 0);
+                    reminderOccurrenceDate = new Date(checkDateStart);
+                    reminderOccurrenceDate.setHours(baseRemindAt.getHours(), baseRemindAt.getMinutes(), 0, 0);
                 } else if (item.repeat === 'weekly') {
                     // Check if this date matches the weekly recurrence
-                    const daysDiff = Math.floor((checkDateStart.getTime() - new Date(baseDate).setHours(0, 0, 0, 0)) / (1000 * 60 * 60 * 24));
+                    const daysDiff = Math.floor((checkDateStart.getTime() - new Date(baseRemindAt).setHours(0, 0, 0, 0)) / (1000 * 60 * 60 * 24));
                     if (daysDiff >= 0 && daysDiff % 7 === 0) {
-                        occurrenceDate = new Date(checkDateStart);
-                        occurrenceDate.setHours(baseDate.getHours(), baseDate.getMinutes(), 0, 0);
+                        reminderOccurrenceDate = new Date(checkDateStart);
+                        reminderOccurrenceDate.setHours(baseRemindAt.getHours(), baseRemindAt.getMinutes(), 0, 0);
                     }
                 } else if (item.repeat === 'monthly') {
-                    // Check if this month's occurrence date matches
-                    const monthsFromBase = (checkDate.getFullYear() - baseDate.getFullYear()) * 12
-                        + (checkDate.getMonth() - baseDate.getMonth());
-                    const thisMonthOccurrence = new Date(baseDate);
-                    thisMonthOccurrence.setMonth(baseDate.getMonth() + monthsFromBase);
+                    // Generate monthly occurrences from base date and find one matching this check date
+                    const maxMonths = 24;
+                    for (let monthOffset = 0; monthOffset < maxMonths; monthOffset++) {
+                        const thisMonthOccurrence = new Date(baseRemindAt);
+                        thisMonthOccurrence.setMonth(baseRemindAt.getMonth() + monthOffset);
 
-                    // Check if this occurrence date is the check date
-                    const occurrenceStart = new Date(thisMonthOccurrence);
-                    occurrenceStart.setHours(0, 0, 0, 0);
-                    if (occurrenceStart.getTime() === checkDateStart.getTime()) {
-                        occurrenceDate = thisMonthOccurrence;
+                        const occurrenceStart = new Date(thisMonthOccurrence);
+                        occurrenceStart.setHours(0, 0, 0, 0);
+
+                        if (occurrenceStart.getTime() === checkDateStart.getTime()) {
+                            reminderOccurrenceDate = thisMonthOccurrence;
+                            break;
+                        }
+                        if (occurrenceStart > checkDateStart) break;
                     }
                 } else if (item.repeat === 'yearly') {
-                    // Check if this year's occurrence date matches
-                    const yearsFromBase = checkDate.getFullYear() - baseDate.getFullYear();
-                    const thisYearOccurrence = new Date(baseDate);
-                    thisYearOccurrence.setFullYear(baseDate.getFullYear() + yearsFromBase);
+                    const yearsFromBase = checkDate.getFullYear() - baseRemindAt.getFullYear();
+                    const thisYearOccurrence = new Date(baseRemindAt);
+                    thisYearOccurrence.setFullYear(baseRemindAt.getFullYear() + yearsFromBase);
 
                     const occurrenceStart = new Date(thisYearOccurrence);
                     occurrenceStart.setHours(0, 0, 0, 0);
                     if (occurrenceStart.getTime() === checkDateStart.getTime()) {
-                        occurrenceDate = thisYearOccurrence;
+                        reminderOccurrenceDate = thisYearOccurrence;
                     }
                 }
 
-                // If there's an occurrence on this date
-                if (occurrenceDate && occurrenceDate >= createdAt) {
-                    const dateStr = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, '0')}-${String(checkDate.getDate()).padStart(2, '0')}`;
+                // If there's a reminder occurrence on this date and it has passed
+                if (reminderOccurrenceDate && reminderOccurrenceDate >= createdAt && reminderOccurrenceDate <= now) {
+                    const reminderDateStr = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, '0')}-${String(checkDate.getDate()).padStart(2, '0')}`;
 
-                    // Check if remind time has passed AND not completed/skipped
-                    if (occurrenceDate <= now &&
-                        !completedDates.includes(dateStr) &&
-                        !skippedDates.includes(dateStr)) {
+                    // Calculate the corresponding due date for this occurrence (if dueAt exists)
+                    let dueDateStr = reminderDateStr;
+                    if (baseDueAt) {
+                        const reminderToDueOffset = baseDueAt.getTime() - baseRemindAt.getTime();
+                        const dueOccurrenceDate = new Date(reminderOccurrenceDate.getTime() + reminderToDueOffset);
+                        dueDateStr = `${dueOccurrenceDate.getFullYear()}-${String(dueOccurrenceDate.getMonth() + 1).padStart(2, '0')}-${String(dueOccurrenceDate.getDate()).padStart(2, '0')}`;
+                    }
+
+                    // Check if EITHER the reminder date OR the due date is completed/skipped
+                    const isCompleted = completedDates.includes(reminderDateStr) || completedDates.includes(dueDateStr);
+                    const isSkipped = skippedDates.includes(reminderDateStr) || skippedDates.includes(dueDateStr);
+
+                    if (!isCompleted && !isSkipped) {
                         shouldCount = true;
-                        debugLog.push(`✅ ${item.title} (${item.repeat}) - occurrence on ${dateStr}`);
+                        debugLog.push(`✅ ${item.title} (${item.repeat}) - reminder on ${reminderDateStr}, due on ${dueDateStr}`);
                         break; // Only count once per item
                     }
                 }
@@ -182,10 +196,20 @@ const calculateBadgeCount = (items: Item[]): number => {
 
             if (shouldCount) count++;
         } else {
-            // One-time task: count if remind time has passed
-            if (baseDate <= now) {
-                count++;
-                debugLog.push(`✅ ${item.title} (one-time) - remind at ${baseDate.toLocaleString()}`);
+            // One-time task: count if remind time has passed AND not completed
+            if (baseRemindAt <= now) {
+                // For one-time items with both remindAt and dueAt, check dueAt completion too
+                if (baseDueAt) {
+                    const dueDateStr = `${baseDueAt.getFullYear()}-${String(baseDueAt.getMonth() + 1).padStart(2, '0')}-${String(baseDueAt.getDate()).padStart(2, '0')}`;
+                    const completedDates = item.completedDates ? JSON.parse(item.completedDates) : [];
+                    if (!completedDates.includes(dueDateStr)) {
+                        count++;
+                        debugLog.push(`✅ ${item.title} (one-time) - remind at ${baseRemindAt.toLocaleString()}`);
+                    }
+                } else {
+                    count++;
+                    debugLog.push(`✅ ${item.title} (one-time) - remind at ${baseRemindAt.toLocaleString()}`);
+                }
             }
         }
     }

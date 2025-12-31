@@ -1,6 +1,6 @@
 import { View, ScrollView, StyleSheet, TouchableOpacity, Image, AppState, AppStateStatus, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Check, ChevronUp, Sun, Moon, Calendar, AlertCircle } from 'lucide-react-native';
+import { Check, ChevronUp, Sun, Moon, Calendar, AlertCircle, Bell } from 'lucide-react-native';
 import { theme, hexToRgba } from '../../src/ui/theme';
 import { Typography } from '../../src/ui/components/Typography';
 import { Card } from '../../src/ui/components/Card';
@@ -31,6 +31,7 @@ export default function BriefScreen() {
   const { items, isLoading, init, loadItems, markAsDone, markAsUndone, updateItem, deleteItem, skipOccurrence } = useItemsStore();
   
   // Collapsible section states
+  const [remindersTriggeredExpanded, setRemindersTriggeredExpanded] = useState(true);
   const [overdueExpanded, setOverdueExpanded] = useState(true);
   const [todayExpanded, setTodayExpanded] = useState(true);
   const [tomorrowExpanded, setTomorrowExpanded] = useState(true);
@@ -108,9 +109,45 @@ export default function BriefScreen() {
   };
 
   // Filter by date and sort (with local completion awareness)
-  const todayItems = sortWithLocalCompletion(filterByDate(expandedItems, now), now).slice(0, 8);
-  const tomorrowItems = sortWithLocalCompletion(filterByDate(expandedItems, tomorrow), tomorrow).slice(0, 4);
-  const dayAfterItems = sortWithLocalCompletion(filterByDate(expandedItems, dayAfter), dayAfter).slice(0, 4);
+  const todayItems = sortWithLocalCompletion(filterByDate(expandedItems, now), now);
+  const tomorrowItems = sortWithLocalCompletion(filterByDate(expandedItems, tomorrow), tomorrow);
+  const dayAfterItems = sortWithLocalCompletion(filterByDate(expandedItems, dayAfter), dayAfter);
+
+  // Get items where reminder has triggered but due date is beyond the 3-day window
+  // These items need to be shown so users know what caused the badge/notification
+  const dayAfterEnd = new Date(dayAfter);
+  dayAfterEnd.setHours(23, 59, 59, 999);
+  
+  const triggeredReminders: ExpandedItem[] = items
+    .filter(item => {
+      if (item.status !== 'active') return false;
+      if (!item.remindAt) return false;
+      
+      const remindAt = safeParseDate(item.remindAt);
+      const dueAt = item.dueAt ? safeParseDate(item.dueAt) : null;
+      
+      // Reminder must have triggered (time passed)
+      if (remindAt > now) return false;
+      
+      // Due date must be in the future AND beyond the 3-day window we show
+      if (dueAt && dueAt > dayAfterEnd) {
+        return true;
+      }
+      
+      // If no dueAt, check if remindAt is beyond 3-day window (shouldn't happen, but handle it)
+      if (!dueAt && remindAt > dayAfterEnd) {
+        return true;
+      }
+      
+      return false;
+    })
+    .map(item => ({
+      ...item,
+      displayDate: item.dueAt ? safeParseDate(item.dueAt) : safeParseDate(item.remindAt!),
+      isVirtualOccurrence: false,
+      isCompleted: item.status === 'done',
+    }))
+    .sort((a, b) => a.displayDate.getTime() - b.displayDate.getTime());
 
   const handleToggleItem = async (item: Item, occurrenceDate?: Date) => {
     // Generate a key for this specific occurrence
@@ -248,10 +285,41 @@ export default function BriefScreen() {
     const todayStart = new Date(now);
     todayStart.setHours(0, 0, 0, 0);
     
+    // Check if reminder has been triggered (remindAt time has passed)
+    // For items with both remindAt and dueAt, we need to calculate the reminder for this specific occurrence
+    let reminderTriggered = false;
+    if (item.remindAt && !isDone) {
+      const baseRemindAt = safeParseDate(item.remindAt);
+      const baseDueAt = item.dueAt ? safeParseDate(item.dueAt) : null;
+      
+      if (occurrenceDate && item.repeat && item.repeat !== 'none' && baseDueAt) {
+        // For repeating items with both remindAt and dueAt:
+        // Calculate the offset between reminder and due date, then apply to this occurrence
+        const reminderToDueOffset = baseDueAt.getTime() - baseRemindAt.getTime();
+        const reminderForOccurrence = new Date(occurrenceDate.getTime() - reminderToDueOffset);
+        reminderTriggered = reminderForOccurrence <= now;
+      } else if (occurrenceDate && item.repeat && item.repeat !== 'none') {
+        // For repeating items with only remindAt (no dueAt):
+        // Apply reminder time to the occurrence date
+        const reminderForOccurrence = new Date(occurrenceDate);
+        reminderForOccurrence.setHours(baseRemindAt.getHours(), baseRemindAt.getMinutes(), 0, 0);
+        reminderTriggered = reminderForOccurrence <= now;
+      } else {
+        // For one-time items, just check if remindAt has passed
+        reminderTriggered = baseRemindAt <= now;
+      }
+    }
+    
+    // Check if the item is in a future section (TOMORROW or later) but reminder has triggered
+    // This is true if the displayDate (occurrenceDate) is NOT today but reminder has fired
+    const isFutureItem = occurrenceDate && occurrenceDate >= todayStart && 
+      occurrenceDate.toDateString() !== now.toDateString();
+    const showReminderTriggered = reminderTriggered && isFutureItem;
+    
     // isOverdue prop means this item is rendered in the OVERDUE section (previous day)
     // isOverdueStyle = should show warning styling (time has passed, today or previous day)
     const isTimePassed = occurrenceTime && occurrenceTime <= now;
-    const isOverdueStyle = isOverdue || (!isDone && isTimePassed);
+    const isOverdueStyle = isOverdue || (!isDone && isTimePassed && !isFutureItem);
       
     return (
       <View style={[
@@ -262,6 +330,12 @@ export default function BriefScreen() {
           borderWidth: 2,
           borderColor: isOverdue ? colors.danger : colors.warning,
           backgroundColor: isOverdue ? hexToRgba(colors.danger, 0.1) : hexToRgba(colors.warning, 0.1), // Very subtle tint  
+        },
+        // Subtle highlight for triggered reminders on future items
+        showReminderTriggered && {
+          borderWidth: 1.5,
+          borderColor: colors.primary,
+          backgroundColor: hexToRgba(colors.primary, 0.08),
         }
       ]}>
         {/* Checkbox */}
@@ -272,7 +346,7 @@ export default function BriefScreen() {
         >
           <View style={[
             styles.checkbox, 
-            { borderColor: isDone ? colors.success : (isOverdueStyle ? colors.warning : priorityColor) },
+            { borderColor: isDone ? colors.success : (isOverdueStyle ? colors.warning : (showReminderTriggered ? colors.primary : priorityColor)) },
             isDone && { backgroundColor: colors.success, borderColor: colors.success }
           ]}>
             {isDone && <Check size={14} color="#FFFFFF" strokeWidth={3} />}
@@ -305,6 +379,12 @@ export default function BriefScreen() {
               ⏰ Reminder overdue
             </Typography>
           )}
+          {/* Show "Reminder triggered" for future items where reminder has fired */}
+          {showReminderTriggered && !isOverdueStyle && (
+            <Typography variant="caption2" color={colors.primary} style={{ marginTop: 2 }}>
+              🔔 Reminder triggered
+            </Typography>
+          )}
         </TouchableOpacity>
         
         {time ? (
@@ -320,7 +400,7 @@ export default function BriefScreen() {
           >
             <Typography 
               variant="caption2" 
-              color={isOverdueStyle ? colors.warning : colors.textSecondary}
+              color={isOverdueStyle ? colors.warning : (showReminderTriggered ? colors.primary : colors.textSecondary)}
               style={isDone ? { opacity: 0.5 } : undefined}
             >
               {time}
@@ -362,6 +442,34 @@ export default function BriefScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
+            {/* Reminders Triggered Section - for items beyond 3-day window */}
+            {triggeredReminders.length > 0 && (
+              <View style={styles.section}>
+                <TouchableOpacity 
+                  style={[styles.sectionHeader, { backgroundColor: hexToRgba(colors.primary, 0.15) }]}
+                  onPress={() => setRemindersTriggeredExpanded(!remindersTriggeredExpanded)}
+                  activeOpacity={0.7}
+                >
+                  <Bell size={18} color={colors.primary} />
+                  <Typography variant="headline" style={{ textTransform: 'uppercase', letterSpacing: 1, color: colors.primary }}>
+                    Reminders ({triggeredReminders.length})
+                  </Typography>
+                  <ChevronUp 
+                    size={18} 
+                    color={colors.primary}
+                    style={{ transform: [{ rotate: remindersTriggeredExpanded ? '0deg' : '180deg' }] }}
+                  />
+                </TouchableOpacity>
+                {remindersTriggeredExpanded && triggeredReminders.map((item) => (
+                  <TaskRow 
+                    key={`triggered-${item.id}`} 
+                    item={item} 
+                    occurrenceDate={item.displayDate}
+                  />
+                ))}
+              </View>
+            )}
+
             {/* Overdue Section */}
             {overdueItems.length > 0 && (
               <View style={styles.section}>
@@ -489,7 +597,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    flex: 1, // fill the screen
+    flexGrow: 1, // Allow content to grow beyond screen height
     paddingHorizontal: theme.spacing.md,
     paddingTop: 0,
     paddingBottom: 120,
