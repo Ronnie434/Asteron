@@ -15,6 +15,7 @@ import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
 import { CaptureProvider, useCapture } from '../src/contexts/CaptureContext';
 import { NotificationService } from '../src/services/NotificationService';
 import { useAuthStore } from '../src/store/useAuthStore';
+import { useChatStore } from '../src/store/useChatStore';
 import { LoadingScreen } from '../src/components/LoadingScreen';
 import OnboardingScreen from './onboarding';
 import SignInScreen from './signin';
@@ -121,6 +122,7 @@ export default function RootLayout() {
 
 function AuthenticatedApp() {
   const appState = useRef(AppState.currentState);
+  const backgroundTimerRef = useRef<number | null>(null);
   
   // Onboarding state - null = loading, true = completed, false = needs onboarding
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
@@ -165,6 +167,38 @@ function AuthenticatedApp() {
 
     return () => {
       notificationSubscription.remove();
+    };
+  }, []);
+
+  // Clear chat history after 2 minutes in background
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      // App is going to background
+      if (appState.current === 'active' && nextAppState.match(/inactive|background/)) {
+        // Start 2-minute timer to clear chat history
+        backgroundTimerRef.current = setTimeout(() => {
+          console.log('Clearing chat history after 2 minutes in background');
+          useChatStore.getState().clearSession();
+        }, 120000); // 2 minutes = 120000ms
+      }
+      
+      // App is returning to foreground
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        // Cancel the timer if app returns before 2 minutes
+        if (backgroundTimerRef.current) {
+          clearTimeout(backgroundTimerRef.current);
+          backgroundTimerRef.current = null;
+        }
+      }
+      
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+      if (backgroundTimerRef.current) {
+        clearTimeout(backgroundTimerRef.current);
+      }
     };
   }, []);
 
