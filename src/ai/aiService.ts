@@ -16,6 +16,7 @@ export interface AIAnalysisResult {
 
 /**
  * Chat intent types for conversational interactions.
+ * Enhanced with AI Super Powers for comprehensive task management.
  */
 export type ChatIntentType =
     | 'create'
@@ -23,12 +24,21 @@ export type ChatIntentType =
     | 'delete'
     | 'query'
     | 'chat'
-    | 'summary'        // User asks for summary/overview
-    | 'suggest'        // AI provides proactive suggestions
-    | 'batch_create'   // Create multiple items at once
-    | 'batch_update'   // Update multiple items at once
-    | 'batch_delete'   // Delete multiple items at once
-    | 'reschedule';    // Reschedule overdue items
+    | 'summary'                  // User asks for summary/overview
+    | 'suggest'                  // AI provides proactive suggestions
+    | 'batch_create'             // Create multiple items at once
+    | 'batch_update'             // Update multiple items at once
+    | 'batch_delete'             // Delete multiple items at once
+    | 'reschedule'               // Reschedule overdue items
+    // AI Super Powers - New Intents
+    | 'delete_occurrence'        // Delete specific occurrence of repeating item
+    | 'batch_delete_occurrence'  // Delete all items on a specific date
+    | 'bulk_reschedule'          // Move items from one date to another
+    | 'bulk_complete'            // Mark multiple items as done
+    | 'conditional_delete'       // Delete items matching criteria
+    | 'archive_completed'        // Archive completed items
+    | 'analytics'                // Usage statistics and insights
+    | 'quick_action';            // Voice shortcuts (done, snooze, tomorrow)
 
 /**
  * Result from analyzing a chat message for intent.
@@ -109,6 +119,85 @@ export interface ChatIntentResult {
             status?: 'active' | 'done' | 'archived';
         };
     }[];
+
+    // ============================================
+    // AI SUPER POWERS - Enhanced Fields
+    // ============================================
+
+    // For date-targeted operations (delete_occurrence, batch_delete_occurrence, bulk_complete)
+    targetDate?: string;        // ISO date YYYY-MM-DD for single date operations
+    targetDateEnd?: string;     // For date range operations
+    occurrenceItems?: Array<{   // Multiple items with specific occurrence dates
+        itemId: string;
+        occurrenceDate: string;
+    }>;
+
+    // For bulk_reschedule intent
+    rescheduleConfig?: {
+        fromDate?: string;      // Source date (YYYY-MM-DD)
+        toDate: string;         // Destination date (YYYY-MM-DD)
+        timeOffset?: number;    // Offset in minutes (e.g., +2 days = 2880)
+        preserveTime?: boolean; // Keep original time of day
+    };
+
+    // For conditional operations (conditional_delete, archive_completed)
+    filterCriteria?: {
+        types?: ItemType[];
+        priorities?: ItemPriority[];
+        hasNoDueDate?: boolean;
+        isOverdue?: boolean;
+        isCompleted?: boolean;
+        olderThan?: string;     // ISO date - items updated before this
+        titleContains?: string; // Fuzzy title match
+    };
+
+    // For dependency awareness (#6)
+    dependsOn?: string;         // ID of prerequisite item
+    blockedBy?: string[];       // IDs of blocking items
+
+    // For analytics intent (#11)
+    analyticsData?: {
+        completionRate: number;
+        avgPerDay: number;
+        totalCompleted: number;
+        totalPending: number;
+        byType: Record<string, number>;
+        byPriority: Record<string, number>;
+        streaks: { current: number; best: number };
+        insights: string[];     // AI-generated insights
+    };
+
+    // For quick_action intent (#12) - Voice shortcuts
+    quickAction?: 'complete_last' | 'snooze' | 'reschedule_tomorrow' | 'undo_last';
+
+    // For context preservation (#13) - Reference to previous context
+    referenceContext?: 'last_mentioned' | 'last_created' | 'last_completed';
+
+    // For proactive conflict detection (#16)
+    conflicts?: Array<{
+        itemId: string;
+        itemTitle: string;
+        conflictType: 'time_overlap' | 'same_time' | 'too_close' | 'overbooked';
+        conflictTime: string;
+    }>;
+
+    // For proactive suggestions (#7)
+    proactiveSuggestion?: {
+        type: 'reschedule_overdue' | 'create_routine' | 'optimize_schedule' | 'reminder_pattern';
+        message: string;
+        suggestedActions?: string[];
+    };
+
+    // For template/routine creation (#9)
+    templateData?: {
+        templateName: string;
+        items: Array<{
+            title: string;
+            type: ItemType;
+            priority: ItemPriority;
+            offsetMinutes?: number; // Offset from first item
+        }>;
+    };
 }
 
 /**
@@ -127,7 +216,12 @@ export interface ItemContext {
 export interface AIService {
     transcribeAudio: (audioUri: string, format?: 'wav' | 'aac') => Promise<string>;
     analyzeText: (text: string) => Promise<AIAnalysisResult>;
-    analyzeIntent: (text: string, existingItems?: ItemContext[], upcomingSchedule?: string) => Promise<ChatIntentResult>;
+    analyzeIntent: (
+        text: string,
+        existingItems?: ItemContext[],
+        upcomingSchedule?: string,
+        chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }>
+    ) => Promise<ChatIntentResult>;
 
     // For interactive questioning flow
     processFollowUpAnswer?: (
@@ -425,7 +519,12 @@ Now produce ONLY the JSON object.`;
         }
     },
 
-    analyzeIntent: async (text: string, existingItems?: ItemContext[], upcomingSchedule?: string): Promise<ChatIntentResult> => {
+    analyzeIntent: async (
+        text: string,
+        existingItems?: ItemContext[],
+        upcomingSchedule?: string,
+        chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }>
+    ): Promise<ChatIntentResult> => {
         try {
             // GUARDIAL: Skip parsing for empty/noise input
             if (!text || text.trim().length < 2 || /^(um+|uh+|hmm+|…|\.+|,|\[silence\]|\[unclear\])+$/i.test(text.trim())) {
@@ -509,6 +608,81 @@ Your goal is to be proactive, highly organized, and authoritative about the user
   - If user says "change all high priority tasks to medium", execute a "batch_update".
   - Do NOT hesitate to perform bulk actions if the user's intent is clear.
 
+** GOLDEN RULE: NEVER ASSUME - ALWAYS ASK **
+This is the #1 most important rule. When in doubt, ASK the user. It is ALWAYS better to ask one clarifying question than to make a wrong assumption.
+
+** WHEN TO ASK FOR CLARIFICATION (MANDATORY) **
+1. **Multiple options exist** → ALWAYS present the options and ask user to choose
+   - "Did you mean task, reminder, or bill?"
+   - "I found 3 items matching that. Which one: [A], [B], or [C]?"
+   
+2. **Item type is unclear** → ASK before creating
+   - Types: task, reminder, bill, followup, note
+   - "add call mom" → "Should I add this as a task, reminder, or follow-up?"
+   - "Netflix" → "Is this a bill, task, or something else?"
+   - ONLY auto-detect if EXPLICITLY stated: "remind me" = reminder, "pay $X" = bill, "note:" = note
+   
+3. **Date/time is ambiguous** → CONFIRM the specific date
+   - "Friday" → "Do you mean this Friday, January 3rd?"
+   - "next week" → "Which day next week?"
+   - "later" → "When would you like to be reminded?"
+   
+4. **Reference is unclear** → ASK what they mean
+   - "delete it" but nothing obvious → "Which item would you like to delete?"
+   - "change that" but unclear → "Which item should I change?"
+   
+5. **Before destructive actions** → CONFIRM first
+   - Deleting multiple items → "This will delete X items. Are you sure?"
+   - Bulk operations → Confirm the scope
+
+** BEST PRACTICES **
+- It's BETTER to ask one question than create the wrong item
+- Users PREFER being asked over having to fix mistakes later
+- When you see 2+ possible interpretations, ASK which one
+- NEVER pick randomly when multiple items match
+- Short, clear questions are best: "Task or reminder?" NOT long explanations
+
+** SELF-VALIDATION: CHECK YOUR WORK **
+Before finalizing ANY action, verify:
+1. Did I correctly understand what the user asked for?
+2. If I'm creating something - do I have the TYPE confirmed (not assumed)?
+3. If I'm referencing "that" or "it" - did I check chat history to confirm what it means?
+4. If there were multiple interpretations - did I ask the user to choose?
+5. For dates - am I using the NEXT occurrence, not a past date?
+
+If any answer is "no" or "unsure" → ASK for clarification instead of proceeding.
+
+** CONVERSATION CONTEXT - CRITICAL: USE THE CHAT HISTORY **
+You have access to the chat history below. This is ESSENTIAL for understanding the user.
+
+** PRONOUN RESOLUTION - MANDATORY **
+When user says: "that", "it", "the one", "this", "keep that as", "change it to", "make it":
+1. LOOK AT THE CHAT HISTORY to find what they're referring to
+2. If you just created/mentioned an item, "that" = that item
+3. Example conversation:
+   - AI: "I've added a note: Find HomeOwner insurance"
+   - User: "Keep that as Task for Tuesday"
+   - You MUST understand "that" = "Find HomeOwner insurance" (the note just created)
+   - You should UPDATE the note to be a task, NOT ask "What is the task?"
+
+** NEVER ASK "WHAT IS THE TASK?" if the user just referred to something in the chat! **
+- Look at what was just created/discussed and UPDATE it instead
+- "Keep that as X" = Change the last item's type to X
+- "Make it Y" = Update the last item
+- "Change it to Z" = Modify the last discussed item
+
+USE THE CHAT HISTORY TO:
+- Remember what items were just created/mentioned
+- Resolve pronouns ("that", "it", "the one")
+- Understand follow-up questions
+- Track the flow of conversation
+- Avoid repeating yourself
+
+${chatHistory && chatHistory.length > 0 ? `
+CHAT HISTORY (Most recent conversation - USE THIS!):
+${chatHistory.slice(-10).map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n')}
+` : '(No prior messages in this session)'}
+
 ** CONTEXT SECTIONS EXPLAINED: **
 1. **OVERDUE ITEMS**: Tasks/Bills that are past due. PRIORITIZE THESE.
 2. **ACTIVE RECURRING BILLS**: The user's fixed financial commitments. USE THIS TO PREVENT DUPLICATES.
@@ -535,6 +709,17 @@ Your goal is to be proactive, highly organized, and authoritative about the user
    - If a task appears in "UPCOMING SCHEDULE", it is real. Include it.
 2. The "UPCOMING SCHEDULE" overrides any other data key. it is the calculated truth.
 
+** CRITICAL: DAY NAME = NEXT UPCOMING OCCURRENCE ONLY **
+When user says a DAY NAME (Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday):
+- ALWAYS interpret as the NEXT UPCOMING occurrence of that day
+- NEVER show past dates
+- "Friday" = the next Friday FROM TODAY (${todayStr})
+- If today IS Friday, "Friday" means TODAY
+- NEVER list PAST Fridays like "last Friday" unless user explicitly says "last Friday"
+Example: If today is Tuesday Dec 31:
+- "Friday" = Friday January 3 (UPCOMING)
+- Do NOT show Friday December 27 (PAST)
+
 ** RESPONSE FORMATTING **
 1. Use a clean, "Executive Briefing" style.
 2. Group items clearly by Date (e.g., "📅 **Tomorrow, Dec 30**").
@@ -544,17 +729,77 @@ Your goal is to be proactive, highly organized, and authoritative about the user
 
 Analyze the user's message and determine their intent.
 
-INTENT TYPES:
+INTENT TYPES (Core):
 - "create": User wants to create a new task, reminder, note, or bill
 - "batch_create": User wants to create MULTIPLE items at once
 - "update": User wants to modify an existing item
 - "batch_update": User wants to modify MULTIPLE items at once
 - "delete": User wants to remove ONE existing item
-- "batch_delete": User wants to remove MULTIPLE items. REQUIRED: Find IDs from context and fill "batchOperations.ids".
+- "batch_delete": User wants to remove MULTIPLE items by ID
 - "query": User is asking about their items
 - "summary": User asks for an overview
-- "suggest": User asks for recommendations
+- "suggest": User asks for recommendations OR you want to proactively suggest
 - "chat": General conversation, greeting, thanks, or unclear intent
+
+** AI SUPER POWERS - Advanced Intents **
+
+- "delete_occurrence": Delete a SPECIFIC occurrence of a repeating item (NOT the whole series)
+  Examples: "Cancel gym on Friday", "Remove tomorrow's meeting", "Skip dentist next week"
+  REQUIRED: matchedItemId + targetDate (YYYY-MM-DD format)
+
+- "batch_delete_occurrence": Delete ALL items on a specific date
+  Examples: "Clear everything on Friday", "Delete all items from tomorrow", "Remove all January 5th tasks"
+  REQUIRED: targetDate (YYYY-MM-DD format)
+  
+- "bulk_reschedule": Move items from one date to another
+  Examples: "Move all Monday tasks to Tuesday", "Postpone Friday to next week", "Push back tomorrow's items by 2 days"
+  REQUIRED: rescheduleConfig.fromDate + rescheduleConfig.toDate
+  
+- "bulk_complete": Mark multiple items as done
+  Examples: "I finished everything today", "Mark all morning tasks done", "I did all my tasks yesterday"
+  REQUIRED: targetDate (defaults to today if not specified)
+  
+- "conditional_delete": Delete items matching specific criteria
+  Examples: "Delete all low priority items without a due date", "Remove all completed tasks", "Delete old notes from last month"
+  REQUIRED: filterCriteria with at least one filter
+
+- "archive_completed": Archive completed items (move to archive, not delete)
+  Examples: "Archive old completed items", "Clean up done tasks from last month"
+  OPTIONAL: filterCriteria.olderThan
+
+- "analytics": Provide usage statistics and insights
+  Examples: "How am I doing?", "What's my completion rate?", "Show me my stats", "How productive was I this week?"
+  REQUIRED: Generate analyticsData from context
+
+- "quick_action": Voice shortcuts for fast actions
+  Examples: "Done" / "Do it" → complete_last, "Not now" / "Later" → snooze, "Tomorrow" → reschedule_tomorrow
+  REQUIRED: quickAction field
+
+** SUPER POWER DETECTION RULES **
+1. Date-specific deletion = delete_occurrence or batch_delete_occurrence (NOT batch_delete)
+2. "Cancel X on [date]" or "Skip X on [date]" = delete_occurrence
+3. "Clear [date]" or "Delete everything on [date]" = batch_delete_occurrence
+4. "Move [date] to [date]" = bulk_reschedule
+5. "I did/finished [all/everything] [today/date]" = bulk_complete
+6. "Delete all [adjective] items" with conditions = conditional_delete
+7. Single word responses after mentioning a task: "Done", "Later", "Tomorrow" = quick_action
+
+** CONTEXT AWARENESS RULES **
+- If user says "another one like that" → use referenceContext: "last_created"
+- If user says "change IT to 3pm" → use referenceContext: "last_mentioned"
+- If user says "done" after discussing a task → use quickAction: "complete_last"
+
+** PROACTIVE SUGGESTIONS **
+When appropriate, add proactiveSuggestion to ANY intent:
+- If 5+ items overdue → suggest: "reschedule_overdue"
+- If user adds same thing repeatedly (gym Mon/Wed/Fri) → suggest: "create_routine"
+- If 3+ items at same time slot → suggest: "optimize_schedule"
+
+** CONFLICT DETECTION **
+When creating or updating items with specific times:
+- Check if same time already has 2+ items
+- If conflict detected, add to "conflicts" array
+- Still create the item, but warn user in responseText
 
                             ** CRITICAL: SMART MATCHING FOR EXISTING ITEMS **
                                 When the user mentions something that sounds like an existing item:
@@ -718,7 +963,52 @@ Structure:
                 "upcomingCount": number,
                     "byPriority": { "high": number, "med": number, "low": number },
         "message": "summary text"
-    }
+    },
+
+    // AI SUPER POWERS - Additional Fields
+    "targetDate": "YYYY-MM-DD | null", // for delete_occurrence, batch_delete_occurrence, bulk_complete
+    "targetDateEnd": "YYYY-MM-DD | null", // for date range operations
+    
+    "rescheduleConfig": { // for bulk_reschedule
+        "fromDate": "YYYY-MM-DD",
+        "toDate": "YYYY-MM-DD",
+        "preserveTime": true | false
+    },
+    
+    "filterCriteria": { // for conditional_delete, archive_completed
+        "types": ["task", "bill", ...],
+        "priorities": ["low", "med", "high"],
+        "hasNoDueDate": true | false,
+        "isOverdue": true | false,
+        "isCompleted": true | false,
+        "olderThan": "YYYY-MM-DD",
+        "titleContains": "search string"
+    },
+    
+    "quickAction": "complete_last" | "snooze" | "reschedule_tomorrow" | "undo_last",
+    
+    "analyticsData": { // for analytics intent - compute from context
+        "completionRate": 0.0-1.0,
+        "avgPerDay": number,
+        "totalCompleted": number,
+        "totalPending": number,
+        "byType": { "task": n, "bill": n, ... },
+        "byPriority": { "high": n, "med": n, "low": n },
+        "streaks": { "current": n, "best": n },
+        "insights": ["insight 1", "insight 2"]
+    },
+    
+    "conflicts": [ // when scheduling conflicts detected
+        { "itemId": "id", "itemTitle": "title", "conflictType": "same_time", "conflictTime": "ISO 8601" }
+    ],
+    
+    "proactiveSuggestion": { // optional - add when helpful
+        "type": "reschedule_overdue" | "create_routine" | "optimize_schedule",
+        "message": "suggestion text",
+        "suggestedActions": ["action 1", "action 2"]
+    },
+    
+    "referenceContext": "last_mentioned" | "last_created" | "last_completed" // for context-aware responses
 }
 
 USER MESSAGE:

@@ -50,6 +50,11 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
   const loadItems = useItemsStore(state => state.loadItems);
   const markAsDone = useItemsStore(state => state.markAsDone);
   const markAsUndone = useItemsStore(state => state.markAsUndone);
+  const skipOccurrence = useItemsStore(state => state.skipOccurrence);
+  
+  // AI Super Powers - Context preservation state
+  const [lastMentionedItem, setLastMentionedItem] = useState<Item | null>(null);
+  const [lastCreatedItem, setLastCreatedItem] = useState<Item | null>(null);
   // Voice state
   const [isRecording, setIsRecording] = useState(false);
   const recordingRef = useRef<Audio.Recording | null>(null);
@@ -248,8 +253,14 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
          return;
       }
 
-      // Analyze intent
-      const result = await aiService.analyzeIntent(text, existingItems, fullScheduleContext);
+      // Build chat history for context awareness
+      const chatHistory = messages.map(m => ({
+        role: m.role,
+        content: m.content
+      }));
+
+      // Analyze intent with full context including chat history
+      const result = await aiService.analyzeIntent(text, existingItems, fullScheduleContext, chatHistory);
 
       // Handle based on intent
       switch (result.intent) {
@@ -430,11 +441,295 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
           break;
         }
 
+        // ============================================
+        // AI SUPER POWERS - New Intent Handlers
+        // ============================================
+
+        case 'delete_occurrence': {
+          // Delete a SPECIFIC occurrence of a repeating item (or delete one-time item entirely)
+          let matchingItem: Item | undefined;
+          
+          if (result.matchedItemId) {
+            matchingItem = items.find(i => i.id === result.matchedItemId);
+          }
+          if (!matchingItem && result.searchQuery) {
+            matchingItem = findMatchingItem(items, result.searchQuery);
+          }
+          
+          if (matchingItem && result.targetDate) {
+            const targetDate = new Date(result.targetDate + 'T12:00:00');
+            
+            if (matchingItem.repeat && matchingItem.repeat !== 'none') {
+              // Repeating item: skip this occurrence only
+              await skipOccurrence(matchingItem.id, targetDate);
+              setLastMentionedItem(matchingItem);
+              addAssistantMessage(result.responseText, {
+                type: 'deleted',
+                itemType: matchingItem.type,
+                itemId: matchingItem.id,
+                itemTitle: `${matchingItem.title} (${result.targetDate})`,
+              });
+            } else {
+              // One-time item: delete entirely
+              await deleteItem(matchingItem.id);
+              setLastMentionedItem(matchingItem);
+              addAssistantMessage(result.responseText, {
+                type: 'deleted',
+                itemType: matchingItem.type,
+                itemId: matchingItem.id,
+                itemTitle: matchingItem.title,
+              });
+            }
+            await loadItems();
+          } else if (!matchingItem) {
+            addAssistantMessage("I couldn't find that item. Could you be more specific?");
+          } else {
+            addAssistantMessage("I need to know which date to remove. Could you specify?");
+          }
+          break;
+        }
+
+        case 'batch_delete_occurrence': {
+          // Delete ALL items on a specific date
+          const targetDate = result.targetDate;
+          if (targetDate) {
+            const expanded = expandRepeatingItems(items.filter(i => i.status !== 'archived'), 365);
+            const targetDateObj = new Date(targetDate + 'T00:00:00');
+            const targetDateStr = targetDate; // YYYY-MM-DD
+            
+            // Find all items matching this date
+            const matching = expanded.filter(e => {
+              const displayDateStr = e.displayDate instanceof Date 
+                ? e.displayDate.toISOString().slice(0, 10)
+                : new Date(e.displayDate).toISOString().slice(0, 10);
+              return displayDateStr === targetDateStr;
+            });
+            
+            let deletedCount = 0;
+            for (const expandedItem of matching) {
+              const baseItem = items.find(i => i.id === expandedItem.id);
+              if (baseItem) {
+                if (baseItem.repeat && baseItem.repeat !== 'none') {
+                  // Repeating: skip this occurrence
+                  await skipOccurrence(baseItem.id, targetDateObj);
+                } else {
+                  // One-time: delete entirely
+                  await deleteItem(baseItem.id);
+                }
+                deletedCount++;
+              }
+            }
+            
+            await loadItems();
+            addAssistantMessage(result.responseText || `Cleared ${deletedCount} item(s) from ${targetDate}.`);
+          } else {
+            addAssistantMessage("I need to know which date to clear. Could you specify?");
+          }
+          break;
+        }
+
+        case 'bulk_reschedule': {
+          // Move items from one date to another
+          const { fromDate, toDate, preserveTime } = result.rescheduleConfig || {};
+          if (fromDate && toDate) {
+            const expanded = expandRepeatingItems(items.filter(i => i.status !== 'archived'), 365);
+            
+            // Find items on the source date
+            const matching = expanded.filter(e => {
+              const displayDateStr = e.displayDate instanceof Date 
+                ? e.displayDate.toISOString().slice(0, 10)
+                : new Date(e.displayDate).toISOString().slice(0, 10);
+              return displayDateStr === fromDate;
+            });
+            
+            // Get unique base item IDs (avoid rescheduling same item multiple times)
+            const processedIds = new Set<string>();
+            let rescheduledCount = 0;
+            
+            for (const expandedItem of matching) {
+              if (processedIds.has(expandedItem.id)) continue;
+              processedIds.add(expandedItem.id);
+              
+              const baseItem = items.find(i => i.id === expandedItem.id);
+              if (baseItem && (!baseItem.repeat || baseItem.repeat === 'none')) {
+                // Only reschedule one-time items (repeating items keep their pattern)
+                const oldDue = baseItem.dueAt;
+                const timeStr = oldDue && preserveTime !== false ? oldDue.slice(10) : 'T12:00:00';
+                const newDue = toDate + timeStr;
+                
+                // Calculate new reminder if exists
+                let newRemind = null;
+                if (baseItem.remindAt && baseItem.dueAt) {
+                  const oldDueTime = new Date(baseItem.dueAt).getTime();
+                  const oldRemindTime = new Date(baseItem.remindAt).getTime();
+                  const offset = oldDueTime - oldRemindTime;
+                  newRemind = new Date(new Date(newDue).getTime() - offset).toISOString();
+                }
+                
+                await updateItem(baseItem.id, { 
+                  dueAt: newDue,
+                  ...(newRemind && { remindAt: newRemind })
+                });
+                rescheduledCount++;
+              }
+            }
+            
+            await loadItems();
+            addAssistantMessage(result.responseText || `Moved ${rescheduledCount} item(s) from ${fromDate} to ${toDate}.`);
+          } else {
+            addAssistantMessage("I need both the source and destination dates. Could you clarify?");
+          }
+          break;
+        }
+
+        case 'bulk_complete': {
+          // Mark multiple items as done
+          const targetDate = result.targetDate || new Date().toISOString().slice(0, 10);
+          const expanded = expandRepeatingItems(items.filter(i => i.status !== 'archived'), 365);
+          const targetDateObj = new Date(targetDate + 'T12:00:00');
+          
+          const matching = expanded.filter(e => {
+            if (e.isCompleted) return false; // Skip already completed
+            const displayDateStr = e.displayDate instanceof Date 
+              ? e.displayDate.toISOString().slice(0, 10)
+              : new Date(e.displayDate).toISOString().slice(0, 10);
+            return displayDateStr === targetDate;
+          });
+          
+          let completedCount = 0;
+          for (const expandedItem of matching) {
+            await markAsDone(expandedItem.id, targetDateObj);
+            completedCount++;
+          }
+          
+          await loadItems();
+          addAssistantMessage(result.responseText || `Marked ${completedCount} item(s) as done.`);
+          break;
+        }
+
+        case 'conditional_delete': {
+          // Delete items matching specific criteria
+          const filters = result.filterCriteria || {};
+          let toDelete = items.filter(i => i.status === 'active');
+          
+          if (filters.priorities && filters.priorities.length > 0) {
+            toDelete = toDelete.filter(i => filters.priorities!.includes(i.priority));
+          }
+          if (filters.types && filters.types.length > 0) {
+            toDelete = toDelete.filter(i => filters.types!.includes(i.type));
+          }
+          if (filters.hasNoDueDate) {
+            toDelete = toDelete.filter(i => !i.dueAt);
+          }
+          if (filters.isOverdue) {
+            const now = new Date();
+            toDelete = toDelete.filter(i => i.dueAt && new Date(i.dueAt) < now);
+          }
+          if (filters.isCompleted) {
+            toDelete = items.filter(i => i.status === 'done');
+          }
+          if (filters.titleContains) {
+            const search = filters.titleContains.toLowerCase();
+            toDelete = toDelete.filter(i => i.title.toLowerCase().includes(search));
+          }
+          
+          let deletedCount = 0;
+          for (const item of toDelete) {
+            await deleteItem(item.id);
+            deletedCount++;
+          }
+          
+          await loadItems();
+          addAssistantMessage(result.responseText || `Deleted ${deletedCount} item(s) matching your criteria.`);
+          break;
+        }
+
+        case 'archive_completed': {
+          // Archive completed items
+          const filters = result.filterCriteria || {};
+          let toArchive = items.filter(i => i.status === 'done');
+          
+          if (filters.olderThan) {
+            const cutoff = new Date(filters.olderThan);
+            toArchive = toArchive.filter(i => new Date(i.updatedAt) < cutoff);
+          }
+          
+          let archivedCount = 0;
+          for (const item of toArchive) {
+            await updateItem(item.id, { status: 'archived' });
+            archivedCount++;
+          }
+          
+          await loadItems();
+          addAssistantMessage(result.responseText || `Archived ${archivedCount} completed item(s).`);
+          break;
+        }
+
+        case 'analytics': {
+          // AI computes and returns analytics - just display the response
+          // The AI has already computed analyticsData and formatted responseText
+          addAssistantMessage(result.responseText);
+          break;
+        }
+
+        case 'quick_action': {
+          // Voice shortcuts: Done, Not now, Tomorrow
+          switch (result.quickAction) {
+            case 'complete_last':
+              if (lastMentionedItem) {
+                await markAsDone(lastMentionedItem.id);
+                await loadItems();
+                addAssistantMessage(result.responseText || `Done! Completed "${lastMentionedItem.title}".`);
+              } else {
+                addAssistantMessage("I'm not sure which task you mean. Could you be more specific?");
+              }
+              break;
+              
+            case 'snooze':
+              if (lastMentionedItem) {
+                const snoozeTime = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+                await updateItem(lastMentionedItem.id, { remindAt: snoozeTime.toISOString() });
+                await loadItems();
+                addAssistantMessage(result.responseText || `Snoozed "${lastMentionedItem.title}" for 1 hour.`);
+              } else {
+                addAssistantMessage("I'm not sure which item to snooze. Could you specify?");
+              }
+              break;
+              
+            case 'reschedule_tomorrow':
+              if (lastMentionedItem) {
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                tomorrow.setHours(12, 0, 0, 0);
+                await updateItem(lastMentionedItem.id, { dueAt: tomorrow.toISOString() });
+                await loadItems();
+                addAssistantMessage(result.responseText || `Moved "${lastMentionedItem.title}" to tomorrow.`);
+              } else {
+                addAssistantMessage("I'm not sure which item to reschedule. Could you specify?");
+              }
+              break;
+              
+            case 'undo_last':
+              // TODO: Implement undo functionality with action history
+              addAssistantMessage("Undo is not yet implemented. I'll remember this for a future update!");
+              break;
+              
+            default:
+              addAssistantMessage(result.responseText);
+          }
+          break;
+        }
+
         case 'query':
         case 'summary':
         case 'suggest': {
           // AI provides data-driven responses
-          addAssistantMessage(result.responseText);
+          // Also check for proactive suggestions
+          if (result.proactiveSuggestion) {
+            addAssistantMessage(result.responseText + `\n\n💡 **Suggestion:** ${result.proactiveSuggestion.message}`);
+          } else {
+            addAssistantMessage(result.responseText);
+          }
           break;
         }
 
@@ -451,7 +746,7 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
         // Ensure processing is turned off if it wasn't already by addAssistantMessage (which updates store but we might want to be safe)
         // Store updates handle this, but good to keep in mind.
     }
-  }, [items, pendingItem, addUserMessage, addItem, updateItem, deleteItem, addAssistantMessage, setProcessing, startPendingItem, completePendingItem, cancelPendingItem]);
+  }, [items, pendingItem, addUserMessage, addItem, updateItem, deleteItem, addAssistantMessage, setProcessing, startPendingItem, completePendingItem, cancelPendingItem, loadItems, markAsDone, skipOccurrence, lastMentionedItem]);
 
   // Start Recording
   const startRecording = async () => {
