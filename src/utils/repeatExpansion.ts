@@ -254,6 +254,9 @@ export function expandRepeatingItems(
  * Get overdue items (from a PREVIOUS day, not yet completed)
  * Items from today are NOT overdue, even if the time has passed.
  * Overdue means a whole day has passed without completing the task.
+ * 
+ * IMPORTANT: An item is overdue based on its DUE DATE, not reminder date.
+ * If dueAt is in the future, the item is NOT overdue even if remindAt has passed.
  */
 export function getOverdueItems(items: Item[]): ExpandedItem[] {
     const now = new Date();
@@ -265,76 +268,117 @@ export function getOverdueItems(items: Item[]): ExpandedItem[] {
             if (item.status !== 'active') return false;
             // Skip repeating items - they're handled by expansion
             if (item.repeat && item.repeat !== 'none') return false;
-            const effectiveDate = getEffectiveDate(item);
-            if (!effectiveDate) return false;
-            // Overdue = item's date is BEFORE today (previous day)
-            return new Date(effectiveDate) < todayStart;
+
+            // For overdue calculation, use ONLY dueAt
+            // If no dueAt, the item cannot be "overdue" (reminders don't make things overdue)
+            if (!item.dueAt) return false;
+
+            const dueDate = new Date(safeIsoDate(item.dueAt));
+            // Overdue = item's DUE date is BEFORE today (previous day)
+            return dueDate < todayStart;
         })
         .map(item => ({
             ...item,
-            displayDate: new Date(getEffectiveDate(item)!),
+            displayDate: new Date(safeIsoDate(item.dueAt!)),
             isVirtualOccurrence: false,
         }));
 }
 
 /**
  * Get overdue occurrences for repeating items (yesterday's uncompleted occurrences)
+ * Only shows occurrences that SHOULD have happened on a past day based on the repeat pattern.
  * @param items - Array of items to check
  */
 export function getOverdueOccurrences(items: Item[]): ExpandedItem[] {
     const now = new Date();
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
 
-    // Check up to 3 days back for overdue items, not just yesterday
-    // This makes it more robust if user doesn't open app for a day
-    const checkDays = 3;
+    // Check up to 365 days back - overdue items persist indefinitely until skipped/completed
+    const checkDays = 365;
 
     const overdue: ExpandedItem[] = [];
+
+    // Helper to safely parse potentially double-escaped JSON
+    const safeParseJson = (str: string | null | undefined): string[] => {
+        if (!str) return [];
+        try {
+            let parsed = JSON.parse(str);
+            // Handle double-escaped JSON like: "\"[\\\"2025-12-30\\\"]\""
+            if (typeof parsed === 'string') {
+                parsed = JSON.parse(parsed);
+            }
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    };
 
     items.forEach(item => {
         if (item.status !== 'active') return;
         if (!item.repeat || item.repeat === 'none') return;
+        // Require dueAt for overdue check (remindAt doesn't make something overdue)
+        if (!item.dueAt) return;
 
-        const effectiveDate = getEffectiveDate(item);
-        if (!effectiveDate) return;
+        const baseDueDate = new Date(safeIsoDate(item.dueAt));
+        const createdAt = new Date(item.createdAt);
 
-        // Parse skipped and completed dates
-        const skippedDates: string[] = item.skippedDates
-            ? JSON.parse(item.skippedDates)
-            : [];
+        // Parse skipped and completed dates with robust parsing
+        const skippedDates = safeParseJson(item.skippedDates);
+        const completedDates = safeParseJson(item.completedDates);
 
-        const completedDates: string[] = item.completedDates
-            ? JSON.parse(item.completedDates)
-            : [];
-
-        // Check past days
+        // For each past day, check if an occurrence was due that day
         for (let i = 1; i <= checkDays; i++) {
             const pastDate = new Date(now);
             pastDate.setDate(pastDate.getDate() - i);
             const pastDateStr = formatLocalDate(pastDate);
 
-            // Skip if date is skipped
+            // Skip if date is skipped or completed
             if (skippedDates.includes(pastDateStr)) continue;
-
-            // Skip if date is completed
             if (completedDates.includes(pastDateStr)) continue;
 
-            // Check if task was created before this occurrence
-            const createdAt = new Date(item.createdAt);
-            const baseDate = new Date(effectiveDate);
-            const pastOccurrence = new Date(pastDate);
-            pastOccurrence.setHours(baseDate.getHours(), baseDate.getMinutes(), 0, 0);
+            // Check if an occurrence ACTUALLY falls on this past day based on the repeat pattern
+            let occurrenceOnThisDay = false;
 
-            // If task created after this occurrence time, it's not overdue
-            if (createdAt > pastOccurrence) continue;
+            if (item.repeat === 'daily') {
+                // Daily: occurs every day after creation
+                const pastOccurrence = new Date(pastDate);
+                pastOccurrence.setHours(baseDueDate.getHours(), baseDueDate.getMinutes(), 0, 0);
+                occurrenceOnThisDay = pastOccurrence >= createdAt;
+            } else if (item.repeat === 'weekly') {
+                // Weekly: occurs on the same day of week as the base due date
+                if (pastDate.getDay() === baseDueDate.getDay()) {
+                    const pastOccurrence = new Date(pastDate);
+                    pastOccurrence.setHours(baseDueDate.getHours(), baseDueDate.getMinutes(), 0, 0);
+                    occurrenceOnThisDay = pastOccurrence >= createdAt;
+                }
+            } else if (item.repeat === 'monthly') {
+                // Monthly: occurs on the same day of month as the base due date
+                if (pastDate.getDate() === baseDueDate.getDate()) {
+                    const pastOccurrence = new Date(pastDate);
+                    pastOccurrence.setHours(baseDueDate.getHours(), baseDueDate.getMinutes(), 0, 0);
+                    occurrenceOnThisDay = pastOccurrence >= createdAt;
+                }
+            } else if (item.repeat === 'yearly') {
+                // Yearly: occurs on the same month and day
+                if (pastDate.getMonth() === baseDueDate.getMonth() &&
+                    pastDate.getDate() === baseDueDate.getDate()) {
+                    const pastOccurrence = new Date(pastDate);
+                    pastOccurrence.setHours(baseDueDate.getHours(), baseDueDate.getMinutes(), 0, 0);
+                    occurrenceOnThisDay = pastOccurrence >= createdAt;
+                }
+            }
 
-            // Add as overdue
-            overdue.push({
-                ...item,
-                displayDate: pastOccurrence,
-                isVirtualOccurrence: true,
-            });
+            if (occurrenceOnThisDay) {
+                const pastOccurrence = new Date(pastDate);
+                pastOccurrence.setHours(baseDueDate.getHours(), baseDueDate.getMinutes(), 0, 0);
+
+                overdue.push({
+                    ...item,
+                    displayDate: pastOccurrence,
+                    isVirtualOccurrence: true,
+                });
+            }
         }
     });
 
