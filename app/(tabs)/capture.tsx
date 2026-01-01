@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
-import { safeParseDate } from '../../src/utils/dateUtils';
+import { safeParseDate, formatLocalDate, getTodayLocalDate } from '../../src/utils/dateUtils';
 import { View, StyleSheet, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Keyboard, Alert, TextInput, Dimensions, Animated, Text } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
@@ -498,10 +498,12 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
             const targetDateStr = targetDate; // YYYY-MM-DD
             
             // Find all items matching this date
+            // Use formatLocalDate to avoid UTC conversion issues (e.g., 9 PM PST -> next day in UTC)
             const matching = expanded.filter(e => {
-              const displayDateStr = e.displayDate instanceof Date 
-                ? e.displayDate.toISOString().slice(0, 10)
-                : new Date(e.displayDate).toISOString().slice(0, 10);
+              const displayDate = e.displayDate instanceof Date 
+                ? e.displayDate
+                : new Date(e.displayDate);
+              const displayDateStr = formatLocalDate(displayDate);
               return displayDateStr === targetDateStr;
             });
             
@@ -535,10 +537,12 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
             const expanded = expandRepeatingItems(items.filter(i => i.status !== 'archived'), 365);
             
             // Find items on the source date
+            // Use formatLocalDate to avoid UTC conversion issues (e.g., 9 PM PST -> next day in UTC)
             const matching = expanded.filter(e => {
-              const displayDateStr = e.displayDate instanceof Date 
-                ? e.displayDate.toISOString().slice(0, 10)
-                : new Date(e.displayDate).toISOString().slice(0, 10);
+              const displayDate = e.displayDate instanceof Date 
+                ? e.displayDate
+                : new Date(e.displayDate);
+              const displayDateStr = formatLocalDate(displayDate);
               return displayDateStr === fromDate;
             });
             
@@ -584,15 +588,17 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
 
         case 'bulk_complete': {
           // Mark multiple items as done
-          const targetDate = result.targetDate || new Date().toISOString().slice(0, 10);
+          const targetDate = result.targetDate || getTodayLocalDate();
           const expanded = expandRepeatingItems(items.filter(i => i.status !== 'archived'), 365);
           const targetDateObj = new Date(targetDate + 'T12:00:00');
           
+          // Use formatLocalDate to avoid UTC conversion issues (e.g., 9 PM PST -> next day in UTC)
           const matching = expanded.filter(e => {
             if (e.isCompleted) return false; // Skip already completed
-            const displayDateStr = e.displayDate instanceof Date 
-              ? e.displayDate.toISOString().slice(0, 10)
-              : new Date(e.displayDate).toISOString().slice(0, 10);
+            const displayDate = e.displayDate instanceof Date 
+              ? e.displayDate
+              : new Date(e.displayDate);
+            const displayDateStr = formatLocalDate(displayDate);
             return displayDateStr === targetDate;
           });
           
