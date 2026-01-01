@@ -213,6 +213,8 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
       const upcomingSchedule = sortedExpanded.map(item => {
         const dateDate = safeParseDate(item.displayDate instanceof Date ? item.displayDate.toISOString() : item.displayDate);
         
+        // Include YYYY-MM-DD for machine precision AND human-readable format
+        const isoDateStr = formatLocalDate(dateDate);
         const dateStr = dateDate.toLocaleDateString('en-US', { 
             weekday: 'short', 
             month: 'short', 
@@ -225,7 +227,8 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
                 minute: '2-digit'
               }) 
             : 'All day';
-        return `- ${dateStr} [${timeStr}]: ${item.title} ${getPriorityLabel(item.priority)}`;
+        // Format: [2026-01-04] Sun, Jan 4, 2026 [9:00 AM]: Tesla Loan EMI (Medium)
+        return `- [${isoDateStr}] ${dateStr} [${timeStr}]: ${item.title} ${getPriorityLabel(item.priority)}`;
       }).join('\n');
 
       // Group items for context

@@ -246,8 +246,8 @@ if (!OPENROUTER_API_KEY) {
 // Model for audio transcription (needs multimodal support)
 const TRANSCRIPTION_MODEL = 'google/gemini-2.0-flash-lite-001';
 
-// Model for audio transcription (needs multimodal support)
-const CHAT_MODEL = 'google/gemini-2.0-flash-lite-001';
+// Model for chat/intent analysis (GPT-4o-mini for better instruction following)
+const CHAT_MODEL = 'openai/gpt-4o-mini';
 
 async function fetchWithRetry(url: string, options: RequestInit, retries = 5, delay = 2000): Promise<Response> {
     for (let i = 0; i < retries; i++) {
@@ -556,17 +556,11 @@ Now produce ONLY the JSON object.`;
             const tomorrowStr = tomorrow.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
             // Build rich context about existing items for update/delete/query operations
+            // NOTE: This is for ITEM LOOKUP only, not for schedule display!
             const itemsContext = existingItems && existingItems.length > 0
-                ? `\nEXISTING ITEMS THE USER HAS:\n${existingItems.map(i => {
+                ? `\n** ITEM REFERENCE DATABASE (For Update/Delete/Search ONLY - NOT for schedule display!) **\nWARNING: These dates are BASE dates. For schedule queries, use the UPCOMING SCHEDULE section instead.\n${existingItems.map(i => {
                     const parts = [`"${i.title}" (${i.type})`];
                     if (i.priority) parts.push(`priority: ${i.priority}`);
-                    if (i.dueAt) {
-                        const dueLocal = new Date(safeIsoDate(i.dueAt)).toLocaleString('en-US', {
-                            weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
-                            hour: 'numeric', minute: '2-digit'
-                        });
-                        parts.push(`due: ${dueLocal}`);
-                    }
                     if (i.status) parts.push(`status: ${i.status}`);
                     return `- ID: ${i.id} | ${parts.join(', ')}`;
                 }).join('\n')}\n`
@@ -699,15 +693,14 @@ ${chatHistory.slice(-10).map(m => `${m.role.toUpperCase()}: ${m.content}`).join(
 ** CRITICAL SCHEDULE RULES (ZERO SKIPPING POLICY) **
 1. For ANY schedule query ("Tomorrow", "Next 3 days", "This week"):
    - You MUST check the "UPCOMING SCHEDULE" section.
-   - You MUST list EVERY single item found for the requested dates.
-   - **STRICT DATE MATCHING**: If user asks for "Tomorrow" (${tomorrowStr}), ONLY list items that explicitly match that date.
-   - DO NOT list items for Jan 1st if the user asked for Dec 31st.
-   - If "UPCOMING SCHEDULE" has no items for the requested date:
-     - IF the date is within the next 365 days, respond "You have nothing scheduled for [Date]."
-     - IF the date is MORE than 365 days away, respond "I only have visibility into your schedule for the next year (365 days). I can't see events that far ahead yet."
+   - Each line in UPCOMING SCHEDULE starts with [YYYY-MM-DD] - USE THIS DATE as the source of truth.
+   - **STRICT DATE MATCHING**: Match the [YYYY-MM-DD] prefix EXACTLY to determine which date an item belongs to.
+   - Example: "[2026-01-05] Mon, Jan 5, 2026 [9:00 AM]: Task Name" means this task is ONLY on 2026-01-05 (Monday Jan 5th).
+   - DO NOT place items on dates that don't match their [YYYY-MM-DD] prefix.
+   - If no items have the matching [YYYY-MM-DD] for a date, say "You have nothing scheduled for [Date]."
    - DO NOT summarize (e.g. do not say "and 2 other items"). List them all.
-   - If a task appears in "UPCOMING SCHEDULE", it is real. Include it.
-2. The "UPCOMING SCHEDULE" overrides any other data key. it is the calculated truth.
+   - DO NOT invent or duplicate items. Only list items that appear in UPCOMING SCHEDULE.
+2. The "UPCOMING SCHEDULE" is the ONLY authoritative source for schedule queries. Ignore EXISTING ITEMS for schedule display.
 
 ** CRITICAL: DAY NAME = NEXT UPCOMING OCCURRENCE ONLY **
 When user says a DAY NAME (Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday):
@@ -719,12 +712,27 @@ When user says a DAY NAME (Monday, Tuesday, Wednesday, Thursday, Friday, Saturda
 - IMPORTANT: Calculate the correct date by counting forward from TODAY
 - Do NOT rely on memorized dates - calculate from the current date provided above
 
-** RESPONSE FORMATTING **
-1. Use a clean, "Executive Briefing" style.
-2. Group items clearly by Date (e.g., "📅 **Tomorrow, Dec 30**").
-3. Items in the context already have priority labels like "(High)" or "(Medium)". Preserve them.
-4. Format: "• [Time] Task Name (Priority)"
-5. **DEDUPLICATION:** If you see the exact same task listed twice for the same time, ONLY list it once.
+** RESPONSE FORMATTING - Make it visually appealing! **
+1. Use a warm, confident "Executive Briefing" style - concise but friendly.
+2. For schedule queries, format BEAUTIFULLY:
+   - Start with a brief intro like "Here's your schedule:" or "Let me break down your next few days:"
+   - Group by date using this format:
+     
+     📅 **Today, Jan 1** _(Thursday)_
+     • 9:00 AM — MDRR Bill _(Medium)_ 💰
+     • 2:00 PM — Team meeting _(High)_ �
+     
+     �📅 **Tomorrow, Jan 2** _(Friday)_
+     • No items scheduled ✨
+     
+   - Use emoji sparingly but effectively:
+     💰 for bills, 📌 for high priority, ⏰ for reminders, 📝 for tasks, 💡 for notes
+   - Use em-dash (—) between time and task name
+   - Put priority in italics with parentheses
+   - If a day has no items, say "No items scheduled ✨" or similar
+   - End with a helpful note if relevant (e.g., "You have a busy Monday ahead!")
+3. Keep responses concise - no fluff, but warm and professional.
+4. **DEDUPLICATION:** Never list the same item twice.
 
 Analyze the user's message and determine their intent.
 
