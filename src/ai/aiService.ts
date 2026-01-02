@@ -246,8 +246,8 @@ if (!OPENROUTER_API_KEY) {
 // Model for audio transcription (needs multimodal support)
 const TRANSCRIPTION_MODEL = 'google/gemini-2.0-flash-lite-001';
 
-// Model for chat/intent analysis (GPT-4o-mini for better instruction following)
-const CHAT_MODEL = 'openai/gpt-4o-mini';
+// Model for audio transcription (needs multimodal support)
+const CHAT_MODEL = 'google/gemini-2.0-flash-lite-001';
 
 async function fetchWithRetry(url: string, options: RequestInit, retries = 5, delay = 2000): Promise<Response> {
     for (let i = 0; i < retries; i++) {
@@ -712,27 +712,12 @@ When user says a DAY NAME (Monday, Tuesday, Wednesday, Thursday, Friday, Saturda
 - IMPORTANT: Calculate the correct date by counting forward from TODAY
 - Do NOT rely on memorized dates - calculate from the current date provided above
 
-** RESPONSE FORMATTING - Make it visually appealing! **
-1. Use a warm, confident "Executive Briefing" style - concise but friendly.
-2. For schedule queries, format BEAUTIFULLY:
-   - Start with a brief intro like "Here's your schedule:" or "Let me break down your next few days:"
-   - Group by date using this format:
-     
-     📅 **Today, Jan 1** _(Thursday)_
-     • 9:00 AM — MDRR Bill _(Medium)_ 💰
-     • 2:00 PM — Team meeting _(High)_ �
-     
-     �📅 **Tomorrow, Jan 2** _(Friday)_
-     • No items scheduled ✨
-     
-   - Use emoji sparingly but effectively:
-     💰 for bills, 📌 for high priority, ⏰ for reminders, 📝 for tasks, 💡 for notes
-   - Use em-dash (—) between time and task name
-   - Put priority in italics with parentheses
-   - If a day has no items, say "No items scheduled ✨" or similar
-   - End with a helpful note if relevant (e.g., "You have a busy Monday ahead!")
-3. Keep responses concise - no fluff, but warm and professional.
-4. **DEDUPLICATION:** Never list the same item twice.
+** RESPONSE FORMATTING **
+1. Use a clean, "Executive Briefing" style.
+2. Group items clearly by Date (e.g., "📅 **Tomorrow, Dec 30**").
+3. Items in the context already have priority labels like "(High)" or "(Medium)". Preserve them.
+4. Format: "• [Time] Task Name (Priority)"
+5. **DEDUPLICATION:** If you see the exact same task listed twice for the same time, ONLY list it once.
 
 Analyze the user's message and determine their intent.
 
@@ -756,6 +741,8 @@ INTENT TYPES (Core):
 
 - "batch_delete_occurrence": Delete ALL items on a specific date
   Examples: "Clear everything on Friday", "Delete all items from tomorrow", "Remove all January 5th tasks"
+  IMPORTANT: ONLY use this when user says "all", "everything", "clear the day". 
+  If user names SPECIFIC items (e.g., "delete Call Mom and Call Dad from Tuesday"), use "batch_delete" with matched IDs instead!
   REQUIRED: targetDate (YYYY-MM-DD format)
   
 - "bulk_reschedule": Move items from one date to another

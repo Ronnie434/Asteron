@@ -328,15 +328,35 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
 
         case 'batch_delete': {
           const operations = result.batchOperations || [];
-          const ids = operations.flatMap(op => op.ids);
+          let ids = operations.flatMap(op => op.ids || []);
           
+          // Fallback: If AI didn't provide IDs but mentioned item titles, try to match
+          if (ids.length === 0 && result.responseText) {
+            // Search for any item whose title is mentioned in the response
+            const responseTextLower = result.responseText.toLowerCase();
+            const foundItems = items.filter(item => {
+              const titleLower = item.title.toLowerCase();
+              // Check if item title (or significant words from it) appears in response
+              const titleWords = titleLower.split(/\s+/).filter(w => w.length > 3);
+              return titleWords.some(word => responseTextLower.includes(word)) ||
+                     responseTextLower.includes(titleLower);
+            });
+            ids = foundItems.map(i => i.id);
+            console.log('[batch_delete] Fallback search found items:', foundItems.map(i => i.title), 'IDs:', ids);
+          }
+          
+          let deletedCount = 0;
           if (ids.length > 0) {
              for (const id of ids) {
                  await deleteItem(id);
+                 deletedCount++;
              }
              await loadItems();
+             addAssistantMessage(result.responseText || `Deleted ${deletedCount} item(s).`);
+          } else {
+             console.warn('[batch_delete] No IDs found to delete');
+             addAssistantMessage("I couldn't find those items to delete. Could you be more specific?");
           }
-          addAssistantMessage(result.responseText);
           break;
         }
 
