@@ -301,15 +301,16 @@ export default function UpcomingScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          { paddingTop: insets.top + 80 }
+          { paddingTop: 16 }
         ]}
+        contentInset={{ top: insets.top + 72 }}
+        contentOffset={{ x: 0, y: -(insets.top + 72) }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={onRefresh}
             tintColor={colors.primary}
-            progressViewOffset={insets.top + 80}
           />
         }
       >
