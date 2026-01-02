@@ -42,10 +42,23 @@ export interface PendingItemState {
     awaitingField: string | null;
 }
 
+/**
+ * State for tracking a pending destructive action awaiting confirmation
+ */
+export interface PendingActionState {
+    type: 'batch_delete_occurrence' | 'batch_delete' | 'conditional_delete' | 'delete';
+    targetDate?: string;
+    targetDateEnd?: string;
+    matchedItemIds?: string[];
+    filterCriteria?: Record<string, any>;
+    confirmationMessage: string;
+}
+
 interface ChatState {
     messages: ChatMessage[];
     isProcessing: boolean;
     pendingItem: PendingItemState | null;
+    pendingAction: PendingActionState | null;
 
     // Actions
     addUserMessage: (content: string) => string;
@@ -60,6 +73,12 @@ interface ChatState {
     completePendingItem: () => PendingItemState['partialData'] | null;
     cancelPendingItem: () => void;
     hasPendingItem: () => boolean;
+
+    // Pending action methods for confirmation flow
+    startPendingAction: (action: PendingActionState) => void;
+    getPendingAction: () => PendingActionState | null;
+    clearPendingAction: () => void;
+    hasPendingAction: () => boolean;
 }
 
 /**
@@ -73,6 +92,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     messages: [],
     isProcessing: false,
     pendingItem: null,
+    pendingAction: null,
 
     addUserMessage: (content: string) => {
         const id = Crypto.randomUUID();
@@ -122,7 +142,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     },
 
     clearSession: () => {
-        set({ messages: [], isProcessing: false, pendingItem: null });
+        set({ messages: [], isProcessing: false, pendingItem: null, pendingAction: null });
     },
 
     // Start a new pending item when AI asks for clarification
@@ -179,4 +199,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
     hasPendingItem: () => {
         return get().pendingItem !== null;
     },
+
+    // Start a pending action awaiting confirmation
+    startPendingAction: (action: PendingActionState) => {
+        set({ pendingAction: action });
+    },
+
+    // Get the current pending action
+    getPendingAction: () => {
+        return get().pendingAction;
+    },
+
+    // Clear the pending action (after confirm or cancel)
+    clearPendingAction: () => {
+        set({ pendingAction: null });
+    },
+
+    // Check if there's a pending action
+    hasPendingAction: () => {
+        return get().pendingAction !== null;
+    },
 }));
+

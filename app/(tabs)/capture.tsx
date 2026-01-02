@@ -41,6 +41,10 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
   const startPendingItem = useChatStore(state => state.startPendingItem);
   const completePendingItem = useChatStore(state => state.completePendingItem);
   const cancelPendingItem = useChatStore(state => state.cancelPendingItem);
+  // Pending action for delete confirmation
+  const pendingAction = useChatStore(state => state.pendingAction);
+  const startPendingAction = useChatStore(state => state.startPendingAction);
+  const clearPendingAction = useChatStore(state => state.clearPendingAction);
   
   // Items store
   const items = useItemsStore(state => state.items);
@@ -132,6 +136,65 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
     setProcessing(true);
 
     try {
+      // Check if we're waiting for confirmation on a destructive action
+      if (pendingAction) {
+        const lowerText = text.toLowerCase().trim();
+        const isConfirm = /^(yes|yeah|yep|sure|confirm|ok|okay|do it|go ahead|proceed)$/i.test(lowerText);
+        const isCancel = /^(no|nope|cancel|nevermind|never mind|stop|don't|dont)$/i.test(lowerText);
+        
+        if (isConfirm) {
+          // Execute the pending action
+          if (pendingAction.type === 'batch_delete_occurrence' && pendingAction.targetDate) {
+            const targetDate = pendingAction.targetDate;
+            const expanded = expandRepeatingItems(items.filter(i => i.status !== 'archived'), 365);
+            const targetDateObj = new Date(targetDate + 'T00:00:00');
+            
+            const matching = expanded.filter(e => {
+              const displayDate = e.displayDate instanceof Date 
+                ? e.displayDate
+                : new Date(e.displayDate);
+              const displayDateStr = formatLocalDate(displayDate);
+              return displayDateStr === targetDate;
+            });
+            
+            let deletedCount = 0;
+            for (const expandedItem of matching) {
+              const baseItem = items.find(i => i.id === expandedItem.id);
+              if (baseItem) {
+                if (baseItem.repeat && baseItem.repeat !== 'none') {
+                  await skipOccurrence(baseItem.id, targetDateObj);
+                } else {
+                  await deleteItem(baseItem.id);
+                }
+                deletedCount++;
+              }
+            }
+            
+            await loadItems();
+            addAssistantMessage(`Done! Cleared ${deletedCount} item(s) from ${targetDate}.`);
+          } else if (pendingAction.type === 'batch_delete' && pendingAction.matchedItemIds) {
+            let deletedCount = 0;
+            for (const id of pendingAction.matchedItemIds) {
+              await deleteItem(id);
+              deletedCount++;
+            }
+            await loadItems();
+            addAssistantMessage(`Done! Deleted ${deletedCount} item(s).`);
+          }
+          clearPendingAction();
+          return;
+        } else if (isCancel) {
+          clearPendingAction();
+          addAssistantMessage("Okay, cancelled. Nothing was deleted.");
+          return;
+        } else {
+          // User said something else - cancel and process as new message
+          clearPendingAction();
+          addAssistantMessage("Okay, I won't delete those. Let me help you with something else.");
+          // Continue processing as new message instead of returning
+        }
+      }
+
       // Check if we're in a pending item conversation (answering a follow-up question)
       if (pendingItem && pendingItem.awaitingField) {
         // Process the user's answer to the pending question
@@ -145,11 +208,53 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
           if (followUpResult.complete && followUpResult.updatedData) {
             // All fields gathered, create the item
             const data = followUpResult.updatedData;
-            if (data && data.title) {
-              await addItem(data.title, {
-                type: data.type ?? 'task',
+            
+            // Fallback: if title is missing but details/description exists, use that as title
+            // This handles AI incorrectly mapping user's answer to wrong field
+            let title = data.title;
+            if (!title && (data as any).details) {
+              title = (data as any).details;
+              console.log('[Chat] Using details as title fallback:', title);
+            }
+            if (!title && (data as any).description) {
+              title = (data as any).description;
+              console.log('[Chat] Using description as title fallback:', title);
+            }
+            
+            // CRITICAL: Check if date is required but missing
+            const itemType = data.type ?? 'task';
+            const requiresDate = itemType !== 'note';
+            const hasDate = data.dueAt || data.remindAt;
+            
+            if (title && requiresDate && !hasDate) {
+              // We have a title but no date - need to ask for date
+              console.log('[Chat] Item has title but missing date, asking for date');
+              
+              // Update pending item with the title, and ask for date
+              const updatedData = { ...pendingItem.partialData, ...data, title };
+              startPendingItem(
+                updatedData,
+                [],
+                itemType === 'reminder'
+                  ? `When would you like to be reminded about "${title}"?`
+                  : `When do you want to be reminded about "${title}"?`,
+                'remindAt'
+              );
+              addAssistantMessage(
+                itemType === 'reminder'
+                  ? `When would you like to be reminded about "${title}"?`
+                  : `When do you want to be reminded about "${title}"?`,
+                undefined,
+                'remindAt'
+              );
+              return;
+            }
+            
+            if (title && (!requiresDate || hasDate)) {
+              await addItem(title, {
+                type: itemType,
                 priority: data.priority ?? 'med',
-                details: data.details ?? undefined,
+                details: data.title ? data.details : undefined, // Only use details if we had a real title
                 dueAt: data.dueAt ?? null,
                 remindAt: data.remindAt ?? null,
                 repeat: data.repeat ?? 'none',
@@ -158,14 +263,19 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
                 confidence: 0.9,
               });
 
-              addAssistantMessage(`Perfect! I've added "${data.title}" to your list.`, {
+              addAssistantMessage(`Perfect! I've added "${title}" to your list.`, {
                 type: 'created',
-                itemType: data.type ?? 'task',
+                itemType: itemType,
                 itemId: '',
-                itemTitle: data.title,
+                itemTitle: title,
               });
+              completePendingItem();
+            } else if (!title) {
+              // Complete flag set but no title - something went wrong, ask again
+              console.warn('[Chat] Follow-up complete but missing title:', followUpResult);
+              addAssistantMessage("I didn't catch the details. Could you tell me what you'd like to add?");
+              completePendingItem(); // Clear the pending state to start fresh
             }
-            completePendingItem();
           } else if (followUpResult.nextQuestion && followUpResult.updatedData) {
             // More questions to ask
             const nextField = followUpResult.remainingFields[0] || 'details';
@@ -176,7 +286,17 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
               nextField
             );
             addAssistantMessage(followUpResult.nextQuestion, undefined, nextField);
+          } else {
+            // Unexpected response format - recover gracefully
+            console.warn('[Chat] Unexpected follow-up result format:', followUpResult);
+            addAssistantMessage("I'm having trouble understanding. Could you try again?");
+            completePendingItem(); // Clear the pending state
           }
+        } else {
+          // followUpResult is null/undefined - API may have failed
+          console.error('[Chat] processFollowUpAnswer returned null/undefined');
+          addAssistantMessage("Sorry, I couldn't process that. Could you try again?");
+          completePendingItem(); // Clear the pending state
         }
         return;
       }
@@ -195,8 +315,8 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
         }));
 
       // Generate upcoming schedule for AI context (including repeating items)
-      // Expand for 365 days to give AI full year foresight
-      const expandedItems = expandRepeatingItems(items.filter(i => i.status !== 'archived'), 365);
+      // Expand for 14 days - optimal context window for AI accuracy
+      const expandedItems = expandRepeatingItems(items.filter(i => i.status !== 'archived'), 14);
       const sortedExpanded = sortItemsByTimeAndStatus(expandedItems);
       
       const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -204,7 +324,7 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
       const getPriorityLabel = (p: string) => {
         switch(p) {
           case 'high': return '(High)';
-          case 'medium': return '(Medium)';
+          case 'med': return '(Medium)';
           case 'low': return '(Low)';
           default: return '';
         }
@@ -255,7 +375,7 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
           ? `ACTIVE RECURRING BILLS:\n${recurringBills.map(i => `- ${i.title} (${i.repeat})`).join('\n')}\n`
           : '';
 
-      const fullScheduleContext = `${overdueContext}\n${billsContext}\nUPCOMING SCHEDULE (Calculated - Next 30 Days):\n${upcomingScheduleStr}`;
+      const fullScheduleContext = `${overdueContext}\n${billsContext}\nUPCOMING SCHEDULE (Calculated - Next 14 Days):\n${upcomingScheduleStr}`;
 
       // DEBUG: Show context if requested
       if (text.trim() === '/debug') {
@@ -276,37 +396,132 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
       // Handle based on intent
       switch (result.intent) {
         case 'create': {
+          // DEFENSIVE CHECK: Comprehensive validation for required fields based on item type
+          // Determine required fields based on item type
+          const itemType = result.itemData?.type;
+          const hasTitle = result.itemData?.title && result.itemData.title.trim() !== '';
+          const hasDate = result.itemData?.dueAt || result.itemData?.remindAt;
+
+          // Check what's missing based on type
+          const missingFields: string[] = [];
+
+          if (!hasTitle) {
+            missingFields.push('title');
+          }
+
+          // Tasks, reminders, bills, and followups ALL require a date/time
+          // Only notes are exempt from date requirements
+          const requiresDate = itemType !== 'note';
+          if (requiresDate && !hasDate) {
+            missingFields.push('dueAt');
+          }
+
+          // If any required fields are missing, force clarification
+          if (missingFields.length > 0) {
+            result.needsClarification = true;
+            
+            // Generate appropriate question based on what's missing - TITLE FIRST
+            if (missingFields.includes('title')) {
+              // Always ask for title first, regardless of other missing fields
+              result.clarificationQuestion = itemType === 'reminder' 
+                ? `What should I remind you about?`
+                : `What's the ${itemType || 'task'}?`;
+            } else if (missingFields.includes('dueAt')) {
+              // Ask for reminder time after title is known
+              result.clarificationQuestion = itemType === 'reminder'
+                ? `When would you like to be reminded?`
+                : `When do you want to be reminded about this?`;
+            }
+            
+            result.missingFields = missingFields.filter(f => f !== 'dueAt') as any;
+          }
+
+          // CRITICAL: Detect and reject midnight defaults (12:00 AM) when no time was specified
+          if (result.itemData && (result.itemData.dueAt || result.itemData.remindAt)) {
+            const checkTime = result.itemData.remindAt || result.itemData.dueAt;
+            if (checkTime) {
+              const timeDate = new Date(checkTime);
+              const hours = timeDate.getHours();
+              const minutes = timeDate.getMinutes();
+              
+              // If time is exactly midnight (00:00) and user didn't explicitly say "midnight"
+              if (hours === 0 && minutes === 0 && !text.toLowerCase().includes('midnight') && !text.toLowerCase().includes('12 am')) {
+                // This is likely a default, not user intent - force clarification
+                result.needsClarification = true;
+                result.clarificationQuestion = `What time on ${timeDate.toLocaleDateString('en-US', { weekday: 'long' })} would you like to be reminded?`;
+                result.missingFields = ['remindAt'] as any;
+                
+                // Clear the incorrect time
+                if (result.itemData) {
+                  result.itemData.dueAt = null;
+                  result.itemData.remindAt = null;
+                }
+              }
+            }
+          }
+          
           // Check if AI is asking for clarification
           if (result.needsClarification && result.clarificationQuestion && result.itemData) {
             // Start pending item and ask the question
-            const firstMissingField = result.missingFields?.[0] || 'priority';
+            // Filter out 'title' from missingFields as startPendingItem doesn't accept it
+            const validMissingFields = (result.missingFields || []).filter(
+              f => f !== 'title'
+            ) as ('priority' | 'dueAt' | 'remindAt' | 'type' | 'details')[];
+            const firstMissingField = validMissingFields[0] || 'priority';
             startPendingItem(
               result.itemData,
-              result.missingFields || [],
+              validMissingFields,
               result.clarificationQuestion,
               firstMissingField
             );
             addAssistantMessage(result.clarificationQuestion, undefined, firstMissingField);
-          } else if (result.itemData) {
-            // Create immediately if no clarification needed
-            await addItem(result.itemData.title, {
-              type: result.itemData.type,
-              priority: result.itemData.priority,
-              details: result.itemData.details,
-              dueAt: result.itemData.dueAt,
-              remindAt: result.itemData.remindAt,
-              repeat: result.itemData.repeat || 'none',
-              repeatConfig: result.itemData.repeatConfig || null,
-              status: 'active',
-              confidence: result.confidence,
-            });
+          } else if (result.itemData && result.itemData.title && result.itemData.type) {
+            // All item types except notes require a date/reminder time
+            const itemType = result.itemData.type;
+            const requiresDate = itemType !== 'note';
+            const hasDate = result.itemData.dueAt || result.itemData.remindAt;
             
-            addAssistantMessage(result.responseText, {
-              type: 'created',
-              itemType: result.itemData.type,
-              itemId: '',
-              itemTitle: result.itemData.title,
-            });
+            if (requiresDate && !hasDate) {
+              // Force clarification for missing date
+              const question = itemType === 'reminder'
+                ? `When would you like to be reminded?`
+                : `When do you want to be reminded about this?`;
+              
+              startPendingItem(
+                result.itemData,
+                [],
+                question,
+                'dueAt' as any
+              );
+              addAssistantMessage(question, undefined, 'dueAt' as any);
+            } else {
+              // Create immediately (existing code)
+              await addItem(result.itemData.title, {
+                type: result.itemData.type,
+                priority: result.itemData.priority,
+                details: result.itemData.details,
+                dueAt: result.itemData.dueAt,
+                remindAt: result.itemData.remindAt,
+                repeat: result.itemData.repeat || 'none',
+                repeatConfig: result.itemData.repeatConfig || null,
+                status: 'active',
+                confidence: result.confidence,
+              });
+              
+              // Find the newly created item to set lastMentionedItem and lastCreatedItem
+              const createdItem = items.find(i => i.title === result.itemData!.title && i.status === 'active');
+              if (createdItem) {
+                setLastMentionedItem(createdItem);
+                setLastCreatedItem(createdItem);
+              }
+              
+              addAssistantMessage(result.responseText, {
+                type: 'created',
+                itemType: result.itemData.type,
+                itemId: '',
+                itemTitle: result.itemData.title,
+              });
+            }
           } else {
             addAssistantMessage(result.responseText);
           }
@@ -367,6 +582,7 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
         case 'batch_create': {
           if (result.items && result.items.length > 0) {
             let successCount = 0;
+            let lastCreated: Item | null = null;
             for (const item of result.items) {
                await addItem(item.title, {
                 type: item.type,
@@ -380,6 +596,15 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
                 confidence: result.confidence,
               });
               successCount++;
+              // Track the last created item
+              const createdItem = items.find(i => i.title === item.title && i.status === 'active');
+              if (createdItem) {
+                lastCreated = createdItem;
+              }
+            }
+            // Set lastCreatedItem to the last item created in the batch
+            if (lastCreated) {
+              setLastCreatedItem(lastCreated);
             }
             addAssistantMessage(result.responseText, {
               type: 'created',
@@ -406,6 +631,9 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
           }
           
           if (matchingItem && result.updates) {
+            // Set lastMentionedItem before performing the update
+            setLastMentionedItem(matchingItem);
+            
             // Check for specific occurrence completion/uncompletion
             if (result.occurrenceDate && (result.updates.status === 'done' || result.updates.status === 'active')) {
                const parts = result.occurrenceDate.split('-');
@@ -454,6 +682,9 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
           }
           
           if (matchingItem) {
+            // Set lastMentionedItem BEFORE deleting the item
+            setLastMentionedItem(matchingItem);
+            
             await deleteItem(matchingItem.id);
             
             addAssistantMessage(result.responseText, {
@@ -517,15 +748,13 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
         }
 
         case 'batch_delete_occurrence': {
-          // Delete ALL items on a specific date
+          // Delete ALL items on a specific date - requires confirmation
           const targetDate = result.targetDate;
           if (targetDate) {
             const expanded = expandRepeatingItems(items.filter(i => i.status !== 'archived'), 365);
-            const targetDateObj = new Date(targetDate + 'T00:00:00');
             const targetDateStr = targetDate; // YYYY-MM-DD
             
             // Find all items matching this date
-            // Use formatLocalDate to avoid UTC conversion issues (e.g., 9 PM PST -> next day in UTC)
             const matching = expanded.filter(e => {
               const displayDate = e.displayDate instanceof Date 
                 ? e.displayDate
@@ -534,23 +763,31 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
               return displayDateStr === targetDateStr;
             });
             
-            let deletedCount = 0;
-            for (const expandedItem of matching) {
-              const baseItem = items.find(i => i.id === expandedItem.id);
-              if (baseItem) {
-                if (baseItem.repeat && baseItem.repeat !== 'none') {
-                  // Repeating: skip this occurrence
-                  await skipOccurrence(baseItem.id, targetDateObj);
-                } else {
-                  // One-time: delete entirely
-                  await deleteItem(baseItem.id);
-                }
-                deletedCount++;
-              }
+            if (matching.length === 0) {
+              addAssistantMessage(`There are no items scheduled for ${targetDate}.`);
+            } else {
+              // Format the date nicely for the confirmation message
+              const dateObj = new Date(targetDate + 'T12:00:00');
+              const formattedDate = dateObj.toLocaleDateString('en-US', { 
+                weekday: 'long', 
+                month: 'long', 
+                day: 'numeric', 
+                year: 'numeric' 
+              });
+              
+              // Store the pending action for confirmation
+              startPendingAction({
+                type: 'batch_delete_occurrence',
+                targetDate: targetDate,
+                confirmationMessage: `This will delete ${matching.length} item(s) from ${formattedDate}. Are you sure?`,
+              });
+              
+              // List the items that will be deleted
+              const itemList = matching.map(m => `• ${m.title}`).join('\n');
+              addAssistantMessage(
+                `This will delete ${matching.length} item(s) from **${formattedDate}**:\n\n${itemList}\n\nAre you sure? (yes/no)`
+              );
             }
-            
-            await loadItems();
-            addAssistantMessage(result.responseText || `Cleared ${deletedCount} item(s) from ${targetDate}.`);
           } else {
             addAssistantMessage("I need to know which date to clear. Could you specify?");
           }
@@ -757,6 +994,9 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
         case 'summary':
         case 'suggest': {
           // AI provides data-driven responses
+          // TODO: Future enhancement - identify and set lastMentionedItem when AI response references specific items
+          // This would enable quick actions to work after query responses
+          
           // Also check for proactive suggestions
           if (result.proactiveSuggestion) {
             addAssistantMessage(result.responseText + `\n\n💡 **Suggestion:** ${result.proactiveSuggestion.message}`);
@@ -776,10 +1016,10 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
       addAssistantMessage("Sorry, something went wrong. Please try again.");
       cancelPendingItem(); // Clear pending item on error
     } finally {
-        // Ensure processing is turned off if it wasn't already by addAssistantMessage (which updates store but we might want to be safe)
-        // Store updates handle this, but good to keep in mind.
+        // Always ensure processing state is reset
+        setProcessing(false);
     }
-  }, [items, pendingItem, addUserMessage, addItem, updateItem, deleteItem, addAssistantMessage, setProcessing, startPendingItem, completePendingItem, cancelPendingItem, loadItems, markAsDone, skipOccurrence, lastMentionedItem]);
+  }, [items, pendingItem, pendingAction, addUserMessage, addItem, updateItem, deleteItem, addAssistantMessage, setProcessing, startPendingItem, completePendingItem, cancelPendingItem, startPendingAction, clearPendingAction, loadItems, markAsDone, skipOccurrence, lastMentionedItem]);
 
   // Start Recording
   const startRecording = async () => {

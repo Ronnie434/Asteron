@@ -1,6 +1,304 @@
 import { ItemType, ItemPriority } from '../db/items';
 import * as FileSystem from 'expo-file-system/legacy';
 import { safeIsoDate } from '../utils/dateUtils';
+import { z } from 'zod';
+
+// ============================================
+// ZOD SCHEMAS FOR VALIDATION
+// ============================================
+
+/**
+ * Zod schema for AIAnalysisResult
+ * Validates the structure of AI analysis responses
+ */
+const AIAnalysisResultSchema = z.object({
+    title: z.string().max(60),
+    type: z.enum(['task', 'bill', 'reminder', 'followup', 'note']),
+    priority: z.enum(['low', 'med', 'high']),
+    confidence: z.number().min(0).max(1),
+    details: z.string().optional(),
+    dueAt: z.string().nullable().optional(),
+    remindAt: z.string().nullable().optional(),
+    needsClarification: z.boolean().optional(),
+    clarificationReason: z.enum(['missing_date', 'missing_person', 'missing_amount', 'ambiguous_action', 'other']).optional()
+});
+
+/**
+ * Zod schema for ChatIntentResult
+ * Validates the structure of chat intent analysis responses
+ */
+const ChatIntentResultSchema = z.object({
+    intent: z.enum([
+        'create', 'update', 'delete', 'query', 'chat', 'summary', 'suggest',
+        'batch_create', 'batch_update', 'batch_delete', 'reschedule',
+        'delete_occurrence', 'batch_delete_occurrence', 'bulk_reschedule',
+        'bulk_complete', 'conditional_delete', 'archive_completed',
+        'analytics', 'quick_action'
+    ]),
+    confidence: z.number().min(0).max(1).optional().default(0.8),
+    responseText: z.string(),
+
+    // Optional fields for various intents
+    itemData: z.object({
+        title: z.string().max(60).optional(),
+        type: z.enum(['task', 'bill', 'reminder', 'followup', 'note']).optional(),
+        priority: z.enum(['low', 'med', 'high']).optional(),
+        details: z.string().optional(),
+        dueAt: z.string().nullable().optional(),
+        remindAt: z.string().nullable().optional(),
+        repeat: z.enum(['none', 'daily', 'weekly', 'monthly', 'yearly', 'custom']).optional(),
+        repeatConfig: z.string().nullable().optional()
+    }).optional(),
+
+    reasoning: z.string().optional(),
+
+    items: z.array(z.object({
+        title: z.string(),
+        type: z.enum(['task', 'bill', 'reminder', 'followup', 'note']),
+        priority: z.enum(['low', 'med', 'high']),
+        details: z.string().optional(),
+        dueAt: z.string().nullable().optional(),
+        remindAt: z.string().nullable().optional(),
+        repeat: z.enum(['none', 'daily', 'weekly', 'monthly', 'yearly', 'custom']).optional(),
+        repeatConfig: z.string().nullable().optional()
+    })).optional(),
+
+    occurrenceDate: z.string().optional(),
+    searchQuery: z.string().optional(),
+
+    updates: z.object({
+        title: z.string().optional(),
+        dueAt: z.string().nullable().optional(),
+        remindAt: z.string().nullable().optional(),
+        priority: z.enum(['low', 'med', 'high']).optional(),
+        status: z.enum(['active', 'done', 'archived']).optional()
+    }).optional(),
+
+    matchedItemId: z.string().optional(),
+    suggestUpdate: z.boolean().optional(),
+
+    needsClarification: z.boolean().optional(),
+    missingFields: z.array(z.enum(['title', 'priority', 'dueAt', 'remindAt', 'type', 'details'])).optional(),
+    clarificationQuestion: z.string().optional(),
+
+    summaryData: z.object({
+        overdueCount: z.number(),
+        todayCount: z.number(),
+        upcomingCount: z.number(),
+        byPriority: z.object({
+            high: z.number(),
+            med: z.number(),
+            low: z.number()
+        }),
+        message: z.string()
+    }).optional(),
+
+    batchOperations: z.array(z.object({
+        ids: z.array(z.string()),
+        updates: z.object({
+            title: z.string().optional(),
+            dueAt: z.string().nullable().optional(),
+            remindAt: z.string().nullable().optional(),
+            priority: z.enum(['low', 'med', 'high']).optional(),
+            status: z.enum(['active', 'done', 'archived']).optional()
+        })
+    })).optional(),
+
+    // AI Super Powers fields
+    targetDate: z.string().optional(),
+    targetDateEnd: z.string().optional(),
+    occurrenceItems: z.array(z.object({
+        itemId: z.string(),
+        occurrenceDate: z.string()
+    })).optional(),
+
+    rescheduleConfig: z.object({
+        fromDate: z.string().optional(),
+        toDate: z.string(),
+        timeOffset: z.number().optional(),
+        preserveTime: z.boolean().optional()
+    }).optional(),
+
+    filterCriteria: z.object({
+        types: z.array(z.enum(['task', 'bill', 'reminder', 'followup', 'note'])).optional(),
+        priorities: z.array(z.enum(['low', 'med', 'high'])).optional(),
+        hasNoDueDate: z.boolean().optional(),
+        isOverdue: z.boolean().optional(),
+        isCompleted: z.boolean().optional(),
+        olderThan: z.string().optional(),
+        titleContains: z.string().optional()
+    }).optional(),
+
+    dependsOn: z.string().optional(),
+    blockedBy: z.array(z.string()).optional(),
+
+    analyticsData: z.object({
+        completionRate: z.number(),
+        avgPerDay: z.number(),
+        totalCompleted: z.number(),
+        totalPending: z.number(),
+        byType: z.record(z.string(), z.number()),
+        byPriority: z.record(z.string(), z.number()),
+        streaks: z.object({
+            current: z.number(),
+            best: z.number()
+        }),
+        insights: z.array(z.string())
+    }).optional(),
+
+    quickAction: z.enum(['complete_last', 'snooze', 'reschedule_tomorrow', 'undo_last']).optional(),
+    referenceContext: z.enum(['last_mentioned', 'last_created', 'last_completed']).optional(),
+
+    conflicts: z.array(z.object({
+        itemId: z.string(),
+        itemTitle: z.string(),
+        conflictType: z.enum(['time_overlap', 'same_time', 'too_close', 'overbooked']),
+        conflictTime: z.string()
+    })).optional(),
+
+    proactiveSuggestion: z.object({
+        type: z.enum(['reschedule_overdue', 'create_routine', 'optimize_schedule', 'reminder_pattern']),
+        message: z.string(),
+        suggestedActions: z.array(z.string()).optional()
+    }).optional(),
+
+    templateData: z.object({
+        templateName: z.string(),
+        items: z.array(z.object({
+            title: z.string(),
+            type: z.enum(['task', 'bill', 'reminder', 'followup', 'note']),
+            priority: z.enum(['low', 'med', 'high']),
+            offsetMinutes: z.number().optional()
+        }))
+    }).optional()
+});
+
+/**
+ * Zod schema for processFollowUpAnswer response
+ */
+const FollowUpAnswerResultSchema = z.object({
+    updatedData: z.record(z.string(), z.any()).optional(),
+    remainingFields: z.array(z.string()).optional(),
+    nextQuestion: z.string().nullable().optional(),
+    complete: z.boolean()
+});
+
+// ============================================
+// VALIDATION FUNCTIONS WITH SAFE FALLBACKS
+// ============================================
+
+/**
+ * Safely parse and validate AIAnalysisResult from JSON string
+ * Returns validated data or a safe fallback on error
+ */
+function safeParseAIAnalysisResult(jsonString: string): AIAnalysisResult {
+    try {
+        const rawData = JSON.parse(jsonString);
+        const result = AIAnalysisResultSchema.safeParse(rawData);
+
+        if (result.success) {
+            return result.data;
+        } else {
+            console.error('[AI Service] AIAnalysisResult validation failed:', result.error.issues);
+            // Return safe fallback with original data preserved in details
+            return {
+                title: rawData.title || 'Untitled',
+                type: 'note',
+                priority: 'low',
+                confidence: 0.3,
+                details: jsonString,
+                needsClarification: true,
+                clarificationReason: 'other'
+            };
+        }
+    } catch (e) {
+        console.error('[AI Service] AIAnalysisResult JSON parse failed:', e);
+        // Return minimal fallback
+        return {
+            title: 'Parse Error',
+            type: 'note',
+            priority: 'low',
+            confidence: 0,
+            needsClarification: true,
+            clarificationReason: 'other'
+        };
+    }
+}
+
+/**
+ * Safely parse and validate ChatIntentResult from JSON string
+ * Returns validated data or a safe fallback on error
+ */
+function safeParseChatIntentResult(jsonString: string): ChatIntentResult {
+    try {
+        const rawData = JSON.parse(jsonString);
+        const result = ChatIntentResultSchema.safeParse(rawData);
+
+        if (result.success) {
+            return result.data;
+        } else {
+            console.error('[AI Service] ChatIntentResult validation failed:', result.error.issues);
+            // Return safe fallback
+            return {
+                intent: 'chat',
+                confidence: 0.3,
+                responseText: rawData.responseText || "I'm having trouble understanding that. Could you rephrase?",
+                needsClarification: true,
+                clarificationQuestion: "Could you provide more details about what you'd like to do?"
+            };
+        }
+    } catch (e) {
+        console.error('[AI Service] ChatIntentResult JSON parse failed:', e);
+        // Return minimal fallback
+        return {
+            intent: 'chat',
+            confidence: 0,
+            responseText: "I encountered an error processing your request. Please try again.",
+        };
+    }
+}
+
+/**
+ * Safely parse and validate follow-up answer result from JSON string
+ * Returns validated data or a safe fallback on error
+ */
+function safeParseFollowUpAnswerResult(jsonString: string, pendingData: Partial<ChatIntentResult['itemData']>): {
+    updatedData: Partial<ChatIntentResult['itemData']>;
+    remainingFields: string[];
+    nextQuestion?: string;
+    complete: boolean;
+} {
+    try {
+        const rawData = JSON.parse(jsonString);
+        const result = FollowUpAnswerResultSchema.safeParse(rawData);
+
+        if (result.success) {
+            // Cast the validated data to match the expected return type
+            return {
+                updatedData: result.data.updatedData || pendingData,
+                remainingFields: result.data.remainingFields || [],
+                nextQuestion: result.data.nextQuestion || undefined,
+                complete: result.data.complete
+            };
+        } else {
+            console.error('[AI Service] FollowUpAnswerResult validation failed:', result.error.issues);
+            // Return safe fallback - mark as complete with existing data
+            return {
+                updatedData: pendingData,
+                remainingFields: [],
+                complete: true
+            };
+        }
+    } catch (e) {
+        console.error('[AI Service] FollowUpAnswerResult JSON parse failed:', e);
+        // Return minimal fallback
+        return {
+            updatedData: pendingData,
+            remainingFields: [],
+            complete: true
+        };
+    }
+}
 
 export interface AIAnalysisResult {
     title: string;
@@ -50,9 +348,9 @@ export interface ChatIntentResult {
 
     // For create intent
     itemData?: {
-        title: string;
-        type: ItemType;
-        priority: ItemPriority;
+        title?: string;
+        type?: ItemType;
+        priority?: ItemPriority;
         details?: string;
         dueAt?: string | null;
         remindAt?: string | null;
@@ -96,7 +394,7 @@ export interface ChatIntentResult {
 
     // Interactive questioning: For gathering missing parameters
     needsClarification?: boolean;
-    missingFields?: ('priority' | 'dueAt' | 'remindAt' | 'type' | 'details')[];
+    missingFields?: ('title' | 'priority' | 'dueAt' | 'remindAt' | 'type' | 'details')[];
     clarificationQuestion?: string;
 
     // For summary intent
@@ -304,7 +602,8 @@ export const aiService: AIService = {
                             }
                         ]
                     }
-                ]
+                ],
+                temperature: 0
             };
 
             const response = await fetchWithRetry("https://openrouter.ai/api/v1/chat/completions", {
@@ -402,6 +701,27 @@ PRIORITY
 - low: notes, ideas, someday/maybe, optional items
 
 DATE & TIME EXTRACTION
+
+** CRITICAL: NO TIME INDICATOR = NO TIME VALUE **
+BEFORE setting any dueAt or remindAt:
+1. Check if the user's input contains ANY time-of-day indicator:
+   - Time indicators: "morning", "afternoon", "evening", "night", "noon", "lunch", "EOD", "early", "late"
+   - Explicit times: "3pm", "at 5:30", "10 o'clock", specific hour/minute
+   - Time phrases: "before work", "after dinner", "end of day"
+
+2. IF NO time indicator is found in the user's input:
+   - Set dueAt AND remindAt to NULL
+   - Set needsClarification = true
+   - Set clarificationReason = "missing_date"
+   - The app will ask for the time separately
+   - This applies to ALL item types (tasks, reminders, bills, followups)
+
+3. IF time indicator IS found:
+   - Use the appropriate default time based on the indicator
+   - "morning" → 09:00, "afternoon" → 15:00, etc.
+
+4. NEVER default to midnight (00:00) or any other time if no time indicator exists.
+
 Definitions:
 - dueAt = when it must be done/paid.
 - remindAt = when to notify.
@@ -409,10 +729,21 @@ Definitions:
 Rules:
 1) If the user gives an explicit due date/time → set dueAt.
 2) If the user gives only a date (no time):
-   - default remind time = 09:00 local
-   - default due time:
-     - bills: 23:59 local IF phrased like "by end of day" / "by EOD" / "before midnight"
-     - otherwise: 17:00 local
+   STEP 1: Check for time-of-day indicators in the ORIGINAL user input
+   
+   IF NO time-of-day indicator found:
+   - Set dueAt = null
+   - Set remindAt = null
+   - Set needsClarification = true
+   - Set clarificationReason = "missing_date"
+   - DO NOT create any timestamp
+   
+   IF time-of-day indicator IS present:
+   - "morning" → 09:00 local
+   - "noon/lunch" → 12:00 local
+   - "afternoon" → 15:00 local
+   - "evening/tonight" → 19:00 local
+   - "end of day/EOD" → 23:59 local
 3) If the user gives only a time (no date):
    - If that time is already past today relative to NOW → use TOMORROW at that time
    - Else → use TODAY at that time
@@ -453,6 +784,18 @@ Use these guidelines:
 - 0.35–0.64: action somewhat clear but scheduling unclear or type uncertain
 - 0.00–0.34: mostly noise / non-actionable / heavy ambiguity (likely "note")
 
+EXAMPLES OF CORRECT BEHAVIOR:
+✅ Input: "Call mom on Tuesday morning" → dueAt: "2026-01-06T09:00:00-08:00"
+✅ Input: "Call mom on Tuesday at 3pm" → dueAt: "2026-01-06T15:00:00-08:00"
+✅ Input: "Call mom on Tuesday" → dueAt: null, remindAt: null, needsClarification: true
+✅ Input: "Call mom" (when Tuesday was mentioned earlier) → dueAt: null, remindAt: null, needsClarification: true
+✅ Input: "Pay rent Tuesday at end of day" → dueAt: "2026-01-06T23:59:00-08:00" (has "end of day" indicator)
+✅ Input: "Pay rent Tuesday" → dueAt: null, remindAt: null, needsClarification: true (no time indicator)
+
+❌ INCORRECT:
+❌ Input: "Call mom on Tuesday" → dueAt: "2026-01-06T00:00:00-08:00" (WRONG - don't default to midnight)
+❌ Input: "Call mom on Tuesday" → dueAt: "2026-01-06T09:00:00-08:00" (WRONG - don't assume morning)
+
 OUTPUT SCHEMA (exact keys, exact types)
 {
   "title": "string (max 60 chars)",
@@ -479,7 +822,8 @@ Now produce ONLY the JSON object.`;
                         content: prompt
                     }
                 ],
-                response_format: { type: "json_object" }
+                response_format: { type: "json_object" },
+                temperature: 0
             };
 
             const response = await fetchWithRetry("https://openrouter.ai/api/v1/chat/completions", {
@@ -504,7 +848,8 @@ Now produce ONLY the JSON object.`;
             // Clean up code blocks if present
             const cleanContent = content.replace(/```json/g, '').replace(/```/g, '').trim();
 
-            return JSON.parse(cleanContent);
+            // Use Zod validation with safe fallback
+            return safeParseAIAnalysisResult(cleanContent);
 
         } catch (error) {
             console.error('Analysis failed:', error);
@@ -625,9 +970,10 @@ This is the #1 most important rule. When in doubt, ASK the user. It is ALWAYS be
    - "delete it" but nothing obvious → "Which item would you like to delete?"
    - "change that" but unclear → "Which item should I change?"
    
-5. **Before destructive actions** → CONFIRM first
-   - Deleting multiple items → "This will delete X items. Are you sure?"
-   - Bulk operations → Confirm the scope
+5. **Destructive actions** → For BULK delete operations, the app will list items and ask for confirmation
+   - For single item deletes: execute directly with confirmation message
+   - For batch/bulk deletes (e.g., "clear Saturday", "delete all X"): the app handles confirmation
+   - Your responseText doesn't need to include "Are you sure?" - the app adds that
 
 ** BEST PRACTICES **
 - It's BETTER to ask one question than create the wrong item
@@ -832,11 +1178,89 @@ Only set needsClarification: true when:
 3. **CRITICAL EXCEPTION:** See "TITLE VALIDATION" below.
 4. NEVER ask about info the user already gave, even in different words
 
+** CLARIFICATION PRIORITY ORDER (CRITICAL - FOLLOW THIS EXACTLY) **
+When clarification is needed, ask in THIS order - ONE question at a time:
+
+1. **TITLE FIRST** - ALWAYS ask for title before anything else
+   - If user says "add a task for Monday" → Ask: "What's the task?"
+   - If user says "reminder for tomorrow" → Ask: "What should I remind you about?"
+   - NEVER ask about time/reminder before you know WHAT the item is
+
+2. **OPTIONAL REMINDER** - After title is known, ASK if they want a reminder
+   - For TASKS: "Would you like me to remind you about this?"
+   - Only ask this if no time was provided AND type is task/followup
+   - If user already said "remind me..." or gave a time, skip this
+
+3. **TIME (only if needed)** - Only ask for time if:
+   - User wants a reminder but didn't give a time
+   - Type is "reminder" (reminders inherently need a time)
+   - User said yes to reminder question
+
+EXAMPLES OF CORRECT FLOW:
+✅ User: "Create a task for Monday" 
+   → Ask: "What's the task?" (get title first!)
+   → User: "Call my brother"
+   → Ask: "When do you want to be reminded about this?"
+   → User: "Monday at 9am"
+   
+✅ User: "Add task: call mom tomorrow at 3pm"
+   → Create immediately (has title + time + type)
+   
+✅ User: "Remind me to call mom"
+   → Ask: "When would you like to be reminded?"
+   → (title is there, type is reminder, just need time)
+
+✅ User: "Add a bill for Netflix"
+   → Ask: "When do you want to be reminded about this?"
+   → (title is there, type is bill, just need reminder time)
+
+❌ WRONG:
+- "Task for Friday" → "What time on Friday?" (NO! Ask what the task IS first!)
+- "Add a task for Monday" → "What time on Monday?" (NO! Get the title!)
+
+** RESPECT THE USER'S TYPE CHOICE **
+- If user says "task" → type: "task" (NOT reminder)
+- If user says "reminder" or "remind me" → type: "reminder"
+- If user says "bill" → type: "bill"
+- Do NOT change the type! A task is NOT a reminder.
+
 ** TITLE VALIDATION (CRITICAL) **
 If the extracted title is generic (e.g. "Task", "Reminder", "Todo", "Note", "Something"), you MUST treat it as MISSING info.
-- Example: "Create a reminder for 5pm" -> intent: create, needsClarification: true, question: "What is the reminder for?"
-- Example: "Add a task" -> intent: create, needsClarification: true, question: "What is the task?"
-- DO NOT create items named "Reminder" or "Task". Ask for clarification.
+- CRITICAL: Even when asking for clarification, you MUST STILL extract ALL available information (dates, times, priority, type) into itemData.
+- **MANDATORY FIELDS WHEN TITLE IS MISSING:**
+  - needsClarification: true (REQUIRED)
+  - clarificationQuestion: "What's the [type]?" or "What should I remind you about?" (REQUIRED)
+  - missingFields: ["title"] (REQUIRED - must include "title")
+  - itemData: { type, dueAt, remindAt, priority } (REQUIRED - all available info)
+
+** WHAT'S TRULY REQUIRED BY TYPE **
+- task: MUST have title AND (dueAt OR remindAt) - "When do you want to be reminded about this?"
+- reminder: MUST have title AND (dueAt OR remindAt) - "When would you like to be reminded?"
+- bill: MUST have title AND (dueAt OR remindAt) - "When do you want to be reminded about this?"
+- followup: MUST have title AND (dueAt OR remindAt) - "When do you want to be reminded about this?"
+- note: Only needs title (dates always optional)
+
+** NATURAL CONVERSATION FLOW **
+Think like a helpful human assistant:
+- First understand WHAT the user wants to do
+- Then figure out WHEN (if relevant)
+- Don't bombard with unnecessary questions
+- Respect their choices (if they don't want a reminder, that's fine!)
+
+TIME HINTS (when time IS provided):
+- "morning" → 9:00 AM
+- "afternoon" → 2:00 PM  
+- "evening" → 6:00 PM
+- "end of day" → 11:59 PM
+- Explicit time takes precedence
+
+** CRITICAL: PRESERVE ALL EXTRACTED DATA DURING CLARIFICATION **
+When needsClarification is true, you MUST:
+1. Extract and populate ALL available information from the user's message into itemData
+2. Only the MISSING fields should trigger clarification questions
+3. If date/time is mentioned → populate dueAt in itemData (this will be used once we have the title)
+4. If priority hints exist → populate priority in itemData
+5. Type should ALWAYS be determined from context and PRESERVED
 
 When you DO need to ask:
 1. Ask ONE question max
@@ -857,7 +1281,7 @@ When you DO need to ask:
 3. For "update": Provide matchedItemId OR searchQuery, plus updates to apply
 4. For "delete": Provide matchedItemId OR searchQuery
 5. Be proactive - if user asks what they should do, give actionable advice based on their items
-6. DEFAULT to creating items without asking questions - users prefer speed over perfection
+6. Create items confidently when all essential info is present (title + type). Ask only when truly missing critical info.
 
     ** REPEAT PATTERN DETECTION:**
         - "everyday" / "daily" / "each day" -> repeat: "daily"
@@ -1017,7 +1441,8 @@ USER MESSAGE:
                         content: prompt
                     }
                 ],
-                response_format: { type: "json_object" }
+                response_format: { type: "json_object" },
+                temperature: 0
             };
 
             const response = await fetchWithRetry("https://openrouter.ai/api/v1/chat/completions", {
@@ -1040,7 +1465,8 @@ USER MESSAGE:
             const content = data.choices[0]?.message?.content;
             const cleanContent = content.replace(/```json/g, '').replace(/```/g, '').trim();
 
-            return JSON.parse(cleanContent);
+            // Use Zod validation with safe fallback
+            return safeParseChatIntentResult(cleanContent);
 
         } catch (error) {
             console.error('Intent analysis failed:', error);
@@ -1086,28 +1512,53 @@ USER MESSAGE:
 CURRENT TIME: ${localIso}
 TIMEZONE: ${timezone}
 
-PENDING ITEM DATA:
+PENDING ITEM DATA (MUST BE PRESERVED):
 ${JSON.stringify(pendingData, null, 2)}
 
 MISSING FIELDS THAT STILL NEED VALUES: ${JSON.stringify(missingFields)}
 
 USER'S ANSWER: "${userAnswer}"
 
-TASK:
-1. Parse the user's answer to extract the value for the first missing field
-2. If they provided a value, update the data
-3. If more fields are missing, generate the next question
-4. If all fields are filled, mark as complete
+CRITICAL RULES:
+1. You MUST preserve ALL existing fields from PENDING ITEM DATA
+2. Parse the user's answer to extract values for missing fields
+3. Merge new values with existing data (do NOT overwrite existing fields)
+4. If more required fields are missing after extraction, generate the next question
+5. If all required fields are filled (at minimum: title + type), mark as complete
+
+** CRITICAL: TITLE FIELD MAPPING **
+- When the user answers a question like "What is the reminder for?", "What is the task?", or similar:
+  - The user's answer IS THE TITLE. Map it to the "title" field!
+  - Example: User says "Call mom" → title: "Call mom"
+  - Example: User says "Pay electricity bill" → title: "Pay electricity bill"
+- Do NOT use "details" or "description" for the main task/reminder name
+- The "title" field is the SHORT name (max 60 chars) describing the action
+- The "details" field is for ADDITIONAL context (optional, not the main action)
+
+FIELD DEFINITIONS:
+- "title": The main action/task name (REQUIRED) - e.g., "Call mom", "Pay rent", "Dentist appointment"
+- "type": task/bill/reminder/followup/note
+- "priority": "high" / "med" / "low" - "urgent"/"important" = high, "whenever"/"low priority" = low
+- "dueAt": When it's DUE - ISO 8601 with timezone
+- "remindAt": When to REMIND - ISO 8601 with timezone
+- "details": Extra notes (NOT the title)
 
 PARSING RULES:
-- For "priority": "high" / "urgent" / "important" = "high", "low" / "not urgent" / "whenever" = "low", else = "med"
-- For "dueAt"/"remindAt": Parse dates relative to NOW (${localIso}), output ISO 8601
-- For "type": task/bill/reminder/followup/note based on context
+- For dates: Parse relative to NOW (${localIso}), output full ISO 8601 with timezone
+- "Sunday morning" = next Sunday at 9:00 AM
+- "tomorrow at 3pm" = tomorrow at 15:00
+- If user provides BOTH what to do AND when in one answer, extract BOTH
+
+IMPORTANT: The "updatedData" field MUST contain ALL fields from PENDING ITEM DATA plus the newly extracted fields.
 
 Return ONLY valid JSON:
 {
-  "updatedData": { /* merged data with the new value */ },
-  "remainingFields": [ /* fields still missing */ ],
+  "updatedData": { 
+    "title": "ACTION NAME HERE - THIS IS REQUIRED",
+    "type": "reminder",
+    ... other fields from pendingData ...
+  },
+  "remainingFields": [ /* fields still missing after extraction */ ],
   "nextQuestion": "string - next question to ask, or null if complete",
   "complete": true | false
 }`;
@@ -1138,7 +1589,8 @@ Return ONLY valid JSON:
             const content = data.choices[0]?.message?.content;
             const cleanContent = content.replace(/```json/g, '').replace(/```/g, '').trim();
 
-            return JSON.parse(cleanContent);
+            // Use Zod validation with safe fallback
+            return safeParseFollowUpAnswerResult(cleanContent, pendingData);
 
         } catch (error) {
             console.error('Follow-up processing failed:', error);
