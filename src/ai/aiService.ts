@@ -338,7 +338,7 @@ export const aiService: AIService = {
         try {
             // GUARDIAL: Skip parsing for empty/noise input
             if (!text || text.trim().length < 2 || /^(um+|uh+|hmm+|…|\.+|,|\[silence\]|\[unclear\])+$/i.test(text.trim())) {
-                console.log('[AI Service] Skipping empty/noise input:', text);
+                // console.log('[AI Service] Skipping empty/noise input:', text);
                 return {
                     title: 'Empty Input',
                     type: 'note',
@@ -528,7 +528,7 @@ Now produce ONLY the JSON object.`;
         try {
             // GUARDIAL: Skip parsing for empty/noise input
             if (!text || text.trim().length < 2 || /^(um+|uh+|hmm+|…|\.+|,|\[silence\]|\[unclear\])+$/i.test(text.trim())) {
-                console.log('[AI Service] Skipping empty/noise intent:', text);
+                // console.log('[AI Service] Skipping empty/noise intent:', text);
                 return {
                     intent: 'chat',
                     confidence: 0,

@@ -331,18 +331,15 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
           let ids = operations.flatMap(op => op.ids || []);
           
           // Fallback: If AI didn't provide IDs but mentioned item titles, try to match
+          // Use EXACT title matching to avoid matching unrelated items
           if (ids.length === 0 && result.responseText) {
-            // Search for any item whose title is mentioned in the response
             const responseTextLower = result.responseText.toLowerCase();
             const foundItems = items.filter(item => {
               const titleLower = item.title.toLowerCase();
-              // Check if item title (or significant words from it) appears in response
-              const titleWords = titleLower.split(/\s+/).filter(w => w.length > 3);
-              return titleWords.some(word => responseTextLower.includes(word)) ||
-                     responseTextLower.includes(titleLower);
+              // Only match if the FULL title appears in the response
+              return responseTextLower.includes(titleLower);
             });
             ids = foundItems.map(i => i.id);
-            console.log('[batch_delete] Fallback search found items:', foundItems.map(i => i.title), 'IDs:', ids);
           }
           
           let deletedCount = 0;
@@ -354,7 +351,6 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
              await loadItems();
              addAssistantMessage(result.responseText || `Deleted ${deletedCount} item(s).`);
           } else {
-             console.warn('[batch_delete] No IDs found to delete');
              addAssistantMessage("I couldn't find those items to delete. Could you be more specific?");
           }
           break;

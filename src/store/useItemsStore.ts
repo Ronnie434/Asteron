@@ -214,11 +214,7 @@ const calculateBadgeCount = (items: Item[]): number => {
         }
     }
 
-    // Log debug info (remove in production)
-    if (debugLog.length > 0) {
-        console.log('[Badge Count Debug] Counted items:', count);
-        debugLog.forEach(log => console.log(log));
-    }
+    // Debug logging removed for production
 
     return count;
 };
@@ -261,7 +257,7 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
     loadItems: async (refreshNotifications: boolean = false) => {
         const { user } = useAuthStore.getState();
         if (!user) {
-            console.log('[ItemsStore] No user logged in, skipping load');
+            // console.log('[ItemsStore] No user logged in, skipping load');
             set({ items: [], isLoading: false });
             return;
         }
@@ -281,12 +277,12 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
             }
 
             const items = (data || []).map(fromSupabase);
-            console.log(`[ItemsStore] Loaded ${items.length} items from Supabase`);
+            // console.log(`[ItemsStore] Loaded ${items.length} items from Supabase`);
             set({ items });
 
             // Only refresh notifications on initial app startup
             if (refreshNotifications) {
-                console.log('[ItemsStore] Refreshing all notifications...');
+                // console.log('[ItemsStore] Refreshing all notifications...');
                 await NotificationService.cancelAllReminders();
 
                 // Schedule notifications for active items with reminders
@@ -635,7 +631,7 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
                         reminderTime,
                         dueTime
                     );
-                    console.log(`[ItemsStore] Re-scheduled notification for "${currentItem.title}" on ${dateStr}`);
+                    // console.log(`[ItemsStore] Re-scheduled notification for "${currentItem.title}" on ${dateStr}`);
                 }
             }
         } else if (currentItem.repeat && currentItem.repeat !== 'none') {
@@ -671,7 +667,7 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
         const day = String(occurrenceDate.getDate()).padStart(2, '0');
         const dateStr = `${year}-${month}-${day}`;
 
-        console.log(`[ItemsStore] Skipping occurrence for "${currentItem.title}" on ${dateStr}`);
+        // console.log(`[ItemsStore] Skipping occurrence for "${currentItem.title}" on ${dateStr}`);
 
         if (!skippedDates.includes(dateStr)) {
             skippedDates.push(dateStr);
@@ -701,7 +697,7 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
 
             set({ items: [] });
             await NotificationService.setBadgeCount(0);
-            console.log('[ItemsStore] All data cleared from Supabase');
+            // console.log('[ItemsStore] All data cleared from Supabase');
         } catch (e) {
             console.error('[ItemsStore] Clear error:', e);
         }

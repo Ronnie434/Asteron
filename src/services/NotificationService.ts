@@ -148,7 +148,7 @@ export const NotificationService = {
                 }
 
                 if (inQuietHours) {
-                    console.log(`Notification time ${remindAt.toLocaleTimeString()} falls in Quiet Hours (${quietHoursStart}-${quietHoursEnd})`);
+                    // console.log(`Notification time ${remindAt.toLocaleTimeString()} falls in Quiet Hours (${quietHoursStart}-${quietHoursEnd})`);
 
                     // Reschedule to end of quiet hours
                     const newRemindAt = new Date(remindAt);
@@ -159,7 +159,7 @@ export const NotificationService = {
                         newRemindAt.setDate(newRemindAt.getDate() + 1);
                     }
 
-                    console.log(`Rescheduling to ${newRemindAt.toLocaleString()}`);
+                    // console.log(`Rescheduling to ${newRemindAt.toLocaleString()}`);
                     await NotificationService.scheduleReminder(
                         id,
                         title,
@@ -172,7 +172,7 @@ export const NotificationService = {
 
             // Don't schedule in the past
             if (remindAt.getTime() <= now.getTime()) {
-                console.log(`Skipping notification for ${id} - time is in the past`);
+                // console.log(`Skipping notification for ${id} - time is in the past`);
                 return;
             }
 
@@ -199,7 +199,7 @@ export const NotificationService = {
                 },
             });
 
-            console.log(`Scheduled notification "${notificationTitle}" at ${remindAt.toLocaleString()}`);
+            // console.log(`Scheduled notification "${notificationTitle}" at ${remindAt.toLocaleString()}`);
         } catch (e) {
             console.error("Failed to schedule notification:", e);
         }
@@ -212,7 +212,7 @@ export const NotificationService = {
     cancelReminder: async (id: string): Promise<void> => {
         try {
             await Notifications.cancelScheduledNotificationAsync(id);
-            console.log(`Cancelled notification ${id}`);
+            // console.log(`Cancelled notification ${id}`);
         } catch (e) {
             console.error("Failed to cancel notification:", e);
         }
@@ -238,7 +238,7 @@ export const NotificationService = {
                 await Notifications.cancelScheduledNotificationAsync(notification.identifier).catch(() => { });
             }
 
-            console.log(`Cancelled ${matchingNotifications.length} notification(s) for item ${itemId}`);
+            // console.log(`Cancelled ${matchingNotifications.length} notification(s) for item ${itemId}`);
         } catch (e) {
             console.error("Failed to cancel notifications for item:", e);
         }
@@ -314,7 +314,7 @@ export const NotificationService = {
             ? JSON.parse(item.completedDates)
             : [];
 
-        console.log(`Scheduling ${daysAhead} days of notifications for "${item.title}"`);
+        // console.log(`Scheduling ${daysAhead} days of notifications for "${item.title}"`);
 
         if (item.repeat === 'daily') {
             for (let dayOffset = 0; dayOffset < daysAhead; dayOffset++) {
@@ -336,12 +336,12 @@ export const NotificationService = {
                 const dateStr = `${year}-${month}-${day}`;
 
                 if (skippedDates.includes(dateStr)) {
-                    console.log(`Skipping notification for "${item.title}" on ${dateStr} (skipped)`);
+                    // console.log(`Skipping notification for "${item.title}" on ${dateStr} (skipped)`);
                     continue;
                 }
 
                 if (completedDates.includes(dateStr)) {
-                    console.log(`Skipping notification for "${item.title}" on ${dateStr} (completed)`);
+                    // console.log(`Skipping notification for "${item.title}" on ${dateStr} (completed)`);
                     continue;
                 }
 
@@ -417,7 +417,7 @@ export const NotificationService = {
             await Notifications.cancelScheduledNotificationAsync(notificationId).catch(() => { });
         }
 
-        console.log(`Cancelled all occurrence notifications for item ${itemId}`);
+        // console.log(`Cancelled all occurrence notifications for item ${itemId}`);
     },
 
     /**
@@ -458,7 +458,7 @@ export const NotificationService = {
                 targetRemindAt,
                 targetDueAt
             );
-            console.log(`Extended notification for "${item.title}" to ${targetRemindAt.toLocaleString()}`);
+            // console.log(`Extended notification for "${item.title}" to ${targetRemindAt.toLocaleString()}`);
         } else if (item.repeat === 'weekly') {
             // For weekly, check if targetDate falls on the same day of week as the original
             const originalDayOfWeek = baseRemindAt.getDay();
@@ -480,7 +480,7 @@ export const NotificationService = {
     cancelAllReminders: async (): Promise<void> => {
         try {
             await Notifications.cancelAllScheduledNotificationsAsync();
-            console.log('Cancelled all notifications');
+            // console.log('Cancelled all notifications');
         } catch (e) {
             console.error("Failed to cancel all notifications:", e);
         }
