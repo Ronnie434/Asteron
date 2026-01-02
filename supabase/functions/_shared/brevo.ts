@@ -4,6 +4,13 @@
  * Provides utilities for sending transactional emails via Brevo API
  */
 
+// Type declaration for Deno runtime (Supabase Edge Functions)
+declare const Deno: {
+  env: {
+    get(key: string): string | undefined;
+  };
+};
+
 export interface EmailRecipient {
   email: string;
   name?: string;
