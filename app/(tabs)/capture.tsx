@@ -19,6 +19,7 @@ import { AddTaskModal } from '../../src/ui/components/AddTaskModal';
 import { ChatInputBar } from '../../src/ui/components/ChatInputBar';
 import type { Item } from '../../src/db/items';
 import { expandRepeatingItems, sortItemsByTimeAndStatus } from '../../src/utils/repeatExpansion';
+import { buildFullContext } from '../../src/utils/contextBuilder';
 
 interface CaptureScreenProps {
   onClose?: () => void;
@@ -314,72 +315,16 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
           status: i.status,
         }));
 
-      // Generate upcoming schedule for AI context (including repeating items)
-      // Expand for 14 days - optimal context window for AI accuracy
-      const expandedItems = expandRepeatingItems(items.filter(i => i.status !== 'archived'), 14);
-      const sortedExpanded = sortItemsByTimeAndStatus(expandedItems);
+      // Generate smart context for AI (covers 365 days with minimal tokens)
+      // Repeating items are summarized by pattern, one-time items are listed
+      const fullScheduleContext = buildFullContext(items);
       
-      const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      
-      const getPriorityLabel = (p: string) => {
-        switch(p) {
-          case 'high': return '(High)';
-          case 'med': return '(Medium)';
-          case 'low': return '(Low)';
-          default: return '';
-        }
-      };
-
-      const upcomingSchedule = sortedExpanded.map(item => {
-        const dateDate = safeParseDate(item.displayDate instanceof Date ? item.displayDate.toISOString() : item.displayDate);
-        
-        // Include YYYY-MM-DD for machine precision AND human-readable format
-        const isoDateStr = formatLocalDate(dateDate);
-        const dateStr = dateDate.toLocaleDateString('en-US', { 
-            weekday: 'short', 
-            month: 'short', 
-            day: 'numeric',
-            year: 'numeric'
-        });
-        
-        // Use displayDate time to support overrides and accurate repeat expansion
-        const isAllDay = !item.dueAt || item.dueAt.includes('T00:00:00');
-        const timeStr = !isAllDay
-            ? dateDate.toLocaleTimeString('en-US', { 
-                hour: 'numeric', 
-                minute: '2-digit'
-              }) 
-            : 'All day';
-        // Format: [2026-01-04] Sun, Jan 4, 2026 [9:00 AM]: Tesla Loan EMI (Medium)
-        return `- [${isoDateStr}] ${dateStr} [${timeStr}]: ${item.title} ${getPriorityLabel(item.priority)}`;
-      });
-
-      // Deduplicate lines to ensure clean context (remove exact duplicates)
-      const uniqueSchedule = Array.from(new Set(upcomingSchedule));
-      
-      const upcomingScheduleStr = uniqueSchedule.join('\n');
-
-      // Group items for context
-      const overdueItems = items.filter(i => {
-         if (i.status === 'done' || !i.dueAt) return false;
-         return new Date(i.dueAt) < new Date();
-      });
-
-      const recurringBills = items.filter(i => i.type === 'bill' && i.repeat && i.repeat !== 'none' && i.status === 'active');
-
-      const overdueContext = overdueItems.length > 0 
-          ? `OVERDUE ITEMS (Needs Attention):\n${overdueItems.map(i => `- ${i.title} (Due: ${new Date(i.dueAt!).toLocaleDateString()})`).join('\n')}\n`
-          : '';
-
-      const billsContext = recurringBills.length > 0
-          ? `ACTIVE RECURRING BILLS:\n${recurringBills.map(i => `- ${i.title} (${i.repeat})`).join('\n')}\n`
-          : '';
-
-      const fullScheduleContext = `${overdueContext}\n${billsContext}\nUPCOMING SCHEDULE (Calculated - Next 14 Days):\n${upcomingScheduleStr}`;
+      // For delete operations, we still need to expand items to find matches
+      const expandedItems = expandRepeatingItems(items.filter(i => i.status !== 'archived'), 365);
 
       // DEBUG: Show context if requested
       if (text.trim() === '/debug') {
-         addAssistantMessage(`DEBUG CONTEXT (Raw: ${items.length}, Expanded: ${expandedItems.length}):\n${upcomingSchedule}`);
+         addAssistantMessage(`DEBUG CONTEXT (Raw: ${items.length} items):\n\n${fullScheduleContext}`);
          setProcessing(false);
          return;
       }
