@@ -48,7 +48,7 @@ interface UserItem {
     skipped_dates: string | string[] | null;
 }
 
-serve(async (req) => {
+serve(async (req: Request) => {
     // Handle CORS preflight
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders });
@@ -188,7 +188,7 @@ serve(async (req) => {
                 }
 
                 // Filter out completed recurring items
-                let userItems = (items || []).filter(item => {
+                let userItems = (items || []).filter((item: UserItem) => {
                     // 1. Check if explicit status is done
                     if (item.status === 'done') return false;
 
