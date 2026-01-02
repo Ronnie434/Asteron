@@ -236,7 +236,10 @@ export function expandRepeatingItems(
             const todayStart = new Date(now);
             todayStart.setHours(0, 0, 0, 0);
 
-            if ((itemDate >= todayStart && itemDate <= endDate) || isCompleted) {
+            // Only include items within the display window (today onwards)
+            // One-time tasks from the past (completed or not) should not show in Upcoming
+            // They belong in the past/history view
+            if (itemDate >= todayStart && itemDate <= endDate) {
                 expanded.push({
                     ...item,
                     displayDate: itemDate,
