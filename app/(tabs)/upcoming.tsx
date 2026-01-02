@@ -1,4 +1,4 @@
-import { View, ScrollView, StyleSheet, Image, TouchableOpacity, Animated, AppState, AppStateStatus, Alert } from 'react-native';
+import { View, ScrollView, StyleSheet, Image, TouchableOpacity, Animated, AppState, AppStateStatus, Alert, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Swipeable } from 'react-native-gesture-handler';
 import { theme, hexToRgba } from '../../src/ui/theme';
@@ -25,6 +25,14 @@ export default function UpcomingScreen() {
   const [refreshKey, setRefreshKey] = useState(0);
   const appState = useRef(AppState.currentState);
   const [isCalendarModalVisible, setIsCalendarModalVisible] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setIsRefreshing(true);
+    await loadItems();
+    setRefreshKey(prev => prev + 1);
+    setIsRefreshing(false);
+  };
 
   useEffect(() => {
     init();
@@ -296,6 +304,14 @@ export default function UpcomingScreen() {
           { paddingTop: insets.top + 80 }
         ]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            progressViewOffset={insets.top + 80}
+          />
+        }
       >
 
         {Object.entries(grouped).map(([date, dateItems]) => (

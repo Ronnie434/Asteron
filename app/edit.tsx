@@ -15,6 +15,7 @@ import { GlassyHeader } from '../src/ui/components/GlassyHeader';
 import { useItemsStore } from '../src/store/useItemsStore';
 import { useTheme } from '../src/contexts/ThemeContext';
 import { CustomRepeatConfig } from '../src/db/items';
+import { LoadingScreen } from '../src/components/LoadingScreen';
 
 export default function EditScreen() {
   const router = useRouter();
@@ -64,6 +65,9 @@ export default function EditScreen() {
   
   // Repeat Modal State
   const [showRepeatModal, setShowRepeatModal] = useState(false);
+  
+  // Loading state for save/delete operations
+  const [isSaving, setIsSaving] = useState(false);
   
   // Date Picker State
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -124,6 +128,7 @@ export default function EditScreen() {
 
   const handleSave = async () => {
     if (!title.trim() || !itemId) return;
+    setIsSaving(true);
     try {
         // Build repeatConfig if custom
         let repeatConfigStr: string | null = null;
@@ -148,6 +153,8 @@ export default function EditScreen() {
         router.back();
     } catch (e) {
         console.error('Failed to update item:', e);
+    } finally {
+        setIsSaving(false);
     }
   };
 
@@ -164,11 +171,16 @@ export default function EditScreen() {
             text: 'This Day Only',
             onPress: async () => {
               if (itemId) {
-                // Skip today's occurrence (or the displayed date)
-                const occurrenceDate = remindAt ? new Date(remindAt) : new Date();
-                await skipOccurrence(itemId, occurrenceDate);
-                await loadItems();
-                router.back();
+                setIsSaving(true);
+                try {
+                  // Skip today's occurrence (or the displayed date)
+                  const occurrenceDate = remindAt ? new Date(remindAt) : new Date();
+                  await skipOccurrence(itemId, occurrenceDate);
+                  await loadItems();
+                  router.back();
+                } finally {
+                  setIsSaving(false);
+                }
               }
             },
           },
@@ -177,8 +189,13 @@ export default function EditScreen() {
             style: 'destructive',
             onPress: async () => {
               if (itemId) {
-                await deleteItem(itemId);
-                router.back();
+                setIsSaving(true);
+                try {
+                  await deleteItem(itemId);
+                  router.back();
+                } finally {
+                  setIsSaving(false);
+                }
               }
             },
           },
@@ -196,8 +213,13 @@ export default function EditScreen() {
             style: 'destructive',
             onPress: async () => {
               if (itemId) {
-                await deleteItem(itemId);
-                router.back();
+                setIsSaving(true);
+                try {
+                  await deleteItem(itemId);
+                  router.back();
+                } finally {
+                  setIsSaving(false);
+                }
               }
             }
           },
@@ -588,6 +610,9 @@ export default function EditScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Loading Overlay */}
+      {isSaving && <LoadingScreen overlay message="Saving..." />}
     </View>
   );
 }
