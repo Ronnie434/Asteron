@@ -6,7 +6,7 @@ import { Card } from '../../src/ui/components/Card';
 
 import { 
   Sun, Moon, Smartphone, X, CheckCircle, ChevronRight, 
-  ShieldCheck, FileText, Info, Trash, LogOut
+  ShieldCheck, FileText, Info, Trash, LogOut, Mail, Calendar
 } from 'lucide-react-native';
 import { useAuthStore } from '../../src/store/useAuthStore';
 import { useState } from 'react';
@@ -26,6 +26,68 @@ const THEME_OPTIONS: { value: ThemeMode; label: string; description: string; Ico
   { value: 'system', label: 'System', description: 'Follow system theme', Icon: Smartphone },
 ];
 
+// Extracted outside of SettingsScreen to prevent re-creation on each render
+const SettingRow = ({ 
+  Icon, 
+  title, 
+  subtitle,
+  value,
+  onToggle,
+  showArrow = false,
+  danger = false,
+  onPress,
+  colors,
+}: {
+  Icon: typeof Sun;
+  title: string;
+  subtitle?: string;
+  value?: boolean;
+  onToggle?: (val: boolean) => void;
+  showArrow?: boolean;
+  danger?: boolean;
+  onPress?: () => void;
+  colors: any;
+}) => (
+  <TouchableOpacity 
+    style={styles.row}
+    onPress={onPress}
+    activeOpacity={onPress ? 0.6 : 1}
+    disabled={!onPress && !onToggle}
+  >
+    <View style={[styles.iconBox, danger && styles.iconBoxDanger]}>
+      <Icon 
+        size={20} 
+        color={danger ? colors.danger : colors.primary} 
+        strokeWidth={2}
+      />
+    </View>
+    <View style={styles.rowContent}>
+      <Typography 
+        variant="body" 
+        color={danger ? colors.danger : colors.text}
+      >
+        {title}
+      </Typography>
+      {subtitle && (
+        <Typography variant="footnote" color={colors.textSecondary}>
+          {subtitle}
+        </Typography>
+      )}
+    </View>
+    {onToggle && (
+      <Switch
+        value={value}
+        onValueChange={onToggle}
+        trackColor={{ false: '#E5E5EA', true: colors.success }}
+        thumbColor="#FFFFFF"
+      />
+    )}
+    {showArrow && (
+      <ChevronRight size={20} color={colors.textTertiary} />
+    )}
+  </TouchableOpacity>
+);
+
 import { useSettingsStore } from '../../src/store/useSettingsStore';
 
 export default function SettingsScreen() {
@@ -36,7 +98,11 @@ export default function SettingsScreen() {
     quietHoursEnabled, setQuietHoursEnabled, 
     quietHoursStart, setQuietHoursStart,
     quietHoursEnd, setQuietHoursEnd,
-    dailyBriefEnabled, setDailyBriefEnabled
+    dailyBriefEnabled, setDailyBriefEnabled,
+    dailyBriefTime, setDailyBriefTime,
+    weeklyBriefEnabled, setWeeklyBriefEnabled,
+    weeklyBriefDay, setWeeklyBriefDay,
+    weeklyBriefTime, setWeeklyBriefTime
   } = useSettingsStore();
   const [themeModalVisible, setThemeModalVisible] = useState(false);
 
@@ -57,6 +123,8 @@ export default function SettingsScreen() {
   };
 
   const [quietHoursModalVisible, setQuietHoursModalVisible] = useState(false);
+  const [dailyBriefModalVisible, setDailyBriefModalVisible] = useState(false);
+  const [weeklyBriefModalVisible, setWeeklyBriefModalVisible] = useState(false);
 
   const formatTimeRange = () => {
     return `${formatTimeDisplay(quietHoursStart)} – ${formatTimeDisplay(quietHoursEnd)}`;
@@ -231,64 +299,6 @@ export default function SettingsScreen() {
     }
   };
 
-  const SettingRow = ({ 
-    Icon, 
-    title, 
-    subtitle,
-    value,
-    onToggle,
-    showArrow = false,
-    danger = false,
-    onPress,
-  }: {
-    Icon: typeof Sun;
-    title: string;
-    subtitle?: string;
-    value?: boolean;
-    onToggle?: (val: boolean) => void;
-    showArrow?: boolean;
-    danger?: boolean;
-    onPress?: () => void;
-  }) => (
-    <TouchableOpacity 
-      style={styles.row}
-      onPress={onPress}
-      activeOpacity={onPress ? 0.6 : 1}
-      disabled={!onPress && !onToggle}
-    >
-      <View style={[styles.iconBox, danger && styles.iconBoxDanger]}>
-        <Icon 
-          size={20} 
-          color={danger ? colors.danger : colors.primary} 
-          strokeWidth={2}
-        />
-      </View>
-      <View style={styles.rowContent}>
-        <Typography 
-          variant="body" 
-          color={danger ? colors.danger : colors.text}
-        >
-          {title}
-        </Typography>
-        {subtitle && (
-          <Typography variant="footnote" color={colors.textSecondary}>
-            {subtitle}
-          </Typography>
-        )}
-      </View>
-      {onToggle && (
-        <Switch
-          value={value}
-          onValueChange={onToggle}
-          trackColor={{ false: '#E5E5EA', true: colors.success }}
-          thumbColor="#FFFFFF"
-        />
-      )}
-      {showArrow && (
-        <ChevronRight size={20} color={colors.textTertiary} />
-      )}
-    </TouchableOpacity>
-  );
 
   return (
     <View
@@ -359,14 +369,7 @@ export default function SettingsScreen() {
               }
             }}
             onPress={() => setQuietHoursModalVisible(true)}
-          />
-          <View style={styles.separator} />
-          <SettingRow
-            Icon={Sun}
-            title="Daily Brief"
-            subtitle="Every morning at 8 AM"
-            value={dailyBriefEnabled}
-            onToggle={setDailyBriefEnabled}
+            colors={colors}
           />
         </Card>
         <QuietHoursModal 
@@ -376,6 +379,64 @@ export default function SettingsScreen() {
           quietHoursEnd={quietHoursEnd}
           setQuietHoursStart={setQuietHoursStart}
           setQuietHoursEnd={setQuietHoursEnd}
+          colors={colors}
+        />
+
+        {/* Email Briefs */}
+        <Typography 
+          variant="footnote" 
+          color={colors.textSecondary}
+          style={styles.sectionLabel}
+        >
+          EMAIL BRIEFS
+        </Typography>
+        <Card style={styles.card}>
+          <SettingRow
+            Icon={Sun}
+            title="Daily Brief"
+            subtitle={dailyBriefEnabled ? `Every day at ${formatTimeDisplay(dailyBriefTime)}` : 'Get your day at a glance'}
+            value={dailyBriefEnabled}
+            onToggle={(enabled) => {
+              setDailyBriefEnabled(enabled);
+              if (enabled) {
+                setDailyBriefModalVisible(true);
+              }
+            }}
+            onPress={() => setDailyBriefModalVisible(true)}
+            colors={colors}
+          />
+          <View style={styles.separator} />
+          <SettingRow
+            Icon={Calendar}
+            title="Weekly Brief"
+            subtitle={weeklyBriefEnabled 
+              ? `Every ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][weeklyBriefDay]} at ${formatTimeDisplay(weeklyBriefTime)}` 
+              : 'Plan your week ahead'}
+            value={weeklyBriefEnabled}
+            onToggle={(enabled) => {
+              setWeeklyBriefEnabled(enabled);
+              if (enabled) {
+                setWeeklyBriefModalVisible(true);
+              }
+            }}
+            onPress={() => setWeeklyBriefModalVisible(true)}
+            colors={colors}
+          />
+        </Card>
+        <DailyBriefModal
+          visible={dailyBriefModalVisible}
+          onClose={() => setDailyBriefModalVisible(false)}
+          dailyBriefTime={dailyBriefTime}
+          setDailyBriefTime={setDailyBriefTime}
+          colors={colors}
+        />
+        <WeeklyBriefModal
+          visible={weeklyBriefModalVisible}
+          onClose={() => setWeeklyBriefModalVisible(false)}
+          weeklyBriefDay={weeklyBriefDay}
+          weeklyBriefTime={weeklyBriefTime}
+          setWeeklyBriefDay={setWeeklyBriefDay}
+          setWeeklyBriefTime={setWeeklyBriefTime}
           colors={colors}
         />
 
@@ -393,6 +454,7 @@ export default function SettingsScreen() {
             title="Privacy Policy"
             showArrow
             onPress={() => openLegalDocument('https://asteron.app/#privacy')}
+            colors={colors}
           />
           <View style={styles.separator} />
           <SettingRow
@@ -400,12 +462,14 @@ export default function SettingsScreen() {
             title="Terms of Service"
             showArrow
             onPress={() => openLegalDocument('https://asteron.app/#terms')}
+            colors={colors}
           />
           <View style={styles.separator} />
           <SettingRow
             Icon={Info}
             title="Version"
             subtitle="1.0.0"
+            colors={colors}
           />
         </Card>
 
@@ -424,6 +488,7 @@ export default function SettingsScreen() {
             subtitle={user?.email || ''}
             showArrow
             onPress={handleSignOut}
+            colors={colors}
           />
         </Card>
 
@@ -442,6 +507,7 @@ export default function SettingsScreen() {
             danger
             showArrow
             onPress={handleDeleteData}
+            colors={colors}
           />
         </Card>
 
@@ -584,6 +650,7 @@ const QuietHoursModal = ({
                 is24Hour={false}
                 display="spinner"
                 onChange={onTimeChange}
+                themeVariant="light"
                 style={{ height: 120, width: '100%' }}
               />
             )}
@@ -612,9 +679,212 @@ const QuietHoursModal = ({
                 is24Hour={false}
                 display="spinner"
                 onChange={onTimeChange}
+                themeVariant="light"
                 style={{ height: 120, width: '100%' }}
               />
             )}
+          </Card>
+          
+          <View style={{ height: 40 }} />
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+};
+
+// Daily Brief Modal - Time picker only
+const DailyBriefModal = ({
+  visible,
+  onClose,
+  dailyBriefTime,
+  setDailyBriefTime,
+  colors
+}: {
+  visible: boolean;
+  onClose: () => void;
+  dailyBriefTime: string;
+  setDailyBriefTime: (time: string) => void;
+  colors: any;
+}) => {
+  const formatTimeDisplay = (timeStr: string) => {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const date = new Date();
+    date.setHours(hours, minutes);
+    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  };
+
+  const getTimeDate = () => {
+    const [hours, minutes] = dailyBriefTime.split(':').map(Number);
+    const date = new Date();
+    date.setHours(hours, minutes);
+    return date;
+  };
+
+  const onTimeChange = (event: any, selectedDate?: Date) => {
+    if (selectedDate) {
+      const hours = selectedDate.getHours().toString().padStart(2, '0');
+      const minutes = selectedDate.getMinutes().toString().padStart(2, '0');
+      setDailyBriefTime(`${hours}:${minutes}`);
+    }
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <Pressable 
+        style={styles.modalOverlay}
+        onPress={onClose}
+      >
+        <Pressable 
+          style={[styles.modalContent, { backgroundColor: colors.card }]}
+          onPress={(e) => e.stopPropagation()}
+        >
+          <View style={styles.dragHandle} />
+
+          <View style={styles.modalHeader}>
+            <Typography variant="headline">Daily Brief Time</Typography>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <X size={24} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+
+          <Typography variant="body" color={colors.textSecondary} style={{ marginBottom: theme.spacing.lg }}>
+            Choose what time you want to receive your daily email brief.
+          </Typography>
+
+          <Card style={styles.card}>
+            <View style={[styles.row, { justifyContent: 'center', paddingVertical: 8 }]}>
+              <DateTimePicker
+                value={getTimeDate()}
+                mode="time"
+                is24Hour={false}
+                display="spinner"
+                onChange={onTimeChange}
+                themeVariant="dark"
+                style={{ height: 150, width: '100%' }}
+              />
+            </View>
+          </Card>
+          
+          <View style={{ height: 40 }} />
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+};
+
+// Weekly Brief Modal - Day selector + Time picker
+const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+const WeeklyBriefModal = ({
+  visible,
+  onClose,
+  weeklyBriefDay,
+  weeklyBriefTime,
+  setWeeklyBriefDay,
+  setWeeklyBriefTime,
+  colors
+}: {
+  visible: boolean;
+  onClose: () => void;
+  weeklyBriefDay: number;
+  weeklyBriefTime: string;
+  setWeeklyBriefDay: (day: number) => void;
+  setWeeklyBriefTime: (time: string) => void;
+  colors: any;
+}) => {
+  const getTimeDate = () => {
+    const [hours, minutes] = weeklyBriefTime.split(':').map(Number);
+    const date = new Date();
+    date.setHours(hours, minutes);
+    return date;
+  };
+
+  const onTimeChange = (event: any, selectedDate?: Date) => {
+    if (selectedDate) {
+      const hours = selectedDate.getHours().toString().padStart(2, '0');
+      const minutes = selectedDate.getMinutes().toString().padStart(2, '0');
+      setWeeklyBriefTime(`${hours}:${minutes}`);
+    }
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <Pressable 
+        style={styles.modalOverlay}
+        onPress={onClose}
+      >
+        <Pressable 
+          style={[styles.modalContent, { backgroundColor: colors.card }]}
+          onPress={(e) => e.stopPropagation()}
+        >
+          <View style={styles.dragHandle} />
+
+          <View style={styles.modalHeader}>
+            <Typography variant="headline">Weekly Brief</Typography>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <X size={24} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+
+          <Typography variant="body" color={colors.textSecondary} style={{ marginBottom: theme.spacing.lg }}>
+            Choose what day and time you want to receive your weekly email brief.
+          </Typography>
+
+          {/* Day Selector */}
+          <Typography variant="footnote" color={colors.textSecondary} style={{ marginBottom: 8 }}>
+            DAY
+          </Typography>
+          <Card style={[styles.card, { marginBottom: theme.spacing.md }]}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 8 }}>
+              {DAYS_OF_WEEK.map((day, index) => (
+                <TouchableOpacity
+                  key={day}
+                  onPress={() => setWeeklyBriefDay(index)}
+                  style={{
+                    paddingVertical: 10,
+                    paddingHorizontal: 16,
+                    marginRight: 8,
+                    borderRadius: 20,
+                    backgroundColor: weeklyBriefDay === index ? colors.primary : colors.background,
+                  }}
+                >
+                  <Typography 
+                    variant="callout" 
+                    color={weeklyBriefDay === index ? '#FFFFFF' : colors.text}
+                  >
+                    {day.slice(0, 3)}
+                  </Typography>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </Card>
+
+          {/* Time Picker */}
+          <Typography variant="footnote" color={colors.textSecondary} style={{ marginBottom: 8 }}>
+            TIME
+          </Typography>
+          <Card style={styles.card}>
+            <View style={[styles.row, { justifyContent: 'center', paddingVertical: 8 }]}>
+              <DateTimePicker
+                value={getTimeDate()}
+                mode="time"
+                is24Hour={false}
+                display="spinner"
+                onChange={onTimeChange}
+                themeVariant="dark"
+                style={{ height: 150, width: '100%' }}
+              />
+            </View>
           </Card>
           
           <View style={{ height: 40 }} />

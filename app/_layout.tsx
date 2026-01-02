@@ -14,6 +14,7 @@ import { theme } from '../src/ui/theme';
 import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
 import { CaptureProvider, useCapture } from '../src/contexts/CaptureContext';
 import { NotificationService } from '../src/services/NotificationService';
+import { setupPreferenceSyncListener } from '../src/services/preferenceSyncService';
 import { useAuthStore } from '../src/store/useAuthStore';
 import { useChatStore } from '../src/store/useChatStore';
 import { LoadingScreen } from '../src/components/LoadingScreen';
@@ -201,6 +202,18 @@ function AuthenticatedApp() {
       }
     };
   }, []);
+
+  // Setup preference sync listener (syncs email brief settings to Supabase)
+  useEffect(() => {
+    if (session && !isGuestMode) {
+      console.log('📡 Setting up preference sync listener');
+      const unsubscribe = setupPreferenceSyncListener();
+      return () => {
+        console.log('📡 Cleaning up preference sync listener');
+        unsubscribe();
+      };
+    }
+  }, [session, isGuestMode]);
 
   useEffect(() => {
     if (hasSeenOnboarding !== null && isInitialized) {
