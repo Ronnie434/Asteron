@@ -214,7 +214,8 @@ export function generateWeeklyBriefEmail(firstName: string, items: BriefItem[], 
   const billCount = items.filter(i => i.type === 'bill').length;
   const reminderCount = items.filter(i => i.type === 'reminder').length;
 
-  const dayGroups: Record<string, BriefItem[]> = {};
+  // Use YYYY-MM-DD as keys for proper sorting, store formatted name separately
+  const dayGroups: Record<string, { displayName: string; items: BriefItem[] }> = {};
 
   items.forEach(item => {
     let itemDate: Date;
@@ -227,9 +228,12 @@ export function generateWeeklyBriefEmail(firstName: string, items: BriefItem[], 
       itemDate = userDate;
     }
 
-    const dayKey = formatBriefDate(itemDate, useTz ? userTimezone : undefined);
-    if (!dayGroups[dayKey]) dayGroups[dayKey] = [];
-    dayGroups[dayKey].push(item);
+    // Use sortable date key (YYYY-MM-DD)
+    const sortKey = itemDate.toLocaleDateString('en-CA', { timeZone: useTz ? userTimezone : undefined });
+    const displayName = formatBriefDate(itemDate, useTz ? userTimezone : undefined);
+
+    if (!dayGroups[sortKey]) dayGroups[sortKey] = { displayName, items: [] };
+    dayGroups[sortKey].items.push(item);
   });
 
   const renderItem = (item: BriefItem): string => {
@@ -243,14 +247,16 @@ export function generateWeeklyBriefEmail(firstName: string, items: BriefItem[], 
 
   const statsText = taskCount + ' task' + (taskCount !== 1 ? 's' : '') + ' · ' + billCount + ' bill' + (billCount !== 1 ? 's' : '') + ' · ' + reminderCount + ' reminder' + (reminderCount !== 1 ? 's' : '');
 
-  const daySections = Object.entries(dayGroups).map(([day, dayItems]) => renderDaySection(day, dayItems)).join('');
+  // Sort by date key (YYYY-MM-DD sorts chronologically)
+  const sortedDays = Object.entries(dayGroups).sort(([a], [b]) => a.localeCompare(b));
+  const daySections = sortedDays.map(([_, { displayName, items }]) => renderDaySection(displayName, items)).join('');
   const emptyMessage = '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background: #fff; border-radius: 12px; text-align: center;"><tr><td style="padding: 32px; color: #64748b; font-size: 15px;">🌴 Your week is wide open! Time to relax or plan something fun.</td></tr></table>';
   const contentSection = daySections || emptyMessage;
 
   const html = '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head><body style="margin:0; padding:0; font-family:-apple-system, SF Pro Display, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; background:#f8fafc;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding: 40px 20px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px;"><tr><td style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); border-radius: 16px 16px 0 0; padding: 32px 24px;"><h1 style="margin: 0 0 8px 0; font-size: 24px; font-weight: 600; color: #fff;">📅 Hey ' + firstName + ', here is your week!</h1><p style="margin: 0; font-size: 15px; color: rgba(255,255,255,0.9);">' + statsText + '</p></td></tr><tr><td style="background: #f8fafc; padding: 24px;">' + contentSection + '</td></tr><tr><td style="background: #fff; border-radius: 0 0 16px 16px; padding: 24px; text-align: center;"><p style="margin: 0 0 16px 0; color: #1a1a2e; font-size: 15px; font-weight: 500;">Here is to a productive week! 🚀</p><p style="margin: 0; color: #64748b; font-size: 13px;">The Asteron Team</p></td></tr></table><p style="margin-top: 24px; font-size: 12px; color: #94a3b8;">You are receiving this because you enabled Weekly Brief in Asteron.</p></td></tr></table></body></html>';
 
-  const textDays = Object.entries(dayGroups)
-    .map(([day, dayItems]) => day + ':\n' + dayItems.map(i => '  • ' + getItemIcon(i.type) + ' ' + i.title).join('\n'))
+  const textDays = sortedDays
+    .map(([_, { displayName, items }]) => displayName + ':\n' + items.map(i => '  • ' + getItemIcon(i.type) + ' ' + i.title).join('\n'))
     .join('\n\n');
   const textContent = textDays || '🌴 Your week is wide open!';
   const text = 'Hey ' + firstName + '! 📅\n\nHere is your week ahead (' + startStr + '–' + endStr + '):\n\n' + statsText + '\n\n' + textContent + '\n\nHere is to a productive week! 🚀\nThe Asteron Team\n\n---\nYou are receiving this because you enabled Weekly Brief in Asteron.';

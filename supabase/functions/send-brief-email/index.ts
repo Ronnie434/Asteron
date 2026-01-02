@@ -188,7 +188,7 @@ serve(async (req) => {
                 }
 
                 // Filter out completed recurring items
-                const userItems = (items || []).filter(item => {
+                let userItems = (items || []).filter(item => {
                     // 1. Check if explicit status is done
                     if (item.status === 'done') return false;
 
@@ -217,6 +217,27 @@ serve(async (req) => {
                     }
                     return true;
                 }) as UserItem[];
+
+                // For Daily Brief: Filter to TODAY's items only (not tomorrow, not next week)
+                if (type === 'daily') {
+                    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: user.timezone }); // YYYY-MM-DD
+
+                    userItems = userItems.filter(item => {
+                        // Check if due_at is TODAY or earlier (overdue items)
+                        if (item.due_at) {
+                            const dueDateStr = new Date(item.due_at).toLocaleDateString('en-CA', { timeZone: user.timezone });
+                            if (dueDateStr <= todayStr) return true;
+                        }
+
+                        // Check if remind_at is TODAY (not tomorrow)
+                        if (item.remind_at) {
+                            const remindDateStr = new Date(item.remind_at).toLocaleDateString('en-CA', { timeZone: user.timezone });
+                            if (remindDateStr === todayStr) return true;
+                        }
+
+                        return false;
+                    });
+                }
 
                 // Skip if no items to report
                 if (userItems.length === 0) {
