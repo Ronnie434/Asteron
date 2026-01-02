@@ -221,15 +221,23 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
             day: 'numeric',
             year: 'numeric'
         });
-        const timeStr = item.dueAt && !item.dueAt.includes('T00:00:00') 
-            ? safeParseDate(item.dueAt).toLocaleTimeString('en-US', { 
+        
+        // Use displayDate time to support overrides and accurate repeat expansion
+        const isAllDay = !item.dueAt || item.dueAt.includes('T00:00:00');
+        const timeStr = !isAllDay
+            ? dateDate.toLocaleTimeString('en-US', { 
                 hour: 'numeric', 
                 minute: '2-digit'
               }) 
             : 'All day';
         // Format: [2026-01-04] Sun, Jan 4, 2026 [9:00 AM]: Tesla Loan EMI (Medium)
         return `- [${isoDateStr}] ${dateStr} [${timeStr}]: ${item.title} ${getPriorityLabel(item.priority)}`;
-      }).join('\n');
+      });
+
+      // Deduplicate lines to ensure clean context (remove exact duplicates)
+      const uniqueSchedule = Array.from(new Set(upcomingSchedule));
+      
+      const upcomingScheduleStr = uniqueSchedule.join('\n');
 
       // Group items for context
       const overdueItems = items.filter(i => {
@@ -247,7 +255,7 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
           ? `ACTIVE RECURRING BILLS:\n${recurringBills.map(i => `- ${i.title} (${i.repeat})`).join('\n')}\n`
           : '';
 
-      const fullScheduleContext = `${overdueContext}\n${billsContext}\nUPCOMING SCHEDULE (Calculated - Next 30 Days):\n${upcomingSchedule}`;
+      const fullScheduleContext = `${overdueContext}\n${billsContext}\nUPCOMING SCHEDULE (Calculated - Next 30 Days):\n${upcomingScheduleStr}`;
 
       // DEBUG: Show context if requested
       if (text.trim() === '/debug') {
