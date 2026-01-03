@@ -171,7 +171,7 @@ export function generateDailyBriefEmail(firstName: string, items: BriefItem[], u
 
   const dateStr = formatBriefDate(userDate);
   const { greeting, emoji } = getGreeting(userHour);
-  const subject = emoji + " Your Day Ahead — " + dateStr;
+  const subject = "Your Day Ahead — " + dateStr;
 
   const tasks = items.filter(i => i.type === 'task');
   const bills = items.filter(i => i.type === 'bill');
@@ -215,7 +215,7 @@ export function generateWeeklyBriefEmail(firstName: string, items: BriefItem[], 
   const endDate = new Date(userDate.getTime() + 7 * 24 * 60 * 60 * 1000);
   const startStr = userDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const endStr = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  const subject = "📅 Your Week Ahead — " + startStr + "–" + endStr;
+  const subject = "Your Week Ahead — " + startStr + "–" + endStr;
 
   const taskCount = items.filter(i => i.type === 'task').length;
   const billCount = items.filter(i => i.type === 'bill').length;
