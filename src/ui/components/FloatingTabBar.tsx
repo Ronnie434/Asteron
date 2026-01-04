@@ -4,8 +4,7 @@ import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { theme } from '../theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../contexts/ThemeContext';
-
-const { width } = Dimensions.get('window');
+import { useResponsive } from '../useResponsive';
 
 const iconMap: { [key: string]: typeof Home } = {
   brief: Home,
@@ -17,6 +16,7 @@ const iconMap: { [key: string]: typeof Home } = {
 export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
+  const { tabBarWidth } = useResponsive();
   const bottomOffset = Math.max(insets.bottom, 20);
 
   return (
@@ -29,6 +29,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       <View style={[
         styles.container,
         {
+          width: tabBarWidth,
           backgroundColor: isDark ? 'rgba(28, 28, 30, 0.85)' : 'rgba(255, 255, 255, 0.70)',
           borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.5)',
         }
@@ -87,7 +88,6 @@ const styles = StyleSheet.create({
     zIndex: 9999,
   },
   container: {
-    width: width * 0.9,
     height: 64,
     borderRadius: 32,
     flexDirection: 'row',

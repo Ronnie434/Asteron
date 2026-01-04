@@ -1,6 +1,6 @@
 import 'react-native-get-random-values';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
+import { Stack, usePathname, useRouter, useSegments, Redirect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Manrope_400Regular, Manrope_600SemiBold, Manrope_700Bold } from '@expo-google-fonts/manrope';
 import { DMSans_400Regular, DMSans_500Medium, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
@@ -18,13 +18,10 @@ import { setupPreferenceSyncListener } from '../src/services/preferenceSyncServi
 import { useAuthStore } from '../src/store/useAuthStore';
 import { useChatStore } from '../src/store/useChatStore';
 import { LoadingScreen } from '../src/components/LoadingScreen';
-import OnboardingScreen from './onboarding';
-import SignInScreen from './signin';
 import CaptureScreen from './(tabs)/capture';
+import { useResponsive } from '../src/ui/useResponsive';
 
 SplashScreen.preventAutoHideAsync();
-
-const { width } = Dimensions.get('window');
 
 const TAB_ROUTES = [
   { name: 'brief', path: '/(tabs)/brief', Icon: Home },
@@ -40,13 +37,13 @@ function MainAppContent() {
   const { isCaptureOpen, closeCapture } = useCapture();
   
   // Determine if tab bar should be shown (hide during modals and on capture screen)
-  const shouldShowTabBar = !(pathname === '/edit' || pathname === '/note-detail' || pathname.includes('capture'));
+  const shouldShowTabBar = !(pathname === '/edit' || pathname === '/note-detail' || pathname.includes('capture') || pathname === '/onboarding' || pathname === '/signin');
   
   return (
     <>
-      {/* Capture Screen - Rendered OUTSIDE the navigation infrastructure */}
+      {/* Capture Screen - Rendered as overlay on top of navigation */}
       {isCaptureOpen && (
-        <View style={StyleSheet.absoluteFill}>
+        <View style={[StyleSheet.absoluteFill, { zIndex: 100000 }]}>
           <SafeAreaProvider>
             <CaptureScreen onClose={closeCapture} />
             <StatusBar style={isDark ? 'light' : 'dark'} />
@@ -54,43 +51,45 @@ function MainAppContent() {
         </View>
       )}
       
-      {/* Main App - Hidden when capture is open */}
-      {!isCaptureOpen && (
-        <GestureHandlerRootView style={{ flex: 1 }}>
-          <View style={{ flex: 1 }}>
-            <Stack screenOptions={{
-                headerStyle: {
-                  backgroundColor: colors.background,
-                },
-                headerTintColor: colors.text,
-                headerTitleStyle: {
-                  color: colors.text,
-                  ...theme.typography.title3,
-                },
-            }}>
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen 
-                name="edit" 
-                options={{ 
-                  presentation: 'modal',
-                  headerShown: false,
-                }} 
-              />
-              <Stack.Screen 
-                name="note-detail" 
-                options={{ 
-                  presentation: 'modal',
-                  headerShown: false,
-                }} 
-              />
-            </Stack>
-            
-            {/* Floating Tab Bar */}
-            {shouldShowTabBar && <FloatingTabBar />}
-          </View>
-          <StatusBar style={isDark ? 'light' : 'dark'} />
-        </GestureHandlerRootView>
-      )}
+      {/* Main App - ALWAYS MOUNTED to preserve hooks */}
+      <GestureHandlerRootView style={{ flex: 1, opacity: isCaptureOpen ? 0 : 1, pointerEvents: isCaptureOpen ? 'none' : 'auto' }}>
+        <View style={{ flex: 1 }}>
+          <Stack screenOptions={{
+              headerStyle: {
+                backgroundColor: colors.background,
+              },
+              headerTintColor: colors.text,
+              headerTitleStyle: {
+                color: colors.text,
+                ...theme.typography.title3,
+              },
+          }}>
+            {/* All screens registered without guards - index.tsx handles routing */}
+            <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+            <Stack.Screen name="signin" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="edit"
+              options={{
+                presentation: 'modal',
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="note-detail"
+              options={{
+                presentation: 'modal',
+                headerShown: false,
+              }}
+            />
+          </Stack>
+          
+          {/* Floating Tab Bar */}
+          {shouldShowTabBar && <FloatingTabBar />}
+        </View>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+      </GestureHandlerRootView>
     </>
   );
 }
@@ -105,46 +104,34 @@ export default function RootLayout() {
     DMSans_700Bold,
   });
 
-  if (!fontsLoaded) {
-    return (
-      <ThemeProvider>
-        <LoadingScreen message="Initializing..." />
-      </ThemeProvider>
-    );
-  }
-
-  // Wrap entire app in ThemeProvider so all routes (even pre-rendered) have access
+  // ALWAYS render ThemeProvider and AuthenticatedApp - no conditional returns
+  // This keeps the component tree stable and prevents hooks violations
   return (
     <ThemeProvider>
-      <AuthenticatedApp />
+      <AuthenticatedApp fontsLoaded={fontsLoaded} />
     </ThemeProvider>
   );
 }
 
-function AuthenticatedApp() {
+function AuthenticatedApp({ fontsLoaded }: { fontsLoaded: boolean }) {
   const appState = useRef(AppState.currentState);
   const backgroundTimerRef = useRef<number | null>(null);
-  
-  // Onboarding state - null = loading, true = completed, false = needs onboarding
-  const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
   
   // Auth state
   const { session, isLoading: isAuthLoading, isInitialized, initialize, isGuestMode } = useAuthStore();
 
-  // Check onboarding status on mount
-  useEffect(() => {
-    AsyncStorage.getItem('hasSeenOnboarding').then(value => {
-      setHasSeenOnboarding(value === 'true');
-    });
-  }, []);
+  // Determine if app is fully ready
+  const isAppReady = fontsLoaded && isInitialized;
 
   // Initialize auth on mount
   useEffect(() => {
     initialize();
   }, [initialize]);
 
-  // Initialize notifications
+  // Initialize notifications (only when app is ready)
   useEffect(() => {
+    if (!isAppReady) return;
+    
     const initNotifications = async () => {
       await NotificationService.requestPermissions();
     };
@@ -169,7 +156,7 @@ function AuthenticatedApp() {
     return () => {
       notificationSubscription.remove();
     };
-  }, []);
+  }, [isAppReady]);
 
   // Clear chat history after 2 minutes in background
   useEffect(() => {
@@ -204,7 +191,9 @@ function AuthenticatedApp() {
   }, []);
 
   // Setup preference sync listener (syncs email brief settings to Supabase)
+  // This runs when session/guestMode changes but doesn't affect component tree
   useEffect(() => {
+    if (!isAppReady) return;
     if (session && !isGuestMode) {
       console.log('📡 Setting up preference sync listener');
       const unsubscribe = setupPreferenceSyncListener();
@@ -213,48 +202,26 @@ function AuthenticatedApp() {
         unsubscribe();
       };
     }
-  }, [session, isGuestMode]);
+  }, [session, isGuestMode, isAppReady]);
 
   useEffect(() => {
-    if (hasSeenOnboarding !== null && isInitialized) {
+    if (isAppReady) {
       SplashScreen.hideAsync();
     }
-  }, [hasSeenOnboarding, isInitialized]);
+  }, [isAppReady]);
 
-  // Handle onboarding completion
-  const handleOnboardingComplete = useCallback(async () => {
-    await AsyncStorage.setItem('hasSeenOnboarding', 'true');
-    setHasSeenOnboarding(true);
-  }, []);
-
-  // Loading state - wait for onboarding check AND auth initialization
-  if (hasSeenOnboarding === null || !isInitialized) {
-    return <LoadingScreen message="Loading your experience..." />;
-  }
-
-  // CRITICAL: Render onboarding COMPLETELY OUTSIDE the navigation infrastructure
-  if (!hasSeenOnboarding) {
-    return (
-      <SafeAreaProvider>
-        <OnboardingScreen onComplete={handleOnboardingComplete} />
-        <StatusBar style="light" />
-      </SafeAreaProvider>
-    );
-  }
-
-  // Show sign-in screen if not authenticated AND not in guest mode
-  if (!session && !isGuestMode) {
-    return (
-      <SafeAreaProvider>
-        <SignInScreen />
-        <StatusBar style="light" />
-      </SafeAreaProvider>
-    );
-  }
-
-  // Normal app with navigation - wrapped in CaptureProvider
+  // ALWAYS render the same component tree - NO conditional returns
+  // Use overlay for loading state instead of replacing the tree
   return (
     <CaptureProvider>
+      {/* Loading overlay - shown on top when app isn't ready */}
+      {!isAppReady && (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 999999 }]}>
+          <LoadingScreen message="Initializing..." />
+        </View>
+      )}
+      
+      {/* Main content - ALWAYS rendered to keep hooks stable */}
       <MainAppContent />
     </CaptureProvider>
   );
@@ -263,6 +230,7 @@ function AuthenticatedApp() {
 function FloatingTabBar() {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
+  const { tabBarWidth } = useResponsive();
   const bottomOffset = Math.max(insets.bottom, 20);
   const pathname = usePathname();
   const router = useRouter();
@@ -290,8 +258,9 @@ function FloatingTabBar() {
       pointerEvents="box-none"
     >
       <View style={[
-        styles.tabBarContainer, 
-        { 
+        styles.tabBarContainer,
+        {
+          width: tabBarWidth,
           backgroundColor: isDark ? 'rgba(28, 28, 30, 0.95)' : 'rgba(255, 255, 255, 0.98)',
           borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.9)',
         }
@@ -334,7 +303,6 @@ const styles = StyleSheet.create({
     elevation: 99999,
   },
   tabBarContainer: {
-    width: width * 0.9,
     height: 64,
     borderRadius: 32,
     backgroundColor: 'rgba(255, 255, 255, 0.98)',

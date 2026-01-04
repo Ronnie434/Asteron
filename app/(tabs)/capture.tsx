@@ -20,6 +20,7 @@ import { ChatInputBar } from '../../src/ui/components/ChatInputBar';
 import type { Item } from '../../src/db/items';
 import { expandRepeatingItems, sortItemsByTimeAndStatus } from '../../src/utils/repeatExpansion';
 import { buildFullContext } from '../../src/utils/contextBuilder';
+import { useResponsive } from '../../src/ui/useResponsive';
 
 interface CaptureScreenProps {
   onClose?: () => void;
@@ -28,6 +29,7 @@ interface CaptureScreenProps {
 export default function CaptureScreen({ onClose }: CaptureScreenProps) {
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const { isDesktop, contentWidth } = useResponsive();
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef<ScrollView>(null);
   
@@ -1088,8 +1090,12 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
         style={styles.safeArea}
         edges={['top', 'left', 'right']} // Bottom handled by ChatInputBar
       >
-        {/* Header with Back Button */}
-        <View style={styles.header}>
+        <View style={[
+          styles.contentWrapper,
+          isDesktop && { maxWidth: contentWidth, alignSelf: 'center', width: '100%' }
+        ]}>
+          {/* Header with Back Button */}
+          <View style={styles.header}>
           <TouchableOpacity 
             onPress={() => onClose ? onClose() : router.back()}
             activeOpacity={0.7}
@@ -1218,14 +1224,17 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
             </View>
           )}
         </ScrollView>
-      </SafeAreaView>
+       </View>
+     </SafeAreaView>
 
-      {/* ChatInputBar - OUTSIDE SafeAreaView, handles its own bottom padding */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-      >
-        <ChatInputBar
+     {/* ChatInputBar - OUTSIDE SafeAreaView, handles its own bottom padding */}
+     <KeyboardAvoidingView
+       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+       style={isDesktop ? { alignItems: 'center' } : undefined}
+     >
+       <View style={isDesktop ? { width: contentWidth, maxWidth: 700 } : undefined}>
+         <ChatInputBar
           onSend={handleSend}
           onVoicePress={startRecording}
           onPlusPress={handlePlusPress}
@@ -1233,19 +1242,22 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
           onSendRecording={stopAndSendRecording}
           isRecording={isRecording}
           isProcessing={isProcessing}
-        />
+          />
+        </View>
       </KeyboardAvoidingView>
 
       {/* Toast Confirmation */}
       {toastMessage && (
-        <Animated.View 
+        <Animated.View
           style={[
-            styles.toast, 
-            { 
+            styles.toast,
+            {
               backgroundColor: isDark ? 'rgba(45, 45, 50, 0.95)' : 'rgba(255, 255, 255, 0.98)',
               borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
               opacity: toastOpacity,
               bottom: insets.bottom + 100,
+              maxWidth: isDesktop ? 400 : undefined,
+              alignSelf: isDesktop ? 'center' : undefined,
             }
           ]}
         >
@@ -1440,6 +1452,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   safeArea: {
+    flex: 1,
+  },
+  contentWrapper: {
     flex: 1,
   },
   keyboardAvoid: {

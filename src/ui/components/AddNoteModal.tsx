@@ -19,6 +19,7 @@ import { Typography } from './Typography';
 import { Card } from './Card';
 import { theme } from '../theme';
 import { useItemsStore } from '../../store/useItemsStore';
+import { useResponsive } from '../useResponsive';
 
 interface AddNoteModalProps {
   visible: boolean;
@@ -29,6 +30,7 @@ interface AddNoteModalProps {
 export function AddNoteModal({ visible, onClose, onSaveSuccess }: AddNoteModalProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const { isDesktop, contentWidth } = useResponsive();
   const { addItem, items } = useItemsStore();
   
   const [title, setTitle] = useState('');
@@ -81,9 +83,19 @@ export function AddNoteModal({ visible, onClose, onSaveSuccess }: AddNoteModalPr
       onRequestClose={handleClose}
     >
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <View style={[styles.container, { backgroundColor: colors.background }]}>
-          {/* Header */}
-          <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <View style={[
+          styles.container,
+          {
+            backgroundColor: colors.background,
+            alignItems: isDesktop ? 'center' : undefined,
+          }
+        ]}>
+          <View style={[
+            styles.innerContainer,
+            isDesktop && { width: contentWidth, maxWidth: 700 }
+          ]}>
+            {/* Header */}
+            <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
             <TouchableOpacity 
               onPress={handleClose}
               style={[styles.headerButton, { backgroundColor: colors.text + '10' }]}
@@ -139,6 +151,7 @@ export function AddNoteModal({ visible, onClose, onSaveSuccess }: AddNoteModalPr
               </Card>
             </ScrollView>
           </KeyboardAvoidingView>
+          </View>
         </View>
       </GestureHandlerRootView>
     </Modal>
@@ -148,6 +161,10 @@ export function AddNoteModal({ visible, onClose, onSaveSuccess }: AddNoteModalPr
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  innerContainer: {
+    flex: 1,
+    width: '100%',
   },
   header: {
     flexDirection: 'row',

@@ -1,21 +1,21 @@
 import React from 'react';
 // HelpModal component
-import { View, StyleSheet, Modal, TouchableOpacity, ScrollView, Dimensions, Text } from 'react-native';
+import { View, StyleSheet, Modal, TouchableOpacity, ScrollView, Text } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { X, Mic, Calendar, Sparkles, CheckCircle2 } from 'lucide-react-native';
 import { Typography } from './Typography';
 import { theme } from '../theme';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useResponsive } from '../useResponsive';
 
 interface HelpModalProps {
   visible: boolean;
   onClose: () => void;
 }
 
-const { width } = Dimensions.get('window');
-
 export const HelpModal = ({ visible, onClose }: HelpModalProps) => {
   const { isDark, colors } = useTheme();
+  const { modalWidth } = useResponsive();
 
   const TipItem = ({ icon: Icon, title, description }: { icon: any, title: string, description: string }) => (
     <View style={[styles.tipContainer, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
@@ -44,8 +44,9 @@ export const HelpModal = ({ visible, onClose }: HelpModalProps) => {
         />
         
         <View style={[
-            styles.modalContent, 
-            { 
+            styles.modalContent,
+            {
+                width: modalWidth,
                 backgroundColor: isDark ? 'rgba(30,30,30,0.6)' : 'rgba(255,255,255,0.8)',
                 borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
             }
@@ -127,7 +128,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.3)',
   },
   modalContent: {
-    width: width * 0.9,
     maxHeight: '80%',
     borderRadius: 24,
     borderWidth: 1,

@@ -1,19 +1,20 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  Dimensions, 
-  Pressable, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  Dimensions,
+  Pressable,
   FlatList,
   NativeSyntheticEvent,
   NativeScrollEvent,
   Image,
+  useWindowDimensions,
 } from 'react-native';
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withTiming, 
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
   withSequence,
   withDelay,
   Easing,
@@ -22,10 +23,11 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { 
-  ArrowRight, 
-  Sparkles, 
-  Mic, 
+import { useRouter } from 'expo-router';
+import {
+  ArrowRight,
+  Sparkles,
+  Mic,
   PenLine,
   Calendar,
   Bell,
@@ -41,8 +43,7 @@ import { useSettingsStore } from '../src/store/useSettingsStore';
 import { theme, lightColors, darkColors } from '../src/ui/theme';
 import { useTheme } from '../src/contexts/ThemeContext';
 import { RainbowText } from '../src/ui/components/RainbowText';
-
-const { width } = Dimensions.get('window');
+import { useResponsive } from '../src/ui/useResponsive';
 
 interface OnboardingScreenProps {
   onComplete?: () => void;
@@ -503,10 +504,13 @@ function QuietHoursScreen({
 // MAIN COMPONENT
 // ============================================================
 export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
+  const { width } = useWindowDimensions(); // Dynamic width for FlatList
+  const { isDesktop, maxWidths } = useResponsive();
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
   const flatListRef = useRef<FlatList>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const router = useRouter();
   
   // Settings
   const {
@@ -534,14 +538,19 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     setQuietHoursStart(`${quietStartHour}:00`);
     setQuietHoursEnd(`${quietEndHour}:00`);
     
+    // Save onboarding completion to AsyncStorage
+    try {
+      await AsyncStorage.setItem('hasSeenOnboarding', 'true');
+    } catch (e) {
+      console.error('Failed to save onboarding status', e);
+    }
+    
+    // If callback provided (legacy usage), call it
     if (onComplete) {
       onComplete();
     } else {
-      try {
-        await AsyncStorage.setItem('hasSeenOnboarding', 'true');
-      } catch (e) {
-        console.error('Failed to save onboarding status', e);
-      }
+      // Navigate to signin screen (expo-router will handle the rest via guards)
+      router.replace('/signin');
     }
   };
 
@@ -556,38 +565,51 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const renderSlide = ({ item, index }: { item: string; index: number }) => {
     const isActive = index === currentIndex;
     
-    switch (item) {
-      case 'hero':
-        return <HeroScreen isActive={isActive} colors={colors} isDark={isDark} />;
-      case 'capture':
-        return <CaptureScreen isActive={isActive} colors={colors} isDark={isDark} />;
-      case 'organize':
-        return <OrganizeScreen isActive={isActive} colors={colors} isDark={isDark} />;
-      case 'brief':
-        return (
-          <DailyBriefScreen 
-            isActive={isActive}
-            colors={colors}
-            isDark={isDark}
-            briefTime={`${briefHour}:00`}
-            onTimeChange={setBriefHour}
-          />
-        );
-      case 'quiet':
-        return (
-          <QuietHoursScreen
-            isActive={isActive}
-            colors={colors}
-            isDark={isDark}
-            quietStart={`${quietStartHour}:00`}
-            quietEnd={`${quietEndHour}:00`}
-            onStartChange={setQuietStartHour}
-            onEndChange={setQuietEndHour}
-          />
-        );
-      default:
-        return null;
-    }
+    const slideContent = (() => {
+      switch (item) {
+        case 'hero':
+          return <HeroScreen isActive={isActive} colors={colors} isDark={isDark} />;
+        case 'capture':
+          return <CaptureScreen isActive={isActive} colors={colors} isDark={isDark} />;
+        case 'organize':
+          return <OrganizeScreen isActive={isActive} colors={colors} isDark={isDark} />;
+        case 'brief':
+          return (
+            <DailyBriefScreen
+              isActive={isActive}
+              colors={colors}
+              isDark={isDark}
+              briefTime={`${briefHour}:00`}
+              onTimeChange={setBriefHour}
+            />
+          );
+        case 'quiet':
+          return (
+            <QuietHoursScreen
+              isActive={isActive}
+              colors={colors}
+              isDark={isDark}
+              quietStart={`${quietStartHour}:00`}
+              quietEnd={`${quietEndHour}:00`}
+              onStartChange={setQuietStartHour}
+              onEndChange={setQuietEndHour}
+            />
+          );
+        default:
+          return null;
+      }
+    })();
+
+    return (
+      <View style={[styles.slideContainer, { width }]}>
+        <View style={[
+          styles.slideContent,
+          isDesktop && { maxWidth: maxWidths.onboardingSlide }
+        ]}>
+          {slideContent}
+        </View>
+      </View>
+    );
   };
 
   const isLastSlide = currentIndex === slides.length - 1;
@@ -611,6 +633,11 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         scrollEventThrottle={16}
         bounces={false}
         extraData={currentIndex}
+        getItemLayout={(_, index) => ({
+          length: width,
+          offset: width * index,
+          index,
+        })}
       />
 
       {/* Footer */}
@@ -665,8 +692,20 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
+  slideContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  slideContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+    paddingBottom: 180,
+    width: '100%',
+  },
   slide: {
-    width,
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',

@@ -7,17 +7,19 @@ import { Card } from '../../src/ui/components/Card';
 import { useItemsStore } from '../../src/store/useItemsStore';
 import { Item } from '../../src/db/items';
 import { Calendar, Trash2 } from 'lucide-react-native';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useRouter } from 'expo-router';
 import { GlassyHeader } from '../../src/ui/components/GlassyHeader';
 import { CalendarModal } from '../../src/ui/components/CalendarModal';
 import { expandRepeatingItems, ExpandedItem, getEffectiveDate } from '../../src/utils/repeatExpansion';
 import { safeParseDate } from '../../src/utils/dateUtils';
+import { useResponsive } from '../../src/ui/useResponsive';
 
 export default function UpcomingScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { isDesktop, contentWidth } = useResponsive();
   const insets = useSafeAreaInsets();
   const { items, init, loadItems, deleteItem, skipOccurrence } = useItemsStore();
 
@@ -175,6 +177,17 @@ export default function UpcomingScreen() {
     );
   };
 
+  const containerStyle = useMemo(() => ([
+    styles.container,
+    { backgroundColor: colors.background },
+    isDesktop && { alignItems: 'center' as const }
+  ]), [colors.background, isDesktop]);
+
+  const contentStyle = useMemo(() => ([
+    styles.content,
+    isDesktop && { maxWidth: contentWidth, width: '100%' as const }
+  ]), [isDesktop, contentWidth]);
+
   const ItemRow = ({ item, showTime = true, displayDate }: { item: Item; showTime?: boolean; displayDate?: Date }) => {
     const swipeableRef = useRef<Swipeable>(null);
     
@@ -274,11 +287,11 @@ export default function UpcomingScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <GlassyHeader 
-        title="Upcoming" 
+    <View style={containerStyle}>
+      <GlassyHeader
+        title="Upcoming"
         rightAction={
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => setIsCalendarModalVisible(true)}
             style={styles.calendarButton}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -298,22 +311,23 @@ export default function UpcomingScreen() {
         }}
       />
 
-      <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          { paddingTop: 16 }
-        ]}
-        contentInset={{ top: insets.top + 72 }}
-        contentOffset={{ x: 0, y: -(insets.top + 72) }}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={onRefresh}
-            tintColor={colors.primary}
-          />
-        }
-      >
+      <View style={contentStyle}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingTop: 16 }
+          ]}
+          contentInset={{ top: insets.top + 72 }}
+          contentOffset={{ x: 0, y: -(insets.top + 72) }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+            />
+          }
+        >
 
         {Object.entries(grouped).map(([date, dateItems]) => (
           <View key={date} style={styles.section}>
@@ -376,7 +390,8 @@ export default function UpcomingScreen() {
             </Typography>
           </View>
         )}
-      </ScrollView>
+        </ScrollView>
+      </View>
     </View>
   );
 }
@@ -386,6 +401,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
+    flex: 1,
+  },
+  scrollContent: {
     padding: theme.spacing.lg,
     paddingTop: 0, // Header provides the top spacing
     paddingBottom: 150,

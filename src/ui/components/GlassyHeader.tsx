@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -7,9 +7,6 @@ import { theme } from '../theme';
 import { Typography } from './Typography';
 import { useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
-
-
-const { width } = Dimensions.get('window');
 
 interface GlassyHeaderProps {
   title?: string;

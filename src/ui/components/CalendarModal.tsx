@@ -11,6 +11,7 @@ import { Item } from '../../db/items';
 import { expandRepeatingItems, ExpandedItem, getEffectiveDate } from '../../utils/repeatExpansion';
 import { formatLocalDate } from '../../utils/dateUtils';
 import { X } from 'lucide-react-native';
+import { useResponsive } from '../useResponsive';
 
 interface CalendarModalProps {
   isVisible: boolean;
@@ -27,6 +28,7 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
 }) => {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const { isDesktop, wideModalWidth } = useResponsive();
   const [selectedDate, setSelectedDate] = useState<string>(
     formatLocalDate(new Date())
   );
@@ -142,7 +144,10 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
       onBackdropPress={onClose}
       onSwipeComplete={onClose}
       swipeDirection="down"
-      style={styles.modal}
+      style={[
+        styles.modal,
+        isDesktop && styles.modalDesktop
+      ]}
       backdropOpacity={0.7}
       animationIn="slideInUp"
       animationOut="slideOutDown"
@@ -150,10 +155,20 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
       animationOutTiming={300}
       propagateSwipe
     >
-      <View style={[styles.modalContent, { 
-        backgroundColor: colors.background,
-        paddingTop: insets.top 
-      }]}>
+      <View style={[
+        styles.modalContent,
+        {
+          backgroundColor: colors.background,
+          paddingTop: insets.top,
+        },
+        isDesktop && {
+          width: wideModalWidth,
+          maxWidth: 800,
+          alignSelf: 'center',
+          height: '90%',
+          borderRadius: 24,
+        }
+      ]}>
         {/* Handle bar */}
         <View style={styles.handleBar}>
           <View style={[styles.handle, { backgroundColor: colors.textTertiary }]} />
@@ -246,6 +261,10 @@ const styles = StyleSheet.create({
   modal: {
     margin: 0,
     justifyContent: 'flex-end',
+  },
+  modalDesktop: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modalContent: {
     height: '100%',

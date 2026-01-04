@@ -7,13 +7,14 @@ import { Card } from '../../src/ui/components/Card';
 import { useItemsStore } from '../../src/store/useItemsStore';
 import { NotificationService } from '../../src/services/NotificationService';
 import { Item } from '../../src/db/items';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { RainbowSparkles } from '../../src/ui/components/RainbowSparkles';
 import { GlassyHeader } from '../../src/ui/components/GlassyHeader';
 import { TaskCelebration } from '../../src/ui/components/TaskCelebration';
 import { LoadingScreen } from '../../src/components/LoadingScreen';
+import { useResponsive } from '../../src/ui/useResponsive';
 import {
   expandRepeatingItems,
   getOverdueItems,
@@ -28,6 +29,8 @@ import { safeParseDate } from '../../src/utils/dateUtils';
 export default function BriefScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { isDesktop, contentWidth } = useResponsive();
+  const insets = useSafeAreaInsets(); // MOVED UP: Must be called before any early returns
   const { items, isLoading, init, loadItems, markAsDone, markAsUndone, updateItem, deleteItem, skipOccurrence } = useItemsStore();
   
   // Collapsible section states
@@ -44,6 +47,18 @@ export default function BriefScreen() {
   // Force re-render when time changes (for overdue detection)
   const [refreshKey, setRefreshKey] = useState(0);
   const appState = useRef(AppState.currentState);
+
+  // MOVED UP: useMemo hooks must be called before any early returns (React hooks rule)
+  const containerStyle = useMemo(() => ([
+    styles.container,
+    { backgroundColor: colors.background },
+    isDesktop && { alignItems: 'center' as const }
+  ]), [colors.background, isDesktop]);
+
+  const contentStyle = useMemo(() => ([
+    styles.content,
+    isDesktop && { maxWidth: contentWidth, width: '100%' as const }
+  ]), [isDesktop, contentWidth]);
   
   useEffect(() => {
     init();
@@ -411,10 +426,8 @@ export default function BriefScreen() {
     );
   };
 
-  const insets = useSafeAreaInsets();
-
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={containerStyle}>
       <GlassyHeader
         rightAction={
           <TouchableOpacity 
@@ -435,13 +448,14 @@ export default function BriefScreen() {
         </View>
       </GlassyHeader>
 
-      <ScrollView 
-        contentContainerStyle={[
-           styles.content,
-           { paddingTop: insets.top + 80 }
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={contentStyle}>
+        <ScrollView
+          contentContainerStyle={[
+             styles.scrollContent,
+             { paddingTop: insets.top + 80 }
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
             {/* Reminders Triggered Section - for items beyond 3-day window */}
             {triggeredReminders.length > 0 && (
               <View style={styles.section}>
@@ -582,11 +596,12 @@ export default function BriefScreen() {
             <Typography variant="footnote" color={colors.textTertiary} style={{ marginTop: 20, textAlign: 'center' }}>
               That's all for now.
             </Typography>
-      </ScrollView>
+        </ScrollView>
+      </View>
 
-      <TaskCelebration 
-        isVisible={showCelebration} 
-        onComplete={() => setShowCelebration(false)} 
+      <TaskCelebration
+        isVisible={showCelebration}
+        onComplete={() => setShowCelebration(false)}
       />
     </View>
   );
@@ -597,6 +612,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
+    flex: 1,
+  },
+  scrollContent: {
     flexGrow: 1, // Allow content to grow beyond screen height
     paddingHorizontal: theme.spacing.md,
     paddingTop: 0,

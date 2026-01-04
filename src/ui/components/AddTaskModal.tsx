@@ -22,6 +22,7 @@ import { Chip } from './Chip';
 import { theme } from '../theme';
 import { useItemsStore } from '../../store/useItemsStore';
 import { CustomRepeatConfig } from '../../db/items';
+import { useResponsive } from '../useResponsive';
 
 interface AddTaskModalProps {
   visible: boolean;
@@ -32,6 +33,7 @@ interface AddTaskModalProps {
 export function AddTaskModal({ visible, onClose, onSaveSuccess }: AddTaskModalProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const { isDesktop, contentWidth } = useResponsive();
   const { addItem, items } = useItemsStore();
   
   const [title, setTitle] = useState('');
@@ -200,9 +202,19 @@ export function AddTaskModal({ visible, onClose, onSaveSuccess }: AddTaskModalPr
       onRequestClose={handleClose}
     >
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <View style={[styles.container, { backgroundColor: colors.background }]}>
-          {/* Header */}
-          <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <View style={[
+          styles.container,
+          {
+            backgroundColor: colors.background,
+            alignItems: isDesktop ? 'center' : undefined,
+          }
+        ]}>
+          <View style={[
+            styles.innerContainer,
+            isDesktop && { width: contentWidth, maxWidth: 700 }
+          ]}>
+            {/* Header */}
+            <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
             <TouchableOpacity 
               onPress={handleClose}
               style={[styles.headerButton, { backgroundColor: colors.text + '10' }]}
@@ -353,6 +365,7 @@ export function AddTaskModal({ visible, onClose, onSaveSuccess }: AddTaskModalPr
               </Card>
             </ScrollView>
           </KeyboardAvoidingView>
+          </View>
         </View>
       </GestureHandlerRootView>
 
@@ -455,6 +468,10 @@ export function AddTaskModal({ visible, onClose, onSaveSuccess }: AddTaskModalPr
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  innerContainer: {
+    flex: 1,
+    width: '100%',
   },
   header: {
     flexDirection: 'row',

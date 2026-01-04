@@ -4,6 +4,7 @@ import { Typography } from './Typography';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Check, AlertCircle } from 'lucide-react-native';
 import type { ChatMessage as ChatMessageType } from '../../store/useChatStore';
+import { useResponsive } from '../useResponsive';
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -16,13 +17,17 @@ interface ChatMessageProps {
  */
 export function ChatMessage({ message }: ChatMessageProps) {
   const { colors, isDark } = useTheme();
+  const { isDesktop, maxWidths } = useResponsive();
   const isUser = message.role === 'user';
+  
+  const bubbleMaxWidth = isDesktop ? maxWidths.chatBubble : '85%';
 
   return (
     <View style={[styles.container, isUser && styles.containerUser]}>
       <View
         style={[
           styles.bubble,
+          { maxWidth: bubbleMaxWidth },
           isUser
             ? [styles.bubbleUser, { backgroundColor: isDark ? '#2C2C2E' : colors.primary }]
             : [styles.bubbleAssistant, { backgroundColor: isDark ? '#1C1C1E' : '#F0F0F5' }],
@@ -111,7 +116,6 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   bubble: {
-    maxWidth: '85%',
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 18,

@@ -1,8 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { StyleSheet, View, Dimensions, Animated, Easing } from 'react-native';
+import { StyleSheet, View, useWindowDimensions, Animated, Easing } from 'react-native';
 import { theme } from '../theme';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // Confetti colors based on the screenshot (lilac/purple theme)
 const COLORS = [
@@ -18,15 +16,17 @@ const PARTICLE_COUNT = 40; // Reduced slightly for JS-thread performance
 
 interface ParticleProps {
   index: number;
+  screenWidth: number;
+  screenHeight: number;
 }
 
-const Particle = ({ index }: ParticleProps) => {
+const Particle = ({ index, screenWidth, screenHeight }: ParticleProps) => {
   // Randomize initial position
-  const initialX = Math.random() * SCREEN_WIDTH;
+  const initialX = Math.random() * screenWidth;
   const initialY = -50 - Math.random() * 100; // Start above screen
 
   // Target position
-  const targetY = SCREEN_HEIGHT * 0.4 + Math.random() * SCREEN_HEIGHT * 0.5;
+  const targetY = screenHeight * 0.4 + Math.random() * screenHeight * 0.5;
   const targetX = initialX + (Math.random() - 0.5) * 150; // Drift
 
   // Animation values
@@ -105,6 +105,7 @@ interface TaskCelebrationProps {
 }
 
 export const TaskCelebration = ({ isVisible, onComplete }: TaskCelebrationProps) => {
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const [particles, setParticles] = useState<number[]>([]);
 
   useEffect(() => {
@@ -118,7 +119,7 @@ export const TaskCelebration = ({ isVisible, onComplete }: TaskCelebrationProps)
           onComplete();
         }
         setParticles([]);
-      }, 4000); 
+      }, 4000);
 
       return () => clearTimeout(timeout);
     } else {
@@ -131,7 +132,12 @@ export const TaskCelebration = ({ isVisible, onComplete }: TaskCelebrationProps)
   return (
     <View style={styles.container} pointerEvents="none">
          {particles.map((i) => (
-             <Particle key={i} index={i} />
+             <Particle
+               key={i}
+               index={i}
+               screenWidth={screenWidth}
+               screenHeight={screenHeight}
+             />
          ))}
     </View>
   );
