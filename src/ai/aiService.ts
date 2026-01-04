@@ -2,6 +2,8 @@ import { ItemType, ItemPriority } from '../db/items';
 import * as FileSystem from 'expo-file-system/legacy';
 import { safeIsoDate } from '../utils/dateUtils';
 import { z } from 'zod';
+import { logUsage, extractUsageFromResponse, AIOperationType } from '../services/usageTrackingService';
+import { supabase } from '../services/supabase';
 
 // ============================================
 // ZOD SCHEMAS FOR VALIDATION
@@ -573,7 +575,14 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 5, de
  */
 export const aiService: AIService = {
     transcribeAudio: async (audioUri: string, format: 'wav' | 'aac' = 'wav'): Promise<string> => {
+        const startTime = Date.now();
+        let userId: string | undefined;
+        
         try {
+            // Get current user ID
+            const { data: { user } } = await supabase.auth.getUser();
+            userId = user?.id;
+
             const base64Audio = await FileSystem.readAsStringAsync(audioUri, {
                 encoding: 'base64',
             });
@@ -603,7 +612,8 @@ export const aiService: AIService = {
                         ]
                     }
                 ],
-                temperature: 0
+                temperature: 0,
+                usage: { include: true }
             };
 
             const response = await fetchWithRetry("https://openrouter.ai/api/v1/chat/completions", {
@@ -619,22 +629,80 @@ export const aiService: AIService = {
 
             if (!response.ok) {
                 const errText = await response.text();
-                throw new Error(`OpenRouter API Error: ${response.status} ${errText}`);
+                const error = new Error(`OpenRouter API Error: ${response.status} ${errText}`);
+                
+                // Log failed request
+                if (userId) {
+                    logUsage({
+                        userId,
+                        modelId: TRANSCRIPTION_MODEL,
+                        operationType: AIOperationType.TRANSCRIBE,
+                        promptTokens: 0,
+                        completionTokens: 0,
+                        totalTokens: 0,
+                        responseTimeMs: Date.now() - startTime,
+                        success: false,
+                        errorMessage: error.message
+                    });
+                }
+                
+                throw error;
             }
 
             const data = await response.json();
             const transcription = data.choices[0]?.message?.content || "";
+            
+            // Log successful request
+            const usage = extractUsageFromResponse(data);
+            if (usage && userId) {
+                logUsage({
+                    userId,
+                    modelId: TRANSCRIPTION_MODEL,
+                    operationType: AIOperationType.TRANSCRIBE,
+                    promptTokens: usage.promptTokens,
+                    completionTokens: usage.completionTokens,
+                    totalTokens: usage.totalTokens,
+                    costUsd: usage.cost,
+                    cachedTokens: usage.cachedTokens,
+                    responseTimeMs: Date.now() - startTime,
+                    success: true
+                });
+            }
+            
             return transcription.trim();
 
         } catch (error) {
             console.error('Transcription failed:', error);
+            
+            // Log error if not already logged
+            if (userId && error instanceof Error) {
+                logUsage({
+                    userId,
+                    modelId: TRANSCRIPTION_MODEL,
+                    operationType: AIOperationType.TRANSCRIBE,
+                    promptTokens: 0,
+                    completionTokens: 0,
+                    totalTokens: 0,
+                    responseTimeMs: Date.now() - startTime,
+                    success: false,
+                    errorMessage: error.message
+                });
+            }
+            
             throw error;
         }
     },
 
 
     analyzeText: async (text: string): Promise<AIAnalysisResult> => {
+        const startTime = Date.now();
+        let userId: string | undefined;
+        
         try {
+            // Get current user ID
+            const { data: { user } } = await supabase.auth.getUser();
+            userId = user?.id;
+
             // GUARDIAL: Skip parsing for empty/noise input
             if (!text || text.trim().length < 2 || /^(um+|uh+|hmm+|…|\.+|,|\[silence\]|\[unclear\])+$/i.test(text.trim())) {
                 // console.log('[AI Service] Skipping empty/noise input:', text);
@@ -823,7 +891,8 @@ Now produce ONLY the JSON object.`;
                     }
                 ],
                 response_format: { type: "json_object" },
-                temperature: 0
+                temperature: 0,
+                usage: { include: true }
             };
 
             const response = await fetchWithRetry("https://openrouter.ai/api/v1/chat/completions", {
@@ -839,7 +908,24 @@ Now produce ONLY the JSON object.`;
 
             if (!response.ok) {
                 const errText = await response.text();
-                throw new Error(`OpenRouter API Error: ${response.status} ${errText}`);
+                const error = new Error(`OpenRouter API Error: ${response.status} ${errText}`);
+                
+                // Log failed request
+                if (userId) {
+                    logUsage({
+                        userId,
+                        modelId: CHAT_MODEL,
+                        operationType: AIOperationType.PROCESS_NOTE,
+                        promptTokens: 0,
+                        completionTokens: 0,
+                        totalTokens: 0,
+                        responseTimeMs: Date.now() - startTime,
+                        success: false,
+                        errorMessage: error.message
+                    });
+                }
+                
+                throw error;
             }
 
             const data = await response.json();
@@ -848,11 +934,45 @@ Now produce ONLY the JSON object.`;
             // Clean up code blocks if present
             const cleanContent = content.replace(/```json/g, '').replace(/```/g, '').trim();
 
+            // Log successful request
+            const usage = extractUsageFromResponse(data);
+            if (usage && userId) {
+                logUsage({
+                    userId,
+                    modelId: CHAT_MODEL,
+                    operationType: AIOperationType.PROCESS_NOTE,
+                    promptTokens: usage.promptTokens,
+                    completionTokens: usage.completionTokens,
+                    totalTokens: usage.totalTokens,
+                    costUsd: usage.cost,
+                    cachedTokens: usage.cachedTokens,
+                    responseTimeMs: Date.now() - startTime,
+                    success: true,
+                    metadata: { textLength: text.length }
+                });
+            }
+
             // Use Zod validation with safe fallback
             return safeParseAIAnalysisResult(cleanContent);
 
         } catch (error) {
             console.error('Analysis failed:', error);
+            
+            // Log error if not already logged
+            if (userId && error instanceof Error) {
+                logUsage({
+                    userId,
+                    modelId: CHAT_MODEL,
+                    operationType: AIOperationType.PROCESS_NOTE,
+                    promptTokens: 0,
+                    completionTokens: 0,
+                    totalTokens: 0,
+                    responseTimeMs: Date.now() - startTime,
+                    success: false,
+                    errorMessage: error.message
+                });
+            }
+            
             // Fallback: default to note type
             return {
                 title: text.slice(0, 50),
@@ -870,7 +990,14 @@ Now produce ONLY the JSON object.`;
         upcomingSchedule?: string,
         chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }>
     ): Promise<ChatIntentResult> => {
+        const startTime = Date.now();
+        let userId: string | undefined;
+        
         try {
+            // Get current user ID
+            const { data: { user } } = await supabase.auth.getUser();
+            userId = user?.id;
+
             // GUARDIAL: Skip parsing for empty/noise input
             if (!text || text.trim().length < 2 || /^(um+|uh+|hmm+|…|\.+|,|\[silence\]|\[unclear\])+$/i.test(text.trim())) {
                 // console.log('[AI Service] Skipping empty/noise intent:', text);
@@ -1442,13 +1569,14 @@ USER MESSAGE:
                     }
                 ],
                 response_format: { type: "json_object" },
-                temperature: 0
+                temperature: 0,
+                usage: { include: true }
             };
 
             const response = await fetchWithRetry("https://openrouter.ai/api/v1/chat/completions", {
                 method: "POST",
                 headers: {
-                    "Authorization": `Bearer ${OPENROUTER_API_KEY} `,
+                    "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
                     "Content-Type": "application/json",
                     "HTTP-Referer": "https://asteron.app",
                     "X-Title": "Asteron",
@@ -1458,18 +1586,73 @@ USER MESSAGE:
 
             if (!response.ok) {
                 const errText = await response.text();
-                throw new Error(`OpenRouter API Error: ${response.status} ${errText} `);
+                const error = new Error(`OpenRouter API Error: ${response.status} ${errText}`);
+                
+                // Log failed request
+                if (userId) {
+                    logUsage({
+                        userId,
+                        modelId: CHAT_MODEL,
+                        operationType: AIOperationType.CHAT,
+                        promptTokens: 0,
+                        completionTokens: 0,
+                        totalTokens: 0,
+                        responseTimeMs: Date.now() - startTime,
+                        success: false,
+                        errorMessage: error.message
+                    });
+                }
+                
+                throw error;
             }
 
             const data = await response.json();
             const content = data.choices[0]?.message?.content;
             const cleanContent = content.replace(/```json/g, '').replace(/```/g, '').trim();
 
+            // Log successful request
+            const usage = extractUsageFromResponse(data);
+            if (usage && userId) {
+                logUsage({
+                    userId,
+                    modelId: CHAT_MODEL,
+                    operationType: AIOperationType.CHAT,
+                    promptTokens: usage.promptTokens,
+                    completionTokens: usage.completionTokens,
+                    totalTokens: usage.totalTokens,
+                    costUsd: usage.cost,
+                    cachedTokens: usage.cachedTokens,
+                    responseTimeMs: Date.now() - startTime,
+                    success: true,
+                    metadata: {
+                        textLength: text.length,
+                        hasExistingItems: !!existingItems?.length,
+                        hasChatHistory: !!chatHistory?.length
+                    }
+                });
+            }
+
             // Use Zod validation with safe fallback
             return safeParseChatIntentResult(cleanContent);
 
         } catch (error) {
             console.error('Intent analysis failed:', error);
+            
+            // Log error if not already logged
+            if (userId && error instanceof Error) {
+                logUsage({
+                    userId,
+                    modelId: CHAT_MODEL,
+                    operationType: AIOperationType.CHAT,
+                    promptTokens: 0,
+                    completionTokens: 0,
+                    totalTokens: 0,
+                    responseTimeMs: Date.now() - startTime,
+                    success: false,
+                    errorMessage: error.message
+                });
+            }
+            
             // Fallback: treat as chat
             return {
                 intent: 'chat',
@@ -1492,7 +1675,14 @@ USER MESSAGE:
         nextQuestion?: string;
         complete: boolean;
     }> => {
+        const startTime = Date.now();
+        let userId: string | undefined;
+        
         try {
+            // Get current user ID
+            const { data: { user } } = await supabase.auth.getUser();
+            userId = user?.id;
+
             const now = new Date();
             const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
             const tzOffset = -now.getTimezoneOffset();
@@ -1566,7 +1756,8 @@ Return ONLY valid JSON:
             const body = {
                 model: CHAT_MODEL,
                 messages: [{ role: "user", content: prompt }],
-                response_format: { type: "json_object" }
+                response_format: { type: "json_object" },
+                usage: { include: true }
             };
 
             const response = await fetchWithRetry("https://openrouter.ai/api/v1/chat/completions", {
@@ -1582,18 +1773,72 @@ Return ONLY valid JSON:
 
             if (!response.ok) {
                 const errText = await response.text();
-                throw new Error(`OpenRouter API Error: ${response.status} ${errText}`);
+                const error = new Error(`OpenRouter API Error: ${response.status} ${errText}`);
+                
+                // Log failed request
+                if (userId) {
+                    logUsage({
+                        userId,
+                        modelId: CHAT_MODEL,
+                        operationType: AIOperationType.CHAT,
+                        promptTokens: 0,
+                        completionTokens: 0,
+                        totalTokens: 0,
+                        responseTimeMs: Date.now() - startTime,
+                        success: false,
+                        errorMessage: error.message
+                    });
+                }
+                
+                throw error;
             }
 
             const data = await response.json();
             const content = data.choices[0]?.message?.content;
             const cleanContent = content.replace(/```json/g, '').replace(/```/g, '').trim();
 
+            // Log successful request
+            const usage = extractUsageFromResponse(data);
+            if (usage && userId) {
+                logUsage({
+                    userId,
+                    modelId: CHAT_MODEL,
+                    operationType: AIOperationType.CHAT,
+                    promptTokens: usage.promptTokens,
+                    completionTokens: usage.completionTokens,
+                    totalTokens: usage.totalTokens,
+                    costUsd: usage.cost,
+                    cachedTokens: usage.cachedTokens,
+                    responseTimeMs: Date.now() - startTime,
+                    success: true,
+                    metadata: {
+                        followUpAnswer: true,
+                        missingFieldsCount: missingFields.length
+                    }
+                });
+            }
+
             // Use Zod validation with safe fallback
             return safeParseFollowUpAnswerResult(cleanContent, pendingData);
 
         } catch (error) {
             console.error('Follow-up processing failed:', error);
+            
+            // Log error if not already logged
+            if (userId && error instanceof Error) {
+                logUsage({
+                    userId,
+                    modelId: CHAT_MODEL,
+                    operationType: AIOperationType.CHAT,
+                    promptTokens: 0,
+                    completionTokens: 0,
+                    totalTokens: 0,
+                    responseTimeMs: Date.now() - startTime,
+                    success: false,
+                    errorMessage: error.message
+                });
+            }
+            
             // Fallback: just mark as complete with existing data
             return {
                 updatedData: pendingData as Partial<ChatIntentResult['itemData']>,
