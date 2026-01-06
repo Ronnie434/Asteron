@@ -105,6 +105,8 @@ export default function NoteDetailScreen() {
       <GlassyHeader
         title="Note"
         disableTopSafeArea
+        isFloatingPill
+        isModalSheet
         leftAction={
           <TouchableOpacity 
             onPress={handleBack}
@@ -126,7 +128,7 @@ export default function NoteDetailScreen() {
       <ScrollView 
         contentContainerStyle={[
           styles.content, 
-          { paddingTop: 100 } // Fixed padding for header height (72) + spacing
+          { paddingTop: 8 + 56 + 16 } // compact: header offset (8) + header height (56) + spacing (16)
         ]}
         showsVerticalScrollIndicator={false}
       >

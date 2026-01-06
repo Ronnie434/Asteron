@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
+import { LiquidGlassView, isLiquidGlassSupported } from '@callstack/liquid-glass';
 import { useTheme } from '../../contexts/ThemeContext';
 import { theme } from '../theme';
 import { Typography } from './Typography';
@@ -17,6 +18,10 @@ interface GlassyHeaderProps {
   children?: React.ReactNode;
   style?: any;
   disableTopSafeArea?: boolean;
+  /** Floating pill style for modals - fully rounded with horizontal margins */
+  isFloatingPill?: boolean;
+  /** Modal sheet presentation (compact spacing) vs fullscreen modal (needs safe area) */
+  isModalSheet?: boolean;
 }
 
 export function GlassyHeader({ 
@@ -27,7 +32,9 @@ export function GlassyHeader({
   rightAction, 
   children,
   style,
-  disableTopSafeArea = false
+  disableTopSafeArea = false,
+  isFloatingPill = false,
+  isModalSheet = false
 }: GlassyHeaderProps) {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
@@ -41,46 +48,75 @@ export function GlassyHeader({
     }
   };
 
+  const containerStyle = [
+    isFloatingPill ? styles.floatingContainer : styles.container, 
+    { 
+      // For floating pill: modal sheets use compact 8px, fullscreen modals use safe area + 12px
+      ...(isFloatingPill ? {
+        top: isModalSheet ? 8 : (insets.top + 12),
+      } : {
+        paddingTop: disableTopSafeArea ? 0 : insets.top,
+        borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+      }),
+      // Fallback styles for non-iOS 26 devices
+      ...(!isLiquidGlassSupported && {
+        backgroundColor: isDark ? 'rgba(28, 28, 30, 0.95)' : 'rgba(255, 255, 255, 0.98)',
+      }),
+    },
+    style
+  ];
+
+  const headerContent = (
+    <View style={styles.content}>
+      <View style={styles.leftContainer}>
+        {leftAction ? leftAction : (
+          showBack ? (
+            <TouchableOpacity 
+              onPress={handleBack} 
+              style={styles.backButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <ChevronLeft size={24} color={colors.primary} />
+            </TouchableOpacity>
+          ) : children
+        )}
+      </View>
+
+      {title && (
+        <View style={styles.titleContainer}>
+          <Typography variant="headline" numberOfLines={1} style={{ textAlign: 'center' }}>
+            {title}
+          </Typography>
+        </View>
+      )}
+
+      <View style={styles.rightContainer}>
+        {rightAction}
+      </View>
+    </View>
+  );
+
+  // Use LiquidGlassView on iOS 26+, BlurView as fallback
+  if (isLiquidGlassSupported) {
+    return (
+      <LiquidGlassView
+        style={containerStyle}
+        effect="clear"
+        colorScheme={isDark ? 'dark' : 'light'}
+        interactive
+      >
+        {headerContent}
+      </LiquidGlassView>
+    );
+  }
+
   return (
     <BlurView
       intensity={80}
       tint={isDark ? 'dark' : 'light'}
-      style={[
-        styles.container, 
-        { 
-          paddingTop: disableTopSafeArea ? 0 : insets.top,
-          borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
-        },
-        style
-      ]}
+      style={containerStyle}
     >
-      <View style={styles.content}>
-        <View style={styles.leftContainer}>
-          {leftAction ? leftAction : (
-            showBack ? (
-              <TouchableOpacity 
-                onPress={handleBack} 
-                style={styles.backButton}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <ChevronLeft size={24} color={colors.primary} />
-              </TouchableOpacity>
-            ) : children
-          )}
-        </View>
-
-        {title && (
-          <View style={styles.titleContainer}>
-            <Typography variant="headline" numberOfLines={1} style={{ textAlign: 'center' }}>
-              {title}
-            </Typography>
-          </View>
-        )}
-
-        <View style={styles.rightContainer}>
-          {rightAction}
-        </View>
-      </View>
+      {headerContent}
     </BlurView>
   );
 }
@@ -97,13 +133,28 @@ const styles = StyleSheet.create({
     borderTopRightRadius: theme.borderRadius.xl,
     overflow: 'hidden',
   },
+  floatingContainer: {
+    position: 'absolute',
+    top: 12,
+    left: 16,
+    right: 16,
+    zIndex: 100,
+    borderRadius: 32,
+    overflow: 'hidden',
+    // Shadow for floating effect
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
   content: {
-    height: 60, // Increased header height for better vertical spacing
+    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md, // Balanced vertical padding
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
   },
   leftContainer: {
     flex: 1,

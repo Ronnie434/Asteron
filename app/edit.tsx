@@ -233,6 +233,8 @@ export default function EditScreen() {
       <GlassyHeader
         title="Edit"
         disableTopSafeArea
+        isFloatingPill
+        isModalSheet
         leftAction={
           <TouchableOpacity 
             onPress={() => router.back()}
@@ -254,7 +256,7 @@ export default function EditScreen() {
       <ScrollView 
         contentContainerStyle={[
           styles.content, 
-          { paddingTop: 100 } // Fixed padding for header height (72) + spacing
+          { paddingTop: 8 + 56 + 16 } // header offset (8) + header height (56) + spacing (16)
         ]}
         showsVerticalScrollIndicator={false}
       >

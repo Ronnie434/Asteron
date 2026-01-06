@@ -17,6 +17,7 @@ import { X, Check } from 'lucide-react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Typography } from './Typography';
 import { Card } from './Card';
+import { GlassyHeader } from './GlassyHeader';
 import { theme } from '../theme';
 import { useItemsStore } from '../../store/useItemsStore';
 import { useResponsive } from '../useResponsive';
@@ -94,23 +95,29 @@ export function AddNoteModal({ visible, onClose, onSaveSuccess }: AddNoteModalPr
             styles.innerContainer,
             isDesktop && { width: contentWidth, maxWidth: 700 }
           ]}>
-            {/* Header */}
-            <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-            <TouchableOpacity 
-              onPress={handleClose}
-              style={[styles.headerButton, { backgroundColor: colors.text + '10' }]}
-            >
-              <X size={20} color={colors.text} />
-            </TouchableOpacity>
-            <Typography variant="headline">New Note</Typography>
-            <TouchableOpacity 
-              onPress={handleSave}
-              style={[styles.headerButton, { backgroundColor: colors.primary + '20' }]}
-              disabled={!title.trim()}
-            >
-              <Check size={20} color={title.trim() ? colors.primary : colors.textTertiary} />
-            </TouchableOpacity>
-          </View>
+            {/* Floating Pill Header */}
+            <GlassyHeader
+              title="New Note"
+              disableTopSafeArea
+              isFloatingPill
+              leftAction={
+                <TouchableOpacity 
+                  onPress={handleClose}
+                  style={[styles.headerButton, { backgroundColor: colors.text + '10' }]}
+                >
+                  <X size={20} color={colors.text} />
+                </TouchableOpacity>
+              }
+              rightAction={
+                <TouchableOpacity 
+                  onPress={handleSave}
+                  style={[styles.headerButton, { backgroundColor: colors.primary + '20' }]}
+                  disabled={!title.trim()}
+                >
+                  <Check size={20} color={title.trim() ? colors.primary : colors.textTertiary} />
+                </TouchableOpacity>
+              }
+            />
 
           <KeyboardAvoidingView 
             style={{ flex: 1 }}
@@ -118,7 +125,10 @@ export function AddNoteModal({ visible, onClose, onSaveSuccess }: AddNoteModalPr
           >
             <ScrollView 
               style={styles.scrollContent}
-              contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+              contentContainerStyle={{ 
+                paddingTop: insets.top + 12 + 56 + 16, // safe area + header offset (12) + header height (56) + spacing (16)
+                paddingBottom: insets.bottom + 40 
+              }}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
