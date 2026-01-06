@@ -5,11 +5,13 @@ import { StatusBar } from 'expo-status-bar';
 import { useFonts, Manrope_400Regular, Manrope_600SemiBold, Manrope_700Bold } from '@expo-google-fonts/manrope';
 import { DMSans_400Regular, DMSans_500Medium, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useCallback, useRef, useState } from 'react';
+import { useEffect, useCallback, useRef, useState, useMemo } from 'react';
 import { View, StyleSheet, Dimensions, Pressable, AppState } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets, SafeAreaProvider } from 'react-native-safe-area-context';
 import { Home, PlusCircle, Calendar, Settings, FileText } from 'lucide-react-native';
+import { LiquidGlassView, isLiquidGlassSupported } from '@callstack/liquid-glass';
 import { theme } from '../src/ui/theme';
 import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
 import { CaptureProvider, useCapture } from '../src/contexts/CaptureContext';
@@ -236,35 +238,92 @@ function FloatingTabBar() {
   const router = useRouter();
   const { openCapture } = useCapture();
 
+  // Calculate active tab index
+  const activeTabIndex = useMemo(() => {
+    const index = TAB_ROUTES.findIndex(route =>
+      pathname === `/${route.name}` ||
+      pathname === route.path ||
+      pathname.startsWith(`/${route.name}/`) ||
+      pathname.startsWith(`${route.path}/`)
+    );
+    return index >= 0 ? index : 0;
+  }, [pathname]);
+
+  const activeTab = TAB_ROUTES[activeTabIndex]?.name || 'brief';
+
+  // Animation for the sliding indicator
+  const sliderPosition = useSharedValue(0);
+  const TAB_COUNT = TAB_ROUTES.length;
+  const SLIDER_SIZE = 48;
+  const PADDING = 8;
+  
+  // Calculate tab width based on container
+  const tabWidth = useMemo(() => {
+    return (tabBarWidth - (PADDING * 2)) / TAB_COUNT;
+  }, [tabBarWidth]);
+
+  // Update slider position when active tab changes
+  useEffect(() => {
+    const targetPosition = PADDING + (activeTabIndex * tabWidth) + (tabWidth / 2) - (SLIDER_SIZE / 2);
+    sliderPosition.value = withSpring(targetPosition, {
+      damping: 20,
+      stiffness: 300,
+      mass: 0.5,
+    });
+  }, [activeTabIndex, tabWidth]);
+
+  const sliderAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: sliderPosition.value }],
+  }));
+
   const handleTabPress = useCallback((route: typeof TAB_ROUTES[0]) => {
     if (route.path === 'CAPTURE_OVERLAY') {
-      // Open capture as overlay instead of navigation
       openCapture();
     } else {
       router.push(route.path as any);
     }
   }, [router, openCapture]);
 
-  const activeTab = TAB_ROUTES.find(route =>
-    pathname === `/${route.name}` ||
-    pathname === route.path ||
-    pathname.startsWith(`/${route.name}/`) ||
-    pathname.startsWith(`${route.path}/`)
-  )?.name || 'brief';
-
   return (
     <View
       style={[styles.tabBarWrapper, { bottom: bottomOffset }]}
       pointerEvents="box-none"
     >
-      <View style={[
-        styles.tabBarContainer,
-        {
-          width: tabBarWidth,
-          backgroundColor: isDark ? 'rgba(28, 28, 30, 0.95)' : 'rgba(255, 255, 255, 0.98)',
-          borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.9)',
-        }
-      ]}>
+      <LiquidGlassView
+        style={[
+          styles.tabBarContainer,
+          {
+            width: tabBarWidth,
+            ...(!isLiquidGlassSupported && {
+              backgroundColor: isDark ? 'rgba(28, 28, 30, 0.95)' : 'rgba(255, 255, 255, 0.98)',
+              borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.9)',
+              borderWidth: 1,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.15,
+              shadowRadius: 20,
+              elevation: 15,
+            }),
+          }
+        ]}
+        interactive
+        effect="clear"
+        colorScheme={isDark ? 'dark' : 'light'}
+      >
+        {/* Animated Slider Indicator */}
+        <Animated.View
+          style={[
+            styles.slider,
+            {
+              backgroundColor: colors.primaryLight,
+              width: SLIDER_SIZE,
+              height: SLIDER_SIZE,
+            },
+            sliderAnimatedStyle,
+          ]}
+        />
+        
+        {/* Tab Items */}
         {TAB_ROUTES.map((route) => (
           <Pressable
             key={route.name}
@@ -276,10 +335,7 @@ function FloatingTabBar() {
             hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
             android_ripple={{ color: 'rgba(0, 122, 255, 0.2)', borderless: true }}
           >
-            <View style={[
-              styles.iconWrapper,
-              activeTab === route.name && { backgroundColor: colors.primaryLight },
-            ]}>
+            <View style={styles.iconWrapper}>
               <route.Icon
                 size={26}
                 color={activeTab === route.name ? colors.primary : colors.textTertiary}
@@ -288,7 +344,7 @@ function FloatingTabBar() {
             </View>
           </Pressable>
         ))}
-      </View>
+      </LiquidGlassView>
     </View>
   );
 }
@@ -305,18 +361,15 @@ const styles = StyleSheet.create({
   tabBarContainer: {
     height: 64,
     borderRadius: 32,
-    backgroundColor: 'rgba(255, 255, 255, 0.98)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
     paddingHorizontal: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 15,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.9)',
+  },
+  slider: {
+    position: 'absolute',
+    borderRadius: 24,
+    left: 0,
   },
   tabItem: {
     flex: 1,
@@ -325,6 +378,7 @@ const styles = StyleSheet.create({
     height: '100%',
     minHeight: 48,
     minWidth: 48,
+    zIndex: 1,
   },
   tabItemPressed: {
     opacity: 0.6,
