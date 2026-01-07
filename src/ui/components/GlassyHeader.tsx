@@ -126,12 +126,11 @@ const styles = StyleSheet.create({
   container: {
     position: 'absolute',
     top: 0,
-    left: 0,
-    right: 0,
+    left: -20,
+    right: -20,
+    paddingHorizontal: 20,
     zIndex: 100,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderTopLeftRadius: theme.borderRadius.xl,
-    borderTopRightRadius: theme.borderRadius.xl,
     overflow: 'hidden',
   },
   floatingContainer: {
