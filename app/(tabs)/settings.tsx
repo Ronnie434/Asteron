@@ -438,6 +438,7 @@ export default function SettingsScreen() {
           dailyBriefTime={dailyBriefTime}
           setDailyBriefTime={setDailyBriefTime}
           colors={colors}
+          isDark={isDark}
         />
         <WeeklyBriefModal
           visible={weeklyBriefModalVisible}
@@ -447,6 +448,7 @@ export default function SettingsScreen() {
           setWeeklyBriefDay={setWeeklyBriefDay}
           setWeeklyBriefTime={setWeeklyBriefTime}
           colors={colors}
+          isDark={isDark}
         />
 
         {/* About */}
@@ -708,13 +710,15 @@ const DailyBriefModal = ({
   onClose,
   dailyBriefTime,
   setDailyBriefTime,
-  colors
+  colors,
+  isDark
 }: {
   visible: boolean;
   onClose: () => void;
   dailyBriefTime: string;
   setDailyBriefTime: (time: string) => void;
   colors: any;
+  isDark: boolean;
 }) => {
   const formatTimeDisplay = (timeStr: string) => {
     const [hours, minutes] = timeStr.split(':').map(Number);
@@ -774,7 +778,7 @@ const DailyBriefModal = ({
                 is24Hour={false}
                 display="spinner"
                 onChange={onTimeChange}
-                themeVariant="dark"
+                themeVariant={isDark ? 'dark' : 'light'}
                 style={{ height: 150, width: '100%' }}
               />
             </View>
@@ -797,7 +801,8 @@ const WeeklyBriefModal = ({
   weeklyBriefTime,
   setWeeklyBriefDay,
   setWeeklyBriefTime,
-  colors
+  colors,
+  isDark
 }: {
   visible: boolean;
   onClose: () => void;
@@ -806,6 +811,7 @@ const WeeklyBriefModal = ({
   setWeeklyBriefDay: (day: number) => void;
   setWeeklyBriefTime: (time: string) => void;
   colors: any;
+  isDark: boolean;
 }) => {
   const getTimeDate = () => {
     const [hours, minutes] = weeklyBriefTime.split(':').map(Number);
@@ -854,8 +860,8 @@ const WeeklyBriefModal = ({
           <Typography variant="footnote" color={colors.textSecondary} style={{ marginBottom: 8 }}>
             DAY
           </Typography>
-          <Card style={[styles.card, { marginBottom: theme.spacing.md }]}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 8 }}>
+          <View style={{ marginBottom: theme.spacing.md }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 4 }}>
               {DAYS_OF_WEEK.map((day, index) => (
                 <TouchableOpacity
                   key={day}
@@ -865,7 +871,11 @@ const WeeklyBriefModal = ({
                     paddingHorizontal: 16,
                     marginRight: 8,
                     borderRadius: 20,
-                    backgroundColor: weeklyBriefDay === index ? colors.primary : colors.background,
+                    backgroundColor: weeklyBriefDay === index 
+                      ? colors.primary 
+                      : isDark 
+                        ? 'rgba(255,255,255,0.08)' 
+                        : 'rgba(0,0,0,0.05)',
                   }}
                 >
                   <Typography 
@@ -877,7 +887,7 @@ const WeeklyBriefModal = ({
                 </TouchableOpacity>
               ))}
             </ScrollView>
-          </Card>
+          </View>
 
           {/* Time Picker */}
           <Typography variant="footnote" color={colors.textSecondary} style={{ marginBottom: 8 }}>
@@ -891,7 +901,7 @@ const WeeklyBriefModal = ({
                 is24Hour={false}
                 display="spinner"
                 onChange={onTimeChange}
-                themeVariant="dark"
+                themeVariant={isDark ? 'dark' : 'light'}
                 style={{ height: 150, width: '100%' }}
               />
             </View>
