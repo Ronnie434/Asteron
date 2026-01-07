@@ -3,7 +3,8 @@ import { safeParseDate, formatLocalDate, getTodayLocalDate } from '../../src/uti
 import { View, StyleSheet, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Keyboard, Alert, TextInput, Dimensions, Animated, Text } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
-import { ChevronLeft, Mic, ChevronRight, Info, Trash2 } from 'lucide-react-native';
+import { X, Mic, ChevronRight, Info, Trash2 } from 'lucide-react-native';
+import { GlassyHeader } from '../../src/ui/components/GlassyHeader';
 import { useRouter } from 'expo-router';
 import { Audio } from 'expo-av';
 import { useTheme } from '../../src/contexts/ThemeContext';
@@ -1094,62 +1095,45 @@ export default function CaptureScreen({ onClose }: CaptureScreenProps) {
           styles.contentWrapper,
           isDesktop && { maxWidth: contentWidth, alignSelf: 'center', width: '100%' }
         ]}>
-          {/* Header with Back Button */}
-          <View style={styles.header}>
-          <TouchableOpacity 
-            onPress={() => onClose ? onClose() : router.back()}
-            activeOpacity={0.7}
-            style={styles.backButtonTouchable}
+          {/* Floating Header with Liquid Glass */}
+          <GlassyHeader
+            disableTopSafeArea
+            isFloatingPill
+            isModalSheet
+            leftAction={
+              <TouchableOpacity 
+                onPress={() => onClose ? onClose() : router.back()}
+                style={[styles.iconButton, { backgroundColor: colors.text + '10' }]}
+              >
+                <X size={22} color={colors.text} />
+              </TouchableOpacity>
+            }
+            rightAction={
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                {/* Clear Chat Button - only show when there are messages */}
+                {messages.length > 0 && (
+                  <TouchableOpacity 
+                    onPress={handleClearChat}
+                    activeOpacity={0.6}
+                    style={[styles.iconButton, { backgroundColor: colors.text + '10', marginRight: 8 }]}
+                  >
+                    <Trash2 size={18} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                )}
+                
+                {/* Info Button */}
+                <TouchableOpacity 
+                  onPress={() => setShowHelpModal(true)}
+                  activeOpacity={0.6}
+                  style={[styles.iconButton, { backgroundColor: colors.text + '10' }]}
+                >
+                  <Info size={20} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+            }
           >
-            <BlurView
-              intensity={isDark ? 40 : 60}
-              tint={isDark ? 'dark' : 'light'}
-              style={[
-                styles.backButton,
-                { 
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
-                  borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
-                }
-              ]}
-            >
-              <ChevronLeft size={24} color={colors.text} strokeWidth={2} />
-            </BlurView>
-          </TouchableOpacity>
-          <View style={styles.headerCenter}>
             <RainbowSparkles size={20} />
-          </View>
-
-          <View style={styles.headerRight}>
-             {/* Clear Chat Button - only show when there are messages */}
-             {messages.length > 0 && (
-               <TouchableOpacity 
-                 onPress={handleClearChat}
-                 activeOpacity={0.6}
-                 style={[
-                     styles.iconButton,
-                     { 
-                       backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
-                       marginRight: 8,
-                     }
-                 ]}
-               >
-                 <Trash2 size={18} color={colors.textSecondary} />
-               </TouchableOpacity>
-             )}
-             
-             {/* Info Button */}
-             <TouchableOpacity 
-                onPress={() => setShowHelpModal(true)}
-                activeOpacity={0.6}
-                style={[
-                    styles.iconButton,
-                    { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }
-                ]}
-             >
-                <Info size={20} color={colors.text} />
-             </TouchableOpacity>
-          </View>
-        </View>
+          </GlassyHeader>
 
         <HelpModal visible={showHelpModal} onClose={() => setShowHelpModal(false)} />
         <AddTaskModal 

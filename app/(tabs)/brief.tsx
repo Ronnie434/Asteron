@@ -10,7 +10,6 @@ import { Item } from '../../src/db/items';
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
-import { RainbowSparkles } from '../../src/ui/components/RainbowSparkles';
 import { GlassyHeader } from '../../src/ui/components/GlassyHeader';
 import { TaskCelebration } from '../../src/ui/components/TaskCelebration';
 import { LoadingScreen } from '../../src/components/LoadingScreen';
@@ -428,16 +427,7 @@ export default function BriefScreen() {
 
   return (
     <View style={containerStyle}>
-      <GlassyHeader
-        rightAction={
-          <TouchableOpacity 
-            onPress={() => router.push('/capture')}
-            activeOpacity={0.6}
-          >
-            <RainbowSparkles size={24} />
-          </TouchableOpacity>
-        }
-      >
+      <GlassyHeader>
         <View style={styles.briefTitleContainer}>
           <Image 
             source={require('../../assets/AI_Companion_icon.png')}

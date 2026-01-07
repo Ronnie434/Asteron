@@ -10,7 +10,7 @@ import { View, StyleSheet, Dimensions, Pressable, AppState } from 'react-native'
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets, SafeAreaProvider } from 'react-native-safe-area-context';
-import { Home, PlusCircle, Calendar, Settings, FileText } from 'lucide-react-native';
+import { Home, Calendar, Settings, FileText } from 'lucide-react-native';
 import { LiquidGlassView, isLiquidGlassSupported } from '@callstack/liquid-glass';
 import { theme } from '../src/ui/theme';
 import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
@@ -22,13 +22,13 @@ import { useChatStore } from '../src/store/useChatStore';
 import { LoadingScreen } from '../src/components/LoadingScreen';
 import CaptureScreen from './(tabs)/capture';
 import { useResponsive } from '../src/ui/useResponsive';
+import { FloatingAIButton } from '../src/ui/components/FloatingAIButton';
 
 SplashScreen.preventAutoHideAsync();
 
 const TAB_ROUTES = [
   { name: 'brief', path: '/(tabs)/brief', Icon: Home },
   { name: 'upcoming', path: '/(tabs)/upcoming', Icon: Calendar },
-  { name: 'capture', path: 'CAPTURE_OVERLAY', Icon: PlusCircle }, // Special handler for capture
   { name: 'notes', path: '/(tabs)/notes', Icon: FileText },
   { name: 'settings', path: '/(tabs)/settings', Icon: Settings },
 ];
@@ -37,24 +37,30 @@ function MainAppContent() {
   const { isDark, colors } = useTheme();
   const pathname = usePathname();
   const { isCaptureOpen, closeCapture } = useCapture();
+  const { height: screenHeight } = Dimensions.get('window');
   
-  // Determine if tab bar should be shown (hide during modals and on capture screen)
-  const shouldShowTabBar = !(pathname === '/edit' || pathname === '/note-detail' || pathname.includes('capture') || pathname === '/onboarding' || pathname === '/signin');
+  // Animation for bottom sheet slide-up
+  const translateY = useSharedValue(screenHeight);
+  
+  useEffect(() => {
+    translateY.value = withSpring(isCaptureOpen ? 0 : screenHeight, {
+      damping: 25,
+      stiffness: 300,
+      mass: 0.8,
+    });
+  }, [isCaptureOpen]);
+  
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
+  
+  // Determine if tab bar and floating button should be shown (hide during modals and on capture screen)
+  const shouldShowUI = !(pathname === '/edit' || pathname === '/note-detail' || pathname.includes('capture') || pathname === '/onboarding' || pathname === '/signin');
   
   return (
     <>
-      {/* Capture Screen - Rendered as overlay on top of navigation */}
-      {isCaptureOpen && (
-        <View style={[StyleSheet.absoluteFill, { zIndex: 100000 }]}>
-          <SafeAreaProvider>
-            <CaptureScreen onClose={closeCapture} />
-            <StatusBar style={isDark ? 'light' : 'dark'} />
-          </SafeAreaProvider>
-        </View>
-      )}
-      
       {/* Main App - ALWAYS MOUNTED to preserve hooks */}
-      <GestureHandlerRootView style={{ flex: 1, opacity: isCaptureOpen ? 0 : 1, pointerEvents: isCaptureOpen ? 'none' : 'auto' }}>
+      <GestureHandlerRootView style={{ flex: 1 }}>
         <View style={{ flex: 1 }}>
           <Stack screenOptions={{
               headerStyle: {
@@ -88,10 +94,29 @@ function MainAppContent() {
           </Stack>
           
           {/* Floating Tab Bar */}
-          {shouldShowTabBar && <FloatingTabBar />}
+          {shouldShowUI && <FloatingTabBar />}
+          
+          {/* Floating AI Button */}
+          {shouldShowUI && <FloatingAIButton hidden={isCaptureOpen} />}
         </View>
         <StatusBar style={isDark ? 'light' : 'dark'} />
       </GestureHandlerRootView>
+      
+      {/* Full Screen Modal for AI Chat */}
+      <Animated.View 
+        style={[
+          StyleSheet.absoluteFill,
+          { zIndex: 100000 },
+          animatedStyle
+        ]}
+        pointerEvents={isCaptureOpen ? 'auto' : 'none'}
+      >
+        <SafeAreaProvider>
+          <View style={{ flex: 1, backgroundColor: colors.background }}>
+            <CaptureScreen onClose={closeCapture} />
+          </View>
+        </SafeAreaProvider>
+      </Animated.View>
     </>
   );
 }
@@ -257,7 +282,6 @@ function FloatingTabBar() {
   const bottomOffset = Math.max(insets.bottom, 20);
   const pathname = usePathname();
   const router = useRouter();
-  const { openCapture } = useCapture();
 
   // Calculate active tab index
   const activeTabIndex = useMemo(() => {
@@ -298,12 +322,8 @@ function FloatingTabBar() {
   }));
 
   const handleTabPress = useCallback((route: typeof TAB_ROUTES[0]) => {
-    if (route.path === 'CAPTURE_OVERLAY') {
-      openCapture();
-    } else {
-      router.push(route.path as any);
-    }
-  }, [router, openCapture]);
+    router.push(route.path as any);
+  }, [router]);
 
   return (
     <View
