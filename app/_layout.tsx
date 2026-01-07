@@ -130,6 +130,27 @@ function AuthenticatedApp({ fontsLoaded }: { fontsLoaded: boolean }) {
     initialize();
   }, [initialize]);
 
+  // Auth Navigation Protection
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    const inAuthGroup = segments[0] === '(tabs)' || segments[0] === 'edit' || segments[0] === 'note-detail';
+    const inPublicGroup = segments[0] === 'signin' || segments[0] === 'onboarding' || segments.length === 0;
+
+    if ((session || isGuestMode) && inPublicGroup) {
+      // User is signed in but on a public screen -> Redirect to App
+      console.log('Auth Protection: Redirecting to Brief');
+      router.replace('/(tabs)/brief');
+    } else if (!session && !isGuestMode && inAuthGroup) {
+      // User is not signed in but on a protected screen -> Redirect to Sign In
+      console.log('Auth Protection: Redirecting to Sign In');
+      router.replace('/signin');
+    }
+  }, [session, isGuestMode, isInitialized, segments]);
+
   // Initialize notifications (only when app is ready)
   useEffect(() => {
     if (!isAppReady) return;
@@ -223,8 +244,8 @@ function AuthenticatedApp({ fontsLoaded }: { fontsLoaded: boolean }) {
         </View>
       )}
       
-      {/* Main content - ALWAYS rendered to keep hooks stable */}
-      <MainAppContent />
+      {/* Main content - ONLY rendered when ready to ensure fonts/auth are stable */}
+      {isAppReady && <MainAppContent />}
     </CaptureProvider>
   );
 }

@@ -6,17 +6,19 @@ import { Card } from '../../src/ui/components/Card';
 import { useItemsStore } from '../../src/store/useItemsStore';
 import { Item } from '../../src/db/items';
 import { FileText, Trash2, Edit2, Plus, Search, X } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { TextInput } from 'react-native';
 import { AddNoteModal } from '../../src/ui/components/AddNoteModal';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useRouter } from 'expo-router';
 import { GlassyHeader } from '../../src/ui/components/GlassyHeader';
 import { safeParseDate } from '../../src/utils/dateUtils';
+import { useResponsive } from '../../src/ui/useResponsive';
 
 export default function NotesScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { isDesktop, contentWidth } = useResponsive();
   const insets = useSafeAreaInsets();
   const { items, init, deleteItem } = useItemsStore();
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
@@ -65,17 +67,26 @@ export default function NotesScreen() {
     );
   };
 
+  const containerStyle = useMemo(() => ([
+    styles.container,
+    { backgroundColor: colors.background },
+    isDesktop && { alignItems: 'center' as const }
+  ]), [colors.background, isDesktop]);
+
+  const contentStyle = useMemo(() => ([
+    styles.content,
+    isDesktop && { maxWidth: contentWidth, width: '100%' as const }
+  ]), [isDesktop, contentWidth]);
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={containerStyle}>
       <GlassyHeader title="Notes" />
 
-      <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          { paddingTop: insets.top + 80 }
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={contentStyle}>
+        <ScrollView
+          contentContainerStyle={{ paddingTop: insets.top + 80 }}
+          showsVerticalScrollIndicator={false}
+        >
         <View style={[styles.searchContainer, { backgroundColor: colors.card }]}>
           <Search size={20} color={colors.textTertiary} />
           <TextInput
@@ -147,7 +158,8 @@ export default function NotesScreen() {
             </Typography>
           </View>
         )}
-      </ScrollView>
+        </ScrollView>
+      </View>
 
       {/* Floating Action Button */}
       <TouchableOpacity 

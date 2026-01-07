@@ -9,7 +9,7 @@ import {
   ShieldCheck, FileText, Info, Trash, LogOut, Mail, Calendar
 } from 'lucide-react-native';
 import { useAuthStore } from '../../src/store/useAuthStore';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useItemsStore } from '../../src/store/useItemsStore';
@@ -17,6 +17,7 @@ import { GradientSparkles } from '../../src/ui/components/RainbowSparkles';
 import * as WebBrowser from 'expo-web-browser';
 import { GlassyHeader } from '../../src/ui/components/GlassyHeader';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useResponsive } from '../../src/ui/useResponsive';
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -92,6 +93,7 @@ import { useSettingsStore } from '../../src/store/useSettingsStore';
 
 export default function SettingsScreen() {
   const { themeMode, setThemeMode, colors, isDark } = useTheme();
+  const { isDesktop, contentWidth } = useResponsive();
   const insets = useSafeAreaInsets();
   const { signOut, user, isGuestMode, guestName } = useAuthStore();
   const { 
@@ -300,19 +302,26 @@ export default function SettingsScreen() {
   };
 
 
+  const containerStyle = useMemo(() => ([
+    styles.container,
+    { backgroundColor: colors.background },
+    isDesktop && { alignItems: 'center' as const }
+  ]), [colors.background, isDesktop]);
+
+  const contentStyle = useMemo(() => ([
+    styles.content,
+    isDesktop && { maxWidth: contentWidth, width: '100%' as const, alignSelf: 'center' as const }
+  ]), [isDesktop, contentWidth]);
+
   return (
-    <View
-      style={[styles.container, { backgroundColor: colors.background }]}
-    >
+    <View style={containerStyle}>
       <GlassyHeader title="Settings" />
 
-      <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          { paddingTop: insets.top + 80 }
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={contentStyle}>
+        <ScrollView
+          contentContainerStyle={{ paddingTop: insets.top + 80, paddingHorizontal: theme.spacing.lg, paddingBottom: 120 }}
+          showsVerticalScrollIndicator={false}
+        >
 
         <UserProfileSection />
 
@@ -535,6 +544,7 @@ export default function SettingsScreen() {
           </Typography>
         </View>
       </ScrollView>
+      </View>
     </View>
   );
 }
@@ -899,8 +909,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: theme.spacing.lg,
-    paddingBottom: 120, // Enough space for tab bar and scrolling
+    flex: 1,
   },
 
   sectionLabel: {

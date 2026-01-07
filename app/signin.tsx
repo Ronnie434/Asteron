@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { 
   View, 
   Text, 
@@ -18,6 +18,7 @@ import { useAuthStore } from '../src/store/useAuthStore';
 import { useTheme } from '../src/contexts/ThemeContext';
 import { theme } from '../src/ui/theme';
 import { LoadingScreen } from '../src/components/LoadingScreen';
+import { useResponsive } from '../src/ui/useResponsive';
 
 // Configure Google Sign-in
 GoogleSignin.configure({
@@ -60,6 +61,7 @@ const GoogleLogo = ({ size = 20 }: { size?: number }) => (
 export default function SignInScreen() {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
+  const { isDesktop, contentWidth } = useResponsive();
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isAppleLoading, setIsAppleLoading] = useState(false);
   const [isAppleAvailable, setIsAppleAvailable] = useState(false);
@@ -265,6 +267,16 @@ export default function SignInScreen() {
 
   const isLoading = isGoogleLoading || isAppleLoading;
 
+  const contentStyle = useMemo(() => ([
+    styles.content,
+    { paddingTop: insets.top + 60 },
+    isDesktop && { 
+      maxWidth: contentWidth, 
+      width: '100%' as const, 
+      alignSelf: 'center' as const 
+    }
+  ]), [insets.top, isDesktop, contentWidth]);
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {isLoading && (
@@ -273,7 +285,7 @@ export default function SignInScreen() {
           overlay 
         />
       )}
-      <View style={[styles.content, { paddingTop: insets.top + 60 }]}>
+      <View style={contentStyle}>
         {/* Logo Section */}
         <View style={styles.logoSection}>
           <View style={[styles.logoContainer, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>

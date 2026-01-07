@@ -199,17 +199,17 @@ export const theme = {
 } as const;
 
 export const responsive = {
-  breakpoints: {
-    phone: 0,
-    tablet: 600,
-    desktop: 1024,
-  },
-  maxWidths: {
-    tabBar: 600,
-    modal: 600,
-    wideModal: 800,
-    content: 700,
-    chatBubble: 500,
-    onboardingSlide: 500,
-  },
+    breakpoints: {
+        phone: 0,
+        tablet: 600,
+        desktop: 1024,
+    },
+    maxWidths: {
+        tabBar: 600,
+        modal: 600,
+        wideModal: 800,
+        content: 700,
+        chatBubble: 500,
+        onboardingSlide: 500,
+    },
 } as const;

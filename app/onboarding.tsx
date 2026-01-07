@@ -95,7 +95,7 @@ function useStaggeredAnimation(isActive: boolean, delay: number) {
 // ============================================================
 // SCREEN 1: HERO - Sharp Positioning
 // ============================================================
-function HeroScreen({ isActive, colors, isDark }: { isActive: boolean; colors: typeof lightColors | typeof darkColors; isDark: boolean }) {
+function HeroScreen({ isActive, colors, isDark, readyKey }: { isActive: boolean; colors: typeof lightColors | typeof darkColors; isDark: boolean; readyKey: string }) {
   const logoScale = useSharedValue(1);
   const logoOpacity = useSharedValue(0);
   
@@ -141,9 +141,12 @@ function HeroScreen({ isActive, colors, isDark }: { isActive: boolean; colors: t
       {/* Sharp Headline */}
       <Animated.View style={headlineStyle}>
         <RainbowText 
+          key={readyKey}
           text={`Stop getting blindsided\nby deadlines.`}
           textStyle={[styles.heroHeadline, { color: colors.text }]}
+          containerStyle={{ marginBottom: 16 }}
         />
+        
       </Animated.View>
 
       {/* Subhead */}
@@ -163,7 +166,7 @@ function HeroScreen({ isActive, colors, isDark }: { isActive: boolean; colors: t
 // ============================================================
 // SCREEN 2: CAPTURE - Better Language + Example Card
 // ============================================================
-function CaptureScreen({ isActive, colors, isDark }: { isActive: boolean; colors: typeof lightColors | typeof darkColors; isDark: boolean }) {
+function CaptureScreen({ isActive, colors, isDark, readyKey }: { isActive: boolean; colors: typeof lightColors | typeof darkColors; isDark: boolean; readyKey: string }) {
   const iconStyle = useStaggeredAnimation(isActive, 50);
   const titleStyle = useStaggeredAnimation(isActive, 200);
   const descStyle = useStaggeredAnimation(isActive, 350);
@@ -182,8 +185,10 @@ function CaptureScreen({ isActive, colors, isDark }: { isActive: boolean; colors
       {/* Title */}
       <Animated.View style={titleStyle}>
         <RainbowText 
+          key={readyKey}
           text={`Drop it here.\nGet it out of your head.`}
           textStyle={[styles.screenTitle, { color: colors.text }]}
+          containerStyle={{ marginBottom: 12 }}
         />
       </Animated.View>
 
@@ -227,7 +232,7 @@ function CaptureScreen({ isActive, colors, isDark }: { isActive: boolean; colors
 // ============================================================
 // SCREEN 3: ORGANIZE - Mini Today/Upcoming List
 // ============================================================
-function OrganizeScreen({ isActive, colors, isDark }: { isActive: boolean; colors: typeof lightColors | typeof darkColors; isDark: boolean }) {
+function OrganizeScreen({ isActive, colors, isDark, readyKey }: { isActive: boolean; colors: typeof lightColors | typeof darkColors; isDark: boolean; readyKey: string }) {
   const titleStyle = useStaggeredAnimation(isActive, 50);
   const descStyle = useStaggeredAnimation(isActive, 200);
   const listStyle = useStaggeredAnimation(isActive, 400);
@@ -237,8 +242,10 @@ function OrganizeScreen({ isActive, colors, isDark }: { isActive: boolean; color
       {/* Title */}
       <Animated.View style={titleStyle}>
         <RainbowText 
+          key={readyKey}
           text={`Today vs Upcoming.\nAuto-sorted.`}
           textStyle={[styles.screenTitle, { color: colors.text }]}
+          containerStyle={{ marginBottom: 12 }}
         />
       </Animated.View>
 
@@ -300,13 +307,15 @@ function DailyBriefScreen({
   colors,
   isDark,
   briefTime, 
-  onTimeChange 
+  onTimeChange,
+  readyKey,
 }: { 
   isActive: boolean;
   colors: typeof lightColors | typeof darkColors;
   isDark: boolean;
   briefTime: string; 
   onTimeChange: (hour: number) => void;
+  readyKey: string;
 }) {
   const hour = parseInt(briefTime.split(':')[0], 10);
   
@@ -340,8 +349,10 @@ function DailyBriefScreen({
       {/* Title */}
       <Animated.View style={titleStyle}>
         <RainbowText 
+          key={readyKey}
           text={`Your morning brief.\nClear priorities.`}
           textStyle={[styles.screenTitle, { color: colors.text }]}
+          containerStyle={{ marginBottom: 12 }}
         />
       </Animated.View>
 
@@ -410,6 +421,7 @@ function QuietHoursScreen({
   quietEnd,
   onStartChange,
   onEndChange,
+  readyKey,
 }: {
   isActive: boolean;
   colors: typeof lightColors | typeof darkColors;
@@ -418,6 +430,7 @@ function QuietHoursScreen({
   quietEnd: string;
   onStartChange: (hour: number) => void;
   onEndChange: (hour: number) => void;
+  readyKey: string;
 }) {
   const startHour = parseInt(quietStart.split(':')[0], 10);
   const endHour = parseInt(quietEnd.split(':')[0], 10);
@@ -443,8 +456,10 @@ function QuietHoursScreen({
       {/* Title */}
       <Animated.View style={titleStyle}>
         <RainbowText 
+          key={readyKey}
           text={`Fewer pings.\nMore control.`}
           textStyle={[styles.screenTitle, { color: colors.text }]}
+          containerStyle={{ marginBottom: 12 }}
         />
       </Animated.View>
 
@@ -521,6 +536,19 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const [briefHour, setBriefHour] = useState(8);
   const [quietStartHour, setQuietStartHour] = useState(22);
   const [quietEndHour, setQuietEndHour] = useState(7);
+  
+  // Layout stability check for first launch
+  const [isLayoutReady, setIsLayoutReady] = useState(false);
+  
+  useEffect(() => {
+    // Small delay to ensure SafeAreaProvider and Dimensions are stable
+    const timer = setTimeout(() => {
+      setIsLayoutReady(true);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, []);
+
+
 
   const slides = ['hero', 'capture', 'organize', 'brief', 'quiet'];
 
@@ -565,14 +593,16 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const renderSlide = ({ item, index }: { item: string; index: number }) => {
     const isActive = index === currentIndex;
     
+    const readyKey = isLayoutReady ? 'ready' : 'loading';
+
     const slideContent = (() => {
       switch (item) {
         case 'hero':
-          return <HeroScreen isActive={isActive} colors={colors} isDark={isDark} />;
+          return <HeroScreen isActive={isActive} colors={colors} isDark={isDark} readyKey={readyKey} />;
         case 'capture':
-          return <CaptureScreen isActive={isActive} colors={colors} isDark={isDark} />;
+          return <CaptureScreen isActive={isActive} colors={colors} isDark={isDark} readyKey={readyKey} />;
         case 'organize':
-          return <OrganizeScreen isActive={isActive} colors={colors} isDark={isDark} />;
+          return <OrganizeScreen isActive={isActive} colors={colors} isDark={isDark} readyKey={readyKey} />;
         case 'brief':
           return (
             <DailyBriefScreen
@@ -581,6 +611,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
               isDark={isDark}
               briefTime={`${briefHour}:00`}
               onTimeChange={setBriefHour}
+              readyKey={readyKey}
             />
           );
         case 'quiet':
@@ -593,6 +624,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
               quietEnd={`${quietEndHour}:00`}
               onStartChange={setQuietStartHour}
               onEndChange={setQuietEndHour}
+              readyKey={readyKey}
             />
           );
         default:
@@ -604,7 +636,8 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
       <View style={[styles.slideContainer, { width }]}>
         <View style={[
           styles.slideContent,
-          isDesktop && { maxWidth: maxWidths.onboardingSlide }
+          isDesktop && { maxWidth: maxWidths.onboardingSlide },
+          { opacity: isLayoutReady ? 1 : 0 }
         ]}>
           {slideContent}
         </View>
@@ -623,6 +656,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 
       <FlatList
         ref={flatListRef}
+        key={width} // Force re-render on orientation/dimension change
         data={slides}
         renderItem={renderSlide}
         keyExtractor={item => item}
@@ -706,11 +740,8 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   slide: {
-    flex: 1,
+    width: '100%',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 28,
-    paddingBottom: 180,
   },
 
   // Logo & Brand
@@ -761,7 +792,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     textAlign: 'center',
     lineHeight: 42,
-    marginBottom: 16,
   },
   heroSubhead: {
     ...theme.typography.body,
@@ -799,7 +829,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     textAlign: 'center',
     lineHeight: 36,
-    marginBottom: 12,
   },
   screenDescription: {
     ...theme.typography.body,
