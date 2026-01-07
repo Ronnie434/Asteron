@@ -1448,7 +1448,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   messagesContent: {
-    paddingVertical: 16,
+    paddingTop: 80, // Space for floating header (8px offset + 56px height + margin)
     paddingBottom: 8,
   },
   emptyContent: {
