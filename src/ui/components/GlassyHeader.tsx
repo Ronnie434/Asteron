@@ -103,6 +103,7 @@ export function GlassyHeader({
         style={containerStyle}
         effect="clear"
         colorScheme={isDark ? 'dark' : 'light'}
+        tintColor={isDark ? undefined : '#F2F2F7'}
         interactive
       >
         {headerContent}

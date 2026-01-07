@@ -330,6 +330,7 @@ function FloatingTabBar() {
         interactive
         effect="clear"
         colorScheme={isDark ? 'dark' : 'light'}
+        tintColor={isDark ? undefined : '#F2F2F7'}
       >
         {/* Animated Slider Indicator */}
         <Animated.View
