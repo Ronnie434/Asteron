@@ -56,7 +56,10 @@ export function GlassyHeader({
         top: isModalSheet ? 8 : (insets.top + 12),
       } : {
         paddingTop: disableTopSafeArea ? 0 : insets.top,
-        borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+        // Only add border for non-liquid-glass (BlurView fallback)
+        ...(!isLiquidGlassSupported && {
+          borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+        }),
       }),
       // Fallback styles for non-iOS 26 devices
       ...(!isLiquidGlassSupported && {
@@ -97,6 +100,11 @@ export function GlassyHeader({
   );
 
   // Use LiquidGlassView on iOS 26+, BlurView as fallback
+  // NOTE: Liquid glass effect options:
+  //   - "clear": More transparent glass, can sometimes cause stuck reflection artifacts when scrolling
+  //   - "regular": Default, more opaque glass effect
+  //   - "none": No glass effect, just a transparent view
+  // To fix stuck reflection artifacts, try changing effect to "regular" or "none"
   if (isLiquidGlassSupported) {
     return (
       <LiquidGlassView
@@ -104,7 +112,6 @@ export function GlassyHeader({
         effect="clear"
         colorScheme={isDark ? 'dark' : 'light'}
         tintColor={isDark ? undefined : '#F2F2F7'}
-        interactive
       >
         {headerContent}
       </LiquidGlassView>
@@ -130,7 +137,6 @@ const styles = StyleSheet.create({
     right: -20,
     paddingHorizontal: 20,
     zIndex: 100,
-    borderBottomWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
   },
   floatingContainer: {
